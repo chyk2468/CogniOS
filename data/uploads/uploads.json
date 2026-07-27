@@ -1,0 +1,36 @@
+{
+  "yash:91e45e27da669deb6472c40c9b7d7694b5073f236c3344c09ebc7e8a928a22fd": {
+    "id": "4ac7c0e3e0574fc0b1265d975cdbe5ce.png",
+    "path": "c:\\users\\91630\\desktop\\cognios\\data\\uploads\\2026\\07\\26\\4ac7c0e3e0574fc0b1265d975cdbe5ce.png",
+    "mime": "image/png",
+    "size": 12376,
+    "name": "Screenshot_2026-03-08_000034.png",
+    "hash": "91e45e27da669deb6472c40c9b7d7694b5073f236c3344c09ebc7e8a928a22fd",
+    "checksum_sha256": "91e45e27da669deb6472c40c9b7d7694b5073f236c3344c09ebc7e8a928a22fd",
+    "original_name": "Screenshot 2026-03-08 000034.png",
+    "uploaded_at": "2026-07-26T14:34:15.722051",
+    "created_at": "2026-07-26T14:34:15.722051",
+    "last_accessed": "2026-07-26T14:34:15.911785",
+    "client_ip": "127.0.0.1",
+    "owner": "yash",
+    "width": 338,
+    "height": 313
+  },
+  "yash:06e44bb0293528d7d0d6b0aa3e5866f075071c3ab792652934b8e8ea74d6750a": {
+    "id": "8f94f8bc7a9244c485bbac0d1ae40ad5.png",
+    "path": "c:\\users\\91630\\desktop\\cognios\\data\\uploads\\2026\\07\\26\\8f94f8bc7a9244c485bbac0d1ae40ad5.png",
+    "mime": "image/png",
+    "size": 4226,
+    "name": "Screenshot_2026-07-26_143806.png",
+    "hash": "06e44bb0293528d7d0d6b0aa3e5866f075071c3ab792652934b8e8ea74d6750a",
+    "checksum_sha256": "06e44bb0293528d7d0d6b0aa3e5866f075071c3ab792652934b8e8ea74d6750a",
+    "original_name": "Screenshot 2026-07-26 143806.png",
+    "uploaded_at": "2026-07-26T14:43:15.319941",
+    "created_at": "2026-07-26T14:43:15.319941",
+    "last_accessed": "2026-07-26T14:44:12.116715",
+    "client_ip": "118.95.161.132",
+    "owner": "yash",
+    "width": 383,
+    "height": 373
+  }
+}
