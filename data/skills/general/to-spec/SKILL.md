@@ -7,7 +7,7 @@ status: published
 confidence: 0.8
 source: learned
 owner: admin
-created: "2026-07-27T06:03:37Z"
+created: "2026-08-05T14:47:19Z"
 ---
 
 This skill takes the current conversation context and codebase understanding and produces a spec (you may know this document as a PRD). Do NOT interview the user — just synthesize what you already know.

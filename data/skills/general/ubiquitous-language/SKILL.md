@@ -7,7 +7,7 @@ status: published
 confidence: 0.8
 source: learned
 owner: admin
-created: "2026-07-27T06:03:36Z"
+created: "2026-08-05T14:47:19Z"
 ---
 
 # Ubiquitous Language

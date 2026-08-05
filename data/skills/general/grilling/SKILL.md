@@ -7,7 +7,7 @@ status: published
 confidence: 0.8
 source: learned
 owner: admin
-created: "2026-07-27T06:03:37Z"
+created: "2026-08-05T14:47:20Z"
 ---
 
 Interview me relentlessly about every aspect of this until we reach a shared understanding. Walk down each branch of the decision tree, resolving dependencies between decisions one-by-one. For each question, provide your recommended answer.

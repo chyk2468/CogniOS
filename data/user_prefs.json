@@ -2,15 +2,14 @@
   "_users": {
     "yash": {
       "theme": {
-        "name": "light",
+        "name": "claude",
         "colors": {
-          "bg": "#f0ebe3",
-          "fg": "#5a5248",
-          "panel": "#faf6f0",
-          "border": "#d4cdc2",
-          "red": "#c47d5a"
-        },
-        "bgPattern": "dots"
+          "bg": "#262624",
+          "fg": "#f5f4f0",
+          "panel": "#30302e",
+          "border": "#4a4a47",
+          "red": "#c6613f"
+        }
       },
       "tasks_opened": true,
       "skill_max_injected": 5

@@ -11,3 +11,39 @@
 2026-07-25 14:33:17,900 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Mac_(computer): HTTP 403 for https://en.wikipedia.org/wiki/Mac_(computer)
 2026-07-25 14:33:28,072 ERROR search_engine_error NetworkError fetching https://www.thinkers360.com/tl/blog/members/apples-shift-from-product-innovation-to-business-model-innovation (attempt 0): _ssl.c:989: The handshake operation timed out
 2026-07-25 17:54:10,190 WARNING search_engine_error HTTP 999 fetching https://linkedin.com/in/yourusername: HTTP 999 for https://www.linkedin.com/in/yourusername
+2026-07-28 09:41:08,008 ERROR search_engine_error NetworkError fetching https://www.ndtvprofit.com/gold-rates (attempt 0): Blocked non-public URL: https://www.ndtvprofit.com/gold-rates
+2026-07-28 09:54:59,918 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Jamsetji_Tata: HTTP 403 for https://en.wikipedia.org/wiki/Jamsetji_Tata
+2026-07-28 09:54:59,918 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Tata_Group: HTTP 403 for https://en.wikipedia.org/wiki/Tata_Group
+2026-07-28 09:55:25,221 WARNING search_engine_error HTTP 403 fetching https://www.britannica.com/money/Jamsetji-Nusserwanji-Tata: HTTP 403 for https://www.britannica.com/money/Jamsetji-Nusserwanji-Tata
+2026-07-28 09:56:51,007 WARNING search_engine_error HTTP 403 fetching https://en.m.wikipedia.org/wiki/Tata_Group: HTTP 403 for https://en.m.wikipedia.org/wiki/Tata_Group
+2026-07-28 09:57:06,636 WARNING search_engine_error HTTP 403 fetching https://www.britannica.com/money/Tata-Group: HTTP 403 for https://www.britannica.com/money/Tata-Group
+2026-07-28 10:06:20,847 WARNING search_engine_error HTTP 403 fetching https://www.britannica.com/money/Tata-Group: HTTP 403 for https://www.britannica.com/money/Tata-Group
+2026-07-28 10:09:53,221 WARNING search_engine_error HTTP 403 fetching https://brainly.in/question/61367781: HTTP 403 for https://brainly.in/question/61367781
+2026-07-28 10:09:53,499 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Tata_Group: HTTP 403 for https://en.wikipedia.org/wiki/Tata_Group
+2026-07-28 10:09:54,953 ERROR search_engine_error NetworkError fetching https://americanworthy.com/would-ratan-tata-be-richer-than-ambani-it-goes-beyond-numbers/ (attempt 0): _ssl.c:989: The handshake operation timed out
+2026-07-29 18:51:27,486 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Bloomberg_L.P.: HTTP 403 for https://en.wikipedia.org/wiki/Bloomberg_L.P.
+2026-07-29 18:52:30,014 WARNING search_engine_error HTTP 402 fetching https://www.investopedia.com/terms/m/michael-bloomberg.asp: HTTP 402 for https://www.investopedia.com/terms/m/michael-bloomberg.asp
+2026-07-29 18:54:00,694 WARNING search_engine_error HTTP 402 fetching https://www.investopedia.com/articles/professionaleducation/11/bloomberg-terminal.asp: HTTP 402 for https://www.investopedia.com/articles/professionaleducation/11/bloomberg-terminal.asp
+2026-07-29 18:54:01,292 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Wealth_of_Elon_Musk: HTTP 403 for https://en.wikipedia.org/wiki/Wealth_of_Elon_Musk
+2026-07-29 18:55:27,291 WARNING search_engine_error HTTP 403 fetching https://www.bloomberg.com/company/: HTTP 403 for https://www.bloomberg.com/company/
+2026-07-29 18:55:27,465 WARNING search_engine_error HTTP 403 fetching https://ru.wikipedia.org/wiki/Bloomberg: HTTP 403 for https://ru.wikipedia.org/wiki/Bloomberg
+2026-07-29 18:55:33,344 WARNING search_engine_error HTTP 403 fetching https://www.sciencedirect.com/science/article/pii/S2405844023075643: HTTP 403 for https://www.sciencedirect.com/science/article/pii/S2405844023075643
+2026-07-29 18:55:33,612 WARNING search_engine_error HTTP 403 fetching https://medium.com/@justin_b_smith/bloomberg-media-a-new-direction-e043c6ae80cc: HTTP 403 for https://medium.com/@justin_b_smith/bloomberg-media-a-new-direction-e043c6ae80cc
+2026-08-04 21:27:12,325 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Iron_Man: HTTP 403 for https://en.wikipedia.org/wiki/Iron_Man
+2026-08-04 21:27:12,478 WARNING search_engine_error HTTP 403 fetching https://www.britannica.com/money/Marvel-Comics: HTTP 403 for https://www.britannica.com/money/Marvel-Comics
+2026-08-04 21:27:12,684 WARNING search_engine_error HTTP 403 fetching https://marvel.fandom.com/wiki/Marvel_Comics: HTTP 403 for https://marvel.fandom.com/wiki/Marvel_Comics
+2026-08-04 21:27:13,151 WARNING search_engine_error HTTP 403 fetching https://www.comicbookherald.com/the-complete-marvel-reading-order-guide/: HTTP 403 for https://www.comicbookherald.com/the-complete-marvel-reading-order-guide/
+2026-08-04 21:27:17,323 WARNING search_engine_error HTTP 403 fetching https://marvelreading.com/: HTTP 403 for https://marvelreading.com/
+2026-08-04 21:27:51,974 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Timeline_of_Marvel_Comics: HTTP 403 for https://en.wikipedia.org/wiki/Timeline_of_Marvel_Comics
+2026-08-04 21:27:52,411 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Silver_Age_of_Comic_Books: HTTP 403 for https://en.wikipedia.org/wiki/Silver_Age_of_Comic_Books
+2026-08-04 21:27:52,752 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/List_of_Marvel_Cinematic_Universe_films: HTTP 403 for https://en.wikipedia.org/wiki/List_of_Marvel_Cinematic_Universe_films
+2026-08-04 21:29:08,960 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Bronze_Age_of_Comic_Books: HTTP 403 for https://en.wikipedia.org/wiki/Bronze_Age_of_Comic_Books
+2026-08-04 21:29:08,967 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/History_of_American_comics: HTTP 403 for https://en.wikipedia.org/wiki/History_of_American_comics
+2026-08-04 21:29:09,301 WARNING search_engine_error HTTP 403 fetching https://en.m.wikipedia.org/wiki/Bronze_Age_of_Comic_Books: HTTP 403 for https://en.m.wikipedia.org/wiki/Bronze_Age_of_Comic_Books
+2026-08-04 21:29:10,558 WARNING search_engine_error HTTP 403 fetching http://maroney.org/kevin/marvel_silver_age_timeline.html: HTTP 403 for http://maroney.org/kevin/marvel_silver_age_timeline.html
+2026-08-04 21:30:31,703 WARNING search_engine_error HTTP 403 fetching https://en.wikipedia.org/wiki/Marvel_Comics: HTTP 403 for https://en.wikipedia.org/wiki/Marvel_Comics
+2026-08-04 21:30:32,647 WARNING search_engine_error HTTP 403 fetching https://en.m.wikipedia.org/wiki/Marvel_Comics: HTTP 403 for https://en.m.wikipedia.org/wiki/Marvel_Comics
+2026-08-04 21:31:41,660 WARNING search_engine_error HTTP 403 fetching https://www.wikiwand.com/en/articles/Silver_Age_of_comic_books: HTTP 403 for https://www.wikiwand.com/en/articles/Silver_Age_of_comic_books
+2026-08-04 21:31:41,892 WARNING search_engine_error HTTP 403 fetching https://heykidscomics.fandom.com/wiki/Silver_Age_of_Comic_Books: HTTP 403 for https://heykidscomics.fandom.com/wiki/Silver_Age_of_Comic_Books
+2026-08-04 21:31:42,288 WARNING search_engine_error HTTP 403 fetching https://www.britannica.com/biography/Stan-Lee: HTTP 403 for https://www.britannica.com/biography/Stan-Lee
+2026-08-04 21:31:42,643 WARNING search_engine_error HTTP 403 fetching https://www.tandfonline.com/loi/fbsh20: HTTP 403 for https://www.tandfonline.com/loi/fbsh20

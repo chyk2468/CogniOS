@@ -7,7 +7,7 @@ status: published
 confidence: 0.8
 source: learned
 owner: admin
-created: "2026-07-27T06:03:37Z"
+created: "2026-08-05T14:47:20Z"
 ---
 
 Write a handoff document summarising the current conversation so a fresh agent can continue the work. Save to the temporary directory of the user's OS - not the current workspace.

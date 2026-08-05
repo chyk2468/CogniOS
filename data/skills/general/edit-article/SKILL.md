@@ -7,7 +7,7 @@ status: published
 confidence: 0.8
 source: learned
 owner: admin
-created: "2026-07-27T06:03:37Z"
+created: "2026-08-05T14:47:20Z"
 ---
 
 1. First, divide the article into sections based on its headings. Think about the main points you want to make during those sections.

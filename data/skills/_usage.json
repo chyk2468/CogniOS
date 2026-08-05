@@ -1,14 +1,28 @@
 {
-  "yash::schedule-event-using-calendar-tool": {
-    "uses": 3,
-    "last_used": 1785055649
-  },
-  "yash::calendar-manager": {
-    "uses": 3,
-    "last_used": 1785042245,
-    "audit_verdict": "pass",
+  "yash::create-and-write-content-to-a-file": {
+    "uses": 0,
+    "last_used": null,
+    "necessity": {
+      "necessary": false,
+      "redundant_with": [],
+      "reason": "This procedure duplicates the functionality covered by the existing 'create-file-and-insert-content' skill."
+    },
+    "audit_verdict": "skipped",
     "audit_by_teacher": false,
     "audit_worker_model": "gemma4:e2b",
-    "audited_at": 1785041811.316899
+    "audited_at": 1785913724.0510004
+  },
+  "yash::create-directory-and-file": {
+    "uses": 0,
+    "last_used": null,
+    "necessity": {
+      "necessary": true,
+      "redundant_with": [],
+      "reason": "It captures a specific, efficient procedure for creating nested directory and file structures."
+    }
+  },
+  "yash::create-file-using-write-file": {
+    "uses": 1,
+    "last_used": 1785913734
   }
 }

@@ -131,6 +131,8 @@ def setup_history_routes(session_manager, upload_handler=None) -> APIRouter:
                 meta = json.loads(m.meta_data) or {}
             except (json.JSONDecodeError, ValueError):
                 meta = {}
+        if m.id and "_db_id" not in meta:
+            meta["_db_id"] = str(m.id)
         if m.timestamp and "timestamp" not in meta:
             meta["timestamp"] = m.timestamp.isoformat() + "Z"
         if meta:
