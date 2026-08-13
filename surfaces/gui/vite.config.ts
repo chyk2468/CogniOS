@@ -27,7 +27,14 @@ export default defineConfig(({ command }) => {
   return {
     base: "./",
     plugins: [react()],
-    server: { port: 1420, strictPort: true },
+    server: {
+      port: 1420,
+      strictPort: true,
+      proxy: {
+        "/v1": { target: "http://127.0.0.1:8765", changeOrigin: true },
+        "/ws": { target: "ws://127.0.0.1:8765", ws: true, changeOrigin: true },
+      },
+    },
     define: { __COWORKER_DEV_TOKEN__: JSON.stringify(devToken) },
     // Tauri CLI looks for these; harmless for the browser build.
     clearScreen: false,

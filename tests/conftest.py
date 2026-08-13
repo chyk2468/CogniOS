@@ -22,6 +22,7 @@ def _isolated_state_dir(tmp_path, monkeypatch):
     as burst noise in the ocw-connect-telemetry-events table)."""
     monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "coworker-state"))
     monkeypatch.delenv("COWORKER_API_TOKEN", raising=False)
+    monkeypatch.setenv("COWORKER_AUTH_DISABLED", "1")
 
 
 @pytest_asyncio.fixture

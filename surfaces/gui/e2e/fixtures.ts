@@ -917,6 +917,14 @@ export async function mockApi(page: import("@playwright/test").Page) {
     }
     if (p.endsWith("/v1/skills")) return json({ skills });
 
+    if (p.endsWith("/v1/auth/me")) {
+      return json({
+        authenticated: true,
+        user: { id: 1, full_name: "Test User", username: "testuser", email: "test@example.com" },
+      });
+    }
+    if (p.includes("/v1/auth/")) return json({ ok: true });
+
     if (p.endsWith("/v1/health")) return json(HEALTH);
     if (p.endsWith("/v1/settings")) return json(SETTINGS);
     if (p.endsWith("/v1/settings/context-bar") && m === "POST") {

@@ -159,7 +159,11 @@ from ..attachments import (
     MAX_TEXT_CHARS,
     build_user_content,
 )
+from ..auth.rate_limit import RateLimiter
+from ..auth.routes import SESSION_COOKIE, auth_disabled, create_auth_router
+from ..auth.store import AuthStore
 from ..engine import ApprovalOutcome
+from ..secrets import state_dir as _state_dir
 from ..inbox import VIS_INBOX, VIS_INLINE, args_preview
 from ..permissions import Mode
 from ..providers import AssistantTurn
@@ -184,11 +188,21 @@ def create_app(manager: SessionManager) -> FastAPI:
 
     app = FastAPI(title="coworker", version="0.0.0", lifespan=lifespan)
     api_token = os.environ.get("COWORKER_API_TOKEN", "")
+    auth_store = AuthStore(_state_dir() / "coworker.db")
+    auth_limiter = RateLimiter(auth_store._conn)
+    app.state.auth_store = auth_store
     tokenless_paths = {
         "/v1/health",
         "/auth/callback",
         "/mcp/oauth/callback",
         "/oauth/callback",
+    }
+    public_auth_paths = {
+        "/v1/auth/signup",
+        "/v1/auth/signin",
+        "/v1/auth/forgot-password/start",
+        "/v1/auth/forgot-password/verify-pet",
+        "/v1/auth/forgot-password/reset",
     }
 
     def _request_authenticated(request: Request) -> bool:
@@ -209,6 +223,18 @@ def create_app(manager: SessionManager) -> FastAPI:
         }
         return any(secrets.compare_digest(part, api_token) for part in protocols)
 
+    def _user_authenticated(request: Request) -> bool:
+        if auth_disabled():
+            return True
+        sid = request.cookies.get(SESSION_COOKIE)
+        return bool(sid and auth_store.get_user_for_session(sid))
+
+    def _websocket_user_authenticated(ws: WebSocket) -> bool:
+        if auth_disabled():
+            return True
+        sid = ws.cookies.get(SESSION_COOKIE)
+        return bool(sid and auth_store.get_user_for_session(sid))
+
     @app.middleware("http")
     async def require_sidecar_token(request: Request, call_next):
         # Preflights carry the requested header name, not its value. CORS checks the
@@ -225,6 +251,22 @@ def create_app(manager: SessionManager) -> FastAPI:
             status_code=401,
         )
 
+    @app.middleware("http")
+    async def require_user_session(request: Request, call_next):
+        path = request.url.path
+        if (
+            auth_disabled()
+            or request.method == "OPTIONS"
+            or path in tokenless_paths
+            or path in public_auth_paths
+            or path == "/v1/auth/me"
+            or not (path.startswith("/v1/") or path.startswith("/ws/"))
+        ):
+            return await call_next(request)
+        if not _user_authenticated(request):
+            return JSONResponse({"error": "authentication_required"}, status_code=401)
+        return await call_next(request)
+
     app.add_middleware(
         CORSMiddleware,
         # Pinned to the desktop webview + localhost (see _ALLOWED_ORIGIN_RE): stops a random
@@ -232,8 +274,10 @@ def create_app(manager: SessionManager) -> FastAPI:
         allow_origin_regex=_ALLOWED_ORIGIN_RE.pattern,
         allow_methods=["*"],
         allow_headers=["*"],
+        allow_credentials=True,
     )
     app.state.manager = manager
+    app.include_router(create_auth_router(auth_store, auth_limiter))
 
     @app.get("/v1/health")
     def health(request: Request) -> dict[str, Any]:
@@ -1182,6 +1226,9 @@ def create_app(manager: SessionManager) -> FastAPI:
         if not _websocket_authenticated(ws):
             await ws.close(code=1008)
             return
+        if not _websocket_user_authenticated(ws):
+            await ws.close(code=1008)
+            return
         # CORS never gates WebSockets, so a cross-site page could otherwise open this socket
         # and drive the session into tool calls. Reject a disallowed browser Origin before
         # accepting the handshake (1008 = policy violation).
@@ -1671,6 +1718,9 @@ def create_app(manager: SessionManager) -> FastAPI:
         pushes like automation_run_started (the UX-026 toast). Read-only — inbound
         frames are ignored; the receive loop just detects disconnect."""
         if not _websocket_authenticated(ws):
+            await ws.close(code=1008)
+            return
+        if not _websocket_user_authenticated(ws):
             await ws.close(code=1008)
             return
         if not _origin_allowed(ws.headers.get("origin")):

@@ -36,6 +36,7 @@ dependencies = [
     "tzdata; sys_platform == 'win32'",
     # tomllib landed in the 3.11 stdlib; on the 3.10 floor config.py falls back to tomli.
     "tomli>=2; python_version < '3.11'",
+    "argon2-cffi>=23.1",
 ]
 
 [project.optional-dependencies]

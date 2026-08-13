@@ -19,6 +19,8 @@ import { showPersonas } from "../flags";
 import { AttnBadge, LiveDot } from "./sidebar/SidebarBadges";
 import { SessionRow } from "./sidebar/SessionRow";
 import { NewSessionSplit } from "./sidebar/NewSessionSplit";
+import { useAuth } from "../auth/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const SURFACES: { key: string; label: string; icon: IconName; cls: string }[] = [
   { key: "cowork", label: "Coworker", icon: "diamond", cls: "ico-cowork" },
@@ -63,6 +65,8 @@ interface Props {
 }
 
 export function Sidebar(props: Props) {
+  const { state: authState, signOut } = useAuth();
+  const navigate = useNavigate();
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [appMenuOpen, setAppMenuOpen] = useState(false);
   const [inboxUnlocked, setInboxUnlocked] = useState(
@@ -625,6 +629,17 @@ export function Sidebar(props: Props) {
                   <span className="text-[11px] text-faint">⌘ ,</span>,
                 )}
                 {appMenuItem("audit", "Activity", props.onOpenAudit, props.auditActive)}
+                <div className="h-px bg-line my-1 mx-2" />
+                {authState.status === "authenticated" && (
+                  <div className="px-3 py-1.5 text-[11px] text-faint truncate" data-testid="account-email">
+                    {authState.user.email}
+                  </div>
+                )}
+                {appMenuItem("signOut", "Sign out", async () => {
+                  setAppMenuOpen(false);
+                  await signOut();
+                  navigate("/signin", { replace: true });
+                })}
               </div>
             </>
           )}
@@ -641,7 +656,11 @@ export function Sidebar(props: Props) {
             aria-label="App Menu"
           >
             <Icon name="gear" size={15} className="text-muted shrink-0" />
-            <span className="truncate flex-1">Settings & Activity</span>
+            <span className="truncate flex-1">
+              {authState.status === "authenticated"
+                ? authState.user.full_name
+                : "Settings & Activity"}
+            </span>
             {inboxUnlocked && (
               <span
                 className={
