@@ -1,9 +1,0 @@
-{
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/cognios-dev/cognios.git"
-  },
-  "devDependencies": {
-    "@antithesishq/bombadil": "^0.6.1"
-  }
-}
