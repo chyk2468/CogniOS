@@ -1,8 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { App } from "./App";
 import { initTheme } from "./theme";
-import { platformOS } from "./tauri";
+import { platformOS, isTauri } from "./tauri";
 import "./tailwind.css";
 import "./styles.css";
 
@@ -17,8 +18,16 @@ document.documentElement.dataset.platform = platformOS();
 window.addEventListener("dragover", (e) => e.preventDefault());
 window.addEventListener("drop", (e) => e.preventDefault());
 
+const Router = isTauri() ? HashRouter : BrowserRouter;
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <Router>
+      <Routes>
+        <Route path="/chat" element={<App />} />
+        <Route path="/" element={<Navigate to="/chat" replace />} />
+        <Route path="*" element={<Navigate to="/chat" replace />} />
+      </Routes>
+    </Router>
   </React.StrictMode>,
 );
