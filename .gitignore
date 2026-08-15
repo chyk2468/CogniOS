@@ -9,3 +9,9 @@ dist/
 
 # Local secrets (live-smoke BYO keys) — never committed
 .env
+
+# Local SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
