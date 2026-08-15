@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import pytest
 
-from coworker.agents.base import AgentContext
-from coworker.agents.code import CODE_CAPABILITIES, code_agent
-from coworker.agents.cowork import COWORK_CAPABILITIES, cowork_agent
-from coworker.catalog import CATALOG, capability, expand, risk_summary
-from coworker.risk import RiskClass
-from coworker.tools.todo import TodoList
+from cogniwork.agents.base import AgentContext
+from cogniwork.agents.code import CODE_CAPABILITIES, code_agent
+from cogniwork.agents.cogniwork import COGNIWORK_CAPABILITIES, cogniwork_agent
+from cogniwork.catalog import CATALOG, capability, expand, risk_summary
+from cogniwork.risk import RiskClass
+from cogniwork.tools.todo import TodoList
 
 # Expected toolset for each surface — the frozen equivalence contract for the refactor.
 CODE_TOOLS = {
@@ -33,7 +33,7 @@ CODE_TOOLS = {
     "shell_task_kill",
     "todo_write",
 }
-COWORK_TOOLS = {
+COGNIWORK_TOOLS = {
     "list_files",
     "read_file",  # aisuite (multi-root)
     "read_file_lines",
@@ -68,25 +68,25 @@ def test_expand_code_matches_expected(tmp_path):
     assert _names(tools) == CODE_TOOLS
 
 
-def test_expand_cowork_matches_expected(tmp_path):
-    tools = expand(COWORK_CAPABILITIES, _full_context(tmp_path))
-    assert _names(tools) == COWORK_TOOLS
+def test_expand_cogniwork_matches_expected(tmp_path):
+    tools = expand(COGNIWORK_CAPABILITIES, _full_context(tmp_path))
+    assert _names(tools) == COGNIWORK_TOOLS
 
 
 def test_agents_use_catalog(tmp_path):
     # The agent factories build through the catalog now — same result as direct expand.
     ctx = _full_context(tmp_path)
     assert _names(code_agent().build_tools(ctx)) == CODE_TOOLS
-    assert _names(cowork_agent().build_tools(ctx)) == COWORK_TOOLS
+    assert _names(cogniwork_agent().build_tools(ctx)) == COGNIWORK_TOOLS
 
 
 def test_file_capability_distinction(tmp_path):
-    # Code drops read_file_lines (folded into the windowed reader); Cowork keeps it (multi-root).
+    # Code drops read_file_lines (folded into the windowed reader); CogniWork keeps it (multi-root).
     code = _names(expand(["code_files"], _full_context(tmp_path)))
-    cowork = _names(expand(["files"], _full_context(tmp_path)))
+    cogniwork = _names(expand(["files"], _full_context(tmp_path)))
     assert "read_file_lines" not in code
-    assert "read_file_lines" in cowork
-    assert "read_file" in code and "read_file" in cowork
+    assert "read_file_lines" in cogniwork
+    assert "read_file" in code and "read_file" in cogniwork
 
 
 def test_requirements_skip_unavailable(tmp_path):

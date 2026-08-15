@@ -12,15 +12,15 @@ import time
 
 import pytest
 
-from coworker.connectors import gcal_accounts
-from coworker.connectors.integration_tools import make_integration_tools
-from coworker.connectors.setup import connector_list, disconnect_connector
-from coworker.secrets import SecretStore
+from cogniwork.connectors import gcal_accounts
+from cogniwork.connectors.integration_tools import make_integration_tools
+from cogniwork.connectors.setup import connector_list, disconnect_connector
+from cogniwork.secrets import SecretStore
 
 
 @pytest.fixture
 def secrets(tmp_path, monkeypatch):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
     return SecretStore()
 
 
@@ -42,7 +42,7 @@ def _tool(secrets, name: str):
 
 def _fake_gcal(monkeypatch, responses: dict[str, dict]):
     """Route _request by URL suffix; records (method, url, bearer, body)."""
-    from coworker.connectors import integration_tools
+    from cogniwork.connectors import integration_tools
 
     calls: list[tuple[str, str, str, dict | None]] = []
 

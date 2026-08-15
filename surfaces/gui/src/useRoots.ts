@@ -24,15 +24,15 @@ export function useRoots(sessionId: string, reloadKey?: number) {
     const onChanged = (e: Event) => {
       if ((e as CustomEvent).detail === sessionId) reload();
     };
-    window.addEventListener("coworker:roots-changed", onChanged);
-    return () => window.removeEventListener("coworker:roots-changed", onChanged);
+    window.addEventListener("cogniwork:roots-changed", onChanged);
+    return () => window.removeEventListener("cogniwork:roots-changed", onChanged);
   }, [sessionId, reload]);
 
   const apply = (res: { ok: boolean; error?: string; roots?: RootInfo[] }): boolean => {
     if (res.ok && res.roots) {
       setRoots(res.roots);
       setError("");
-      window.dispatchEvent(new CustomEvent("coworker:roots-changed", { detail: sessionId }));
+      window.dispatchEvent(new CustomEvent("cogniwork:roots-changed", { detail: sessionId }));
       return true;
     }
     setError(res.error || "could not update directories");

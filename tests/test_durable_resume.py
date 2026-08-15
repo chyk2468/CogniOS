@@ -3,13 +3,13 @@ continues — rebuilt from the persisted thread, with no live await."""
 
 import asyncio
 
-from coworker.providers import (
+from cogniwork.providers import (
     AssistantTurn,
     ModelCapabilities,
     ProviderClient,
     ToolCall,
 )
-from coworker.server.manager import SessionManager
+from cogniwork.server.manager import SessionManager
 
 
 class ScriptedProvider(ProviderClient):
@@ -84,7 +84,7 @@ def test_durable_resume_question(tmp_path):
     sid = "dur-q"
 
     async def scenario():
-        engine = mgr.get_engine(sid, agent="cowork", workspace=str(tmp_path))
+        engine = mgr.get_engine(sid, agent="cogniwork", workspace=str(tmp_path))
         item = await _run_until_pending(mgr, sid, engine)
         assert item.kind == "question" and item.tool_call_id == "call_q"
         await mgr.resolve_inbox(item.id, "us-west-2")  # restart-style resume
@@ -109,7 +109,7 @@ def test_durable_resume_approval_executes_tool(tmp_path):
     sid = "dur-a"
 
     async def scenario():
-        engine = mgr.get_engine(sid, agent="cowork", workspace=str(tmp_path))
+        engine = mgr.get_engine(sid, agent="cogniwork", workspace=str(tmp_path))
         item = await _run_until_pending(mgr, sid, engine)
         assert item.kind == "approval" and item.tool_call_id == "call_w"
         assert not target.exists()  # not executed before approval

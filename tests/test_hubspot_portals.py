@@ -11,16 +11,16 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from coworker.connectors import hubspot_portals
-from coworker.connectors.integration_tools import make_integration_tools
-from coworker.connectors.setup import connector_list
-from coworker.secrets import SecretStore
-from coworker.server import SessionManager, create_app
+from cogniwork.connectors import hubspot_portals
+from cogniwork.connectors.integration_tools import make_integration_tools
+from cogniwork.connectors.setup import connector_list
+from cogniwork.secrets import SecretStore
+from cogniwork.server import SessionManager, create_app
 
 
 @pytest.fixture
 def secrets(tmp_path, monkeypatch):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
     return SecretStore()
 
 
@@ -95,7 +95,7 @@ def test_default_repoints_on_disconnect(secrets):
 
 
 def _fake_hubspot(monkeypatch, responses: dict[str, dict]):
-    from coworker.connectors import integration_tools
+    from cogniwork.connectors import integration_tools
 
     calls: list[tuple[str, str, dict]] = []
 
@@ -192,7 +192,7 @@ def test_write_tools_carry_portal_and_no_stripping_needed(secrets, monkeypatch):
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
     manager = SessionManager(workspace=tmp_path)
     app = create_app(manager)
     with TestClient(app) as c:

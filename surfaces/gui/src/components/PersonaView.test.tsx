@@ -23,7 +23,7 @@ function stubFetch(routes: { match: string; method?: string; json: any }[]) {
 
 const DETAIL = {
   id: "ops",
-  name: "Ops Coworker",
+  name: "Ops CogniWork",
   icon: "🛠️",
   tagline: "Operate and investigate",
   description: "A careful, methodical operations engineer.",
@@ -64,7 +64,7 @@ describe("PersonaView", () => {
     ]);
     render(<PersonaView personaId="ops" />);
 
-    expect(await screen.findByText("Ops Coworker")).toBeTruthy();
+    expect(await screen.findByText("Ops CogniWork")).toBeTruthy();
     expect(screen.getByText("Operate and investigate")).toBeTruthy();
     expect(screen.getByText("A careful, methodical operations engineer.")).toBeTruthy();
     // tools rendered as chips
@@ -94,7 +94,7 @@ describe("PersonaView", () => {
       },
     ]);
     render(<PersonaView personaId="ops" />);
-    await screen.findByText("Ops Coworker");
+    await screen.findByText("Ops CogniWork");
 
     // Switches in DOM order: [0] persona Enable, then the default-connection toggles. Slack is the
     // checked+enabled default; datadog is disabled (not connected). Target the last checked+enabled
@@ -121,7 +121,7 @@ describe("PersonaView", () => {
       { match: "/v1/personas/ops/enable", method: "POST", json: { ok: true } },
     ]);
     render(<PersonaView personaId="ops" />);
-    await screen.findByText("Ops Coworker");
+    await screen.findByText("Ops CogniWork");
 
     // The enable switch is the first one in DOM order (identity header).
     const enableToggle = screen.getAllByRole("switch")[0];

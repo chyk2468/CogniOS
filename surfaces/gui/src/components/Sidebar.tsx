@@ -23,7 +23,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 const SURFACES: { key: string; label: string; icon: IconName; cls: string }[] = [
-  { key: "cowork", label: "Coworker", icon: "diamond", cls: "ico-cowork" },
+  { key: "cogniwork", label: "CogniWork", icon: "diamond", cls: "ico-cogniwork" },
   { key: "chat", label: "Chat", icon: "chat", cls: "ico-chat" },
   { key: "code", label: "Code", icon: "code", cls: "ico-code" },
 ];
@@ -32,7 +32,7 @@ const surfaceFromPersona = (p: Persona) => ({
   key: p.id,
   label: shortPersonaName(p.name, p.id),
   icon: personaGlyph(p.icon, p.family),
-  cls: `ico-${p.icon || "cowork"}`,
+  cls: `ico-${p.icon || "cogniwork"}`,
 });
 
 interface Props {
@@ -297,7 +297,7 @@ export function Sidebar(props: Props) {
           .sort((a, b) => Number(b.default) - Number(a.default))
           .map(surfaceFromPersona)
       : SURFACES.filter(
-          (s) => s.key === "cowork" || props.surfaces[s.key as keyof SurfaceVisibility],
+          (s) => s.key === "cogniwork" || s.key === "cowork" || props.surfaces[s.key as keyof SurfaceVisibility],
         )
   ).filter((s) => personaVisible(s.key));
 
@@ -469,7 +469,7 @@ export function Sidebar(props: Props) {
             <Icon name="sidebar" size={16} />
           </button>
         )}
-        <div className="brand-wordmark text-[15px]">OpenWorker<span className="beta-tag">BETA</span></div>
+        <div className="brand-wordmark text-[15px]">CogniOS<span className="beta-tag">BETA</span></div>
       </div>
 
       <NewSessionSplit
@@ -481,7 +481,7 @@ export function Sidebar(props: Props) {
 
       <div className="px-2.5 mt-1">
         <button
-          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] text-left text-muted hover:bg-bg hover:text-fg"
+          className="sidebar-search w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] text-left text-muted hover:text-fg"
           onClick={() => setSearchModalOpen(true)}
         >
           <Icon name="search" size={15} className="shrink-0" /> Search
@@ -646,7 +646,7 @@ export function Sidebar(props: Props) {
 
           <button
             className={
-              "w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-[13px] text-left " +
+              "sidebar-account w-full flex items-center gap-2 px-2.5 py-2.5 rounded-xl text-[13px] text-left " +
               (appMenuOpen ? "bg-bg text-fg" : "hover:bg-bg")
             }
             data-testid="account-row"

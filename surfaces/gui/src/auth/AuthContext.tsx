@@ -19,6 +19,7 @@ type AuthContextValue = {
   refresh: () => Promise<void>;
   setUser: (user: AuthUser) => void;
   signOut: () => Promise<void>;
+  clearAccount: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -44,9 +45,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ status: "unauthenticated" });
   }, []);
 
+  const clearAccount = useCallback(() => {
+    localStorage.removeItem("ocw:inbox-unlocked");
+    setState({ status: "unauthenticated" });
+  }, []);
+
   const value = useMemo(
-    () => ({ state, refresh, setUser, signOut }),
-    [state, refresh, setUser, signOut],
+    () => ({ state, refresh, setUser, signOut, clearAccount }),
+    [state, refresh, setUser, signOut, clearAccount],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

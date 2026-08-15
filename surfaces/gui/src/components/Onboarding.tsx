@@ -88,9 +88,9 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "gallery") => 
         {step === 0 && (
           <section data-testid="ob-step-model" className="flex-1 min-h-0 flex flex-col">
             {/* Persistent header — stays put while the region below swaps (§39). */}
-            <h1 className="text-[19px] font-semibold">Welcome to OpenWorker<span className="beta-tag">BETA</span></h1>
+            <h1 className="text-[19px] font-semibold">Welcome to CogniOS<span className="beta-tag">BETA</span></h1>
             <p className="text-[13px] text-muted mt-0.5 mb-4">
-              Pick a model provider to get started — OpenWorker runs on your own key, and your
+              Pick a model provider to get started — CogniOS runs on your own key, and your
               key and your data stay on this computer.
             </p>
 
@@ -144,7 +144,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "gallery") => 
           <section data-testid="ob-step-tools" className="flex-1 min-h-0 flex flex-col">
             <h1 className="text-[19px] font-semibold">Connect your everyday tools</h1>
             <p className="text-[13px] text-muted mt-0.5 mb-3">
-              Chat can only advise. Connected, your coworker does the actual work:
+              Chat can only advise. Connected, CogniWork does the actual work:
             </p>
 
             <div className="flex-1 min-h-0 overflow-y-auto pr-1" data-testid="ob-tool-gallery">
@@ -227,7 +227,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "gallery") => 
                 ✦
               </span>
               <span className="flex-1 min-w-0 text-left">
-                <b className="block text-[13.5px]">Start working with Coworker</b>
+                <b className="block text-[13.5px]">Start working with CogniWork</b>
                 <span className="text-[12px] text-muted">
                   Open a session and just ask — analyze files, draft, research, build.
                 </span>
@@ -235,7 +235,7 @@ export function Onboarding({ onDone }: { onDone: (next?: "work" | "gallery") => 
               <span className="text-faint self-center">›</span>
             </button>
 
-            {/* The Specialist-coworkers gallery card and the per-session-scope line stay HIDDEN
+            {/* The Specialist-cogniworks gallery card and the per-session-scope line stay HIDDEN
                 (owner call 2026-07-12); the finish("gallery") plumbing remains for their return. */}
 
             <p className="text-[11px] text-faint text-center mt-auto pt-5">

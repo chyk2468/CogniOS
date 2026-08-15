@@ -59,7 +59,7 @@ test("signed in: featured carousel + list; solo page installs informed; Done ret
   // Featured carousel holds the flagged persona; the list holds both.
   const featured = page.getByTestId("gallery-featured");
   await expect(featured).toBeVisible({ timeout: 10_000 });
-  await expect(featured).toContainText("Sales Coworker");
+  await expect(featured).toContainText("Sales CogniWork");
   await expect(featured).not.toContainText("Recruiter");
   await expect(page.getByTestId("gallery-recruiter")).toContainText("View & install");
   await expect(page.getByTestId("gallery-team-teaser")).toContainText("coming soon");
@@ -102,7 +102,7 @@ test("delete: non-builtin personas removable after confirm; built-ins are not", 
 }) => {
   await openPersonas(page);
   // Built-ins expose no delete affordance.
-  await expect(page.getByTestId("persona-delete-cowork")).toHaveCount(0);
+  await expect(page.getByTestId("persona-delete-cogniwork")).toHaveCount(0);
   // Non-builtin: trash → inline confirm → row gone (works signed out).
   await expect(page.getByText("Acme Notes")).toBeVisible();
   await page.getByTestId("persona-delete-acme-notes").click();

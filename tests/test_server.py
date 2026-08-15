@@ -5,14 +5,14 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from coworker.providers import (
+from cogniwork.providers import (
     AssistantTurn,
     ModelCapabilities,
     ProviderClient,
     ToolCall,
 )
-from coworker.server import SessionManager, create_app
-from coworker.sessions import SessionRecord
+from cogniwork.server import SessionManager, create_app
+from cogniwork.sessions import SessionRecord
 
 
 class ScriptedProvider(ProviderClient):
@@ -60,10 +60,10 @@ def test_chat_completions_openai_shape(tmp_path):
 def test_agents_and_memory_rest(tmp_path):
     client = _client(tmp_path, [])
     agents = client.get("/v1/agents").json()["agents"]
-    # The picker lists enabled+surfaced personas — a fresh install is cowork-only
+    # The picker lists enabled+surfaced personas — a fresh install is cogniwork-only
     # (non-default personas ship disabled, opt-in from Settings ▸ Personas).
     names = [a["name"] for a in agents]
-    assert names == ["cowork"]
+    assert names == ["cogniwork"]
     assert "skills" in client.get("/v1/skills").json()  # catalog (may be empty)
 
     added = client.post("/v1/memory", json={"content": "prefer pathlib"}).json()
@@ -75,7 +75,7 @@ def test_agents_and_memory_rest(tmp_path):
 
 
 def test_disable_persona_archives_its_sessions(tmp_path):
-    """Disable = "put this coworker and its history away": the persona's real sessions are
+    """Disable = "put this cogniwork and its history away": the persona's real sessions are
     archived atomically server-side (so its sidebar section disappears with it), internal
     __run__ threads and other personas are untouched, and re-enable never unarchives."""
     manager = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
@@ -98,7 +98,7 @@ def test_disable_persona_archives_its_sessions(tmp_path):
     store.set_flags(
         "chat-old", archived=True
     )  # already archived — must not be re-counted
-    mk("cowork-a", "cowork")
+    mk("cogniwork-a", "cogniwork")
     mk("__run__r1", "chat")  # internal automation thread — never touched
 
     client = TestClient(create_app(manager))
@@ -106,7 +106,7 @@ def test_disable_persona_archives_its_sessions(tmp_path):
     assert body["ok"] is True
     assert body["archived_sessions"] == 2
     assert store.load("chat-a").archived and store.load("chat-b").archived
-    assert store.load("cowork-a").archived is False
+    assert store.load("cogniwork-a").archived is False
     assert store.load("__run__r1").archived is False
 
     # Re-enable brings the persona back but never rewrites the user's archive state.
@@ -221,7 +221,7 @@ def test_sessions_hide_scheduled_internal_runs(tmp_path):
             mode="interactive",
             messages=[{"role": "user", "content": "normal task"}],
             title="Normal task",
-            agent="cowork",
+            agent="cogniwork",
         )
     )
     manager.session_store.save(
@@ -232,7 +232,7 @@ def test_sessions_hide_scheduled_internal_runs(tmp_path):
             mode="interactive",
             messages=[{"role": "user", "content": "scheduled run"}],
             title="Daily news briefing",
-            agent="cowork",
+            agent="cogniwork",
         )
     )
     manager.session_store.save(
@@ -243,7 +243,7 @@ def test_sessions_hide_scheduled_internal_runs(tmp_path):
             mode="interactive",
             messages=[{"role": "user", "content": "scheduled task"}],
             title="Daily news briefing",
-            agent="cowork",
+            agent="cogniwork",
         )
     )
     client = TestClient(create_app(manager))
@@ -265,7 +265,7 @@ def test_sessions_can_be_renamed_and_deleted(tmp_path):
             mode="interactive",
             messages=[{"role": "user", "content": "original"}],
             title="Original title",
-            agent="cowork",
+            agent="cogniwork",
         )
     )
     client = TestClient(create_app(manager))
@@ -297,7 +297,7 @@ def test_sessions_can_be_pinned_and_archived(tmp_path):
                 model="gpt-5.5",
                 mode="interactive",
                 messages=[{"role": "user", "content": sid}],
-                agent="cowork",
+                agent="cogniwork",
             )
         )
     client = TestClient(create_app(manager))
@@ -351,8 +351,8 @@ def test_ws_simple_turn(tmp_path):
 
 
 def test_ws_rejects_oversized_message(tmp_path):
-    from coworker.attachments import MAX_ATTACHMENTS
-    from coworker.server import app as app_mod
+    from cogniwork.attachments import MAX_ATTACHMENTS
+    from cogniwork.server import app as app_mod
 
     client = _client(tmp_path, [_text("should not run")])
     with client.websocket_connect("/ws/session/big") as ws:
@@ -456,7 +456,7 @@ def test_ws_allows_only_one_inflight_turn_per_session(tmp_path):
 def test_ws_rate_limits_inbound_frames(tmp_path):
     from starlette.websockets import WebSocketDisconnect
 
-    from coworker.server import app as app_mod
+    from cogniwork.server import app as app_mod
 
     client = _client(tmp_path, [])
     with pytest.raises(WebSocketDisconnect):
@@ -474,7 +474,7 @@ def test_server_sets_explicit_websocket_frame_limit(tmp_path, monkeypatch):
     import sys
     from types import SimpleNamespace
 
-    from coworker.server import run as server_run
+    from cogniwork.server import run as server_run
 
     seen = {}
     fake_app = object()
@@ -497,20 +497,20 @@ def test_server_sets_explicit_websocket_frame_limit(tmp_path, monkeypatch):
 def test_standalone_server_token_file_is_user_only(tmp_path, monkeypatch):
     import os
 
-    from coworker.server import run as server_run
+    from cogniwork.server import run as server_run
 
-    monkeypatch.delenv("COWORKER_API_TOKEN", raising=False)
+    monkeypatch.delenv("COGNIWORK_API_TOKEN", raising=False)
     path = server_run._ensure_api_token(9876)
     try:
-        assert path == tmp_path / "coworker-state" / "sidecar-9876.token"
-        assert path.read_text().strip() == os.environ["COWORKER_API_TOKEN"]
+        assert path == tmp_path / "cogniwork-state" / "sidecar-9876.token"
+        assert path.read_text().strip() == os.environ["COGNIWORK_API_TOKEN"]
         assert len(path.read_text().strip()) == 64
         import os
         if os.name == "posix":
             assert (path.stat().st_mode & 0o777) == 0o600
     finally:
         path.unlink(missing_ok=True)
-        os.environ.pop("COWORKER_API_TOKEN", None)
+        os.environ.pop("COGNIWORK_API_TOKEN", None)
 
 
 def test_ws_error_persists_notice_and_retry_reruns(tmp_path):
@@ -584,19 +584,19 @@ def test_ws_allows_webview_origin(tmp_path):
 def test_sidecar_token_gates_rest_and_websockets(tmp_path, monkeypatch):
     from starlette.websockets import WebSocketDisconnect as WSD
 
-    from coworker.mcp.config import global_mcp_path
+    from cogniwork.mcp.config import global_mcp_path
 
-    monkeypatch.setenv("COWORKER_API_TOKEN", "a" * 64)
+    monkeypatch.setenv("COGNIWORK_API_TOKEN", "a" * 64)
     manager = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
     client = TestClient(create_app(manager))
 
     assert client.get("/v1/health").json() == {"status": "ok"}
     assert client.get("/v1/sessions").status_code == 401
     assert client.get(
-        "/v1/sessions", headers={"X-OpenWorker-Token": "wrong"}
+        "/v1/sessions", headers={"X-CogniOS-Token": "wrong"}
     ).status_code == 401
 
-    headers = {"X-OpenWorker-Token": "a" * 64}
+    headers = {"X-CogniOS-Token": "a" * 64}
     assert client.get("/v1/health", headers=headers).json()[
         "default_workspace"
     ] == str(tmp_path.resolve())
@@ -615,15 +615,15 @@ def test_sidecar_token_gates_rest_and_websockets(tmp_path, monkeypatch):
     assert denied.value.code == 1008
 
     with client.websocket_connect(
-        "/ws/session/authed", subprotocols=["openworker", "a" * 64]
+        "/ws/session/authed", subprotocols=["cognios", "a" * 64]
     ) as ws:
-        assert ws.accepted_subprotocol == "openworker"
+        assert ws.accepted_subprotocol == "cognios"
         assert ws.receive_json()["type"] == "ready"
 
     with client.websocket_connect(
-        "/ws/events", subprotocols=["openworker", "a" * 64]
+        "/ws/events", subprotocols=["cognios", "a" * 64]
     ) as ws:
-        assert ws.accepted_subprotocol == "openworker"
+        assert ws.accepted_subprotocol == "cognios"
 
     # Redirect callbacks remain tokenless, then enforce their own signed state.
     assert client.get("/mcp/oauth/callback").status_code == 400
@@ -674,7 +674,7 @@ def test_ws_session_persisted_while_parked_on_approval(tmp_path):
 
 def test_ws_browser_tool_audit_round_trip(tmp_path):
     client = _client(tmp_path, [_tool("browser_close", {}), _text("closed")])
-    with client.websocket_connect("/ws/session/browser-audit?agent=cowork") as ws:
+    with client.websocket_connect("/ws/session/browser-audit?agent=cogniwork") as ws:
         assert ws.receive_json()["type"] == "ready"
         ws.send_json({"type": "user_message", "text": "close browser"})
         types = _drain(ws, on_permission="once")
@@ -704,8 +704,8 @@ def test_workspace_command_trust_controls_live_engine(tmp_path):
     from urllib.parse import quote
 
     proj = tmp_path / "trusted-project"
-    (proj / ".coworker").mkdir(parents=True)
-    (proj / ".coworker" / "config.toml").write_text(
+    (proj / ".cogniwork").mkdir(parents=True)
+    (proj / ".cogniwork" / "config.toml").write_text(
         'allowed_commands = ["pytest"]\nauto_allow = ["write_file"]\n'
     )
     manager = SessionManager(
@@ -766,7 +766,7 @@ def test_workspace_command_trust_controls_live_engine(tmp_path):
 def test_recent_workspaces_exclude_scratch_dirs(tmp_path):
     # Scratch dirs get touched like any workspace, but must never show up as
     # "recent projects" in the folder gate (owner call, 2026-07-03).
-    from coworker.server.manager import SessionManager
+    from cogniwork.server.manager import SessionManager
 
     proj = tmp_path / "real-project"
     proj.mkdir()
@@ -785,8 +785,8 @@ def test_delete_session_removes_its_scratch_dir_only(tmp_path):
     # 2026-07-03) — but NEVER a real project folder the user picked.
     from pathlib import Path
 
-    from coworker.server.manager import SessionManager
-    from coworker.sessions import SessionRecord
+    from cogniwork.server.manager import SessionManager
+    from cogniwork.sessions import SessionRecord
 
     mgr = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
     mgr._prefs["scratch_base"] = str(tmp_path / "scratch")
@@ -1032,7 +1032,7 @@ def test_always_allow_grants_survive_restart(tmp_path):
         )
 
     def _run_turn(client, expect_prompts):
-        with client.websocket_connect("/ws/session/grants1?agent=cowork") as ws:
+        with client.websocket_connect("/ws/session/grants1?agent=cogniwork") as ws:
             assert ws.receive_json()["type"] == "ready"
             ws.send_json({"type": "user_message", "text": "run it"})
             asked = 0

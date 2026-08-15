@@ -14,7 +14,7 @@ const FIXTURE_DIR = path.join(here, "fixtures", "persona"); // holds e2e-tester.
 
 test("live: install a persona from a directory, enable it, and run a task as it", async ({ page }) => {
   const scratchBase = await scratchBaseIfReady();
-  test.skip(!scratchBase, "live backend not ready — start openworker-server and configure a model");
+  test.skip(!scratchBase, "live backend not ready — start cognios-server and configure a model");
 
   const token = `PERSONA-${Date.now()}`;
   const name = `persona-${Date.now()}.txt`;
@@ -58,7 +58,7 @@ test("live: install a persona from a directory, enable it, and run a task as it"
   await selectMode(page, "Full access");
   await sendTask(page, `Write a file named ${name} containing exactly: ${token}`);
 
-  // The installed persona should do the work. Non-Cowork personas don't render the Artifacts rail,
+  // The installed persona should do the work. Non-CogniWork personas don't render the Artifacts rail,
   // so wait on the file itself (ground truth) rather than a UI signal.
   await expect
     .poll(

@@ -80,7 +80,7 @@ export function AppTopBar({
       </div>
 
       <div className="main-topbar-side main-topbar-actions" onPointerDown={onBeginWindowDrag}>
-        {agent === "cowork" && railHidden && artifactCount > 0 && (
+        {(agent === "cogniwork" || agent === "cowork") && railHidden && artifactCount > 0 && (
           <button
             className="topbar-artifacts-btn flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-panel border border-border text-[12px] text-fg hover:bg-bg"
             onMouseDown={(e) => e.stopPropagation()}

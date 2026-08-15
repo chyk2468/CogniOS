@@ -1,13 +1,13 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-  Build the Coworker Windows desktop app + NSIS (.exe) and MSI installers.
+  Build the CogniWork Windows desktop app + NSIS (.exe) and MSI installers.
 
 .DESCRIPTION
   The Windows counterpart to build_dmg.sh:
     1. PyInstaller-bundle the server into a standalone onedir folder (no venv at runtime).
     2. Stage it at binaries\sidecar\ for Tauri's `resources` slot.
-    3. `tauri build --bundles nsis,msi` -> Coworker NSIS setup .exe + .msi (resources copied in).
+    3. `tauri build --bundles nsis,msi` -> CogniWork NSIS setup .exe + .msi (resources copied in).
 
   Prerequisites (see the toolchain notes in the PR/plan):
     - Rust (rustup) with the x86_64-pc-windows-msvc target + the MSVC C++ build tools (link.exe).
@@ -21,8 +21,8 @@
   Authenticode signing is a later step.
 
   Experimental (use-at-your-own-risk) connectors are EXCLUDED from this build by default —
-  the spec strips coworker.connectors.experimental. Self-builders can opt in with:
-    $env:COWORKER_EXPERIMENTAL = "1"; .\build_windows.ps1
+  the spec strips cogniwork.connectors.experimental. Self-builders can opt in with:
+    $env:COGNIWORK_EXPERIMENTAL = "1"; .\build_windows.ps1
 #>
 [CmdletBinding()]
 param(
@@ -53,19 +53,19 @@ if (-not (Test-Path $PyInst)) {
 $Triple = (& rustc -vV | Select-String '^host:').ToString().Split()[-1]
 $Arch   = $Triple.Split('-')[0]
 
-# A running openworker-server.exe (e.g. a prior sidecar/smoke test) locks the output exe and
+# A running cognios-server.exe (e.g. a prior sidecar/smoke test) locks the output exe and
 # makes PyInstaller's overwrite fail with Access-is-denied. Stop any before bundling.
-$running = Get-Process -Name "openworker-server" -ErrorAction SilentlyContinue
+$running = Get-Process -Name "cognios-server" -ErrorAction SilentlyContinue
 if ($running) {
-    Write-Host "==> stopping $($running.Count) running openworker-server process(es) holding the output exe"
+    Write-Host "==> stopping $($running.Count) running cognios-server process(es) holding the output exe"
     $running | Stop-Process -Force
     Start-Sleep -Seconds 1
 }
 
-Write-Host "==> [1/3] PyInstaller: bundling openworker-server ($Triple)" -ForegroundColor Cyan
+Write-Host "==> [1/3] PyInstaller: bundling cognios-server ($Triple)" -ForegroundColor Cyan
 & $PyInst --noconfirm --clean `
     --distpath (Join-Path $Here "dist") --workpath (Join-Path $Here "build") `
-    (Join-Path $Here "openworker-server.spec")
+    (Join-Path $Here "cognios-server.spec")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed (exit $LASTEXITCODE)" }
 
 Write-Host "==> [2/3] staging sidecar resources" -ForegroundColor Cyan
@@ -73,11 +73,11 @@ Write-Host "==> [2/3] staging sidecar resources" -ForegroundColor Cyan
 # next to the app exe — onefile's per-launch self-extraction cost seconds of boot splash.
 $BinDir = Join-Path $Gui "src-tauri\binaries"
 New-Item -ItemType Directory -Force -Path $BinDir | Out-Null
-$Src = Join-Path $Here "dist\openworker-server"
+$Src = Join-Path $Here "dist\cognios-server"
 $Dst = Join-Path $BinDir "sidecar"
 if (Test-Path $Dst) { Remove-Item -Recurse -Force $Dst }
 # Clear any stale onefile binary from pre-onedir builds.
-Remove-Item -Force (Join-Path $BinDir "openworker-server-$Triple.exe") -ErrorAction SilentlyContinue
+Remove-Item -Force (Join-Path $BinDir "cognios-server-$Triple.exe") -ErrorAction SilentlyContinue
 Copy-Item -Recurse -Force $Src $Dst
 Write-Host "    -> $Dst"
 

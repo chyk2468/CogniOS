@@ -21,9 +21,10 @@ import {
   setAutostart,
   setKeepAwake,
 } from "../../tauri";
-import { useThemePref } from "../../theme";
+import { useThemePref, useUiStylePref } from "../../theme";
+import { UiStyleSegmentedControl } from "./UiStyleSegmentedControl";
 
-const CARD = "rounded-md border border-border bg-panel";
+const CARD = "ui-card rounded-md border border-border bg-panel";
 const FIELD_LABEL = "text-[12.5px] font-medium text-fg";
 const FIELD_HELP = "text-[12px] text-muted mt-1.5 leading-relaxed";
 const INPUT = "flex-1 min-w-0 px-3 py-2 rounded-md border border-border bg-bg text-[13px] text-fg outline-none focus:border-accent";
@@ -32,6 +33,7 @@ const BTN_BORDERED = "text-[12.5px] px-3 py-2 rounded-md border border-border bg
 
 export function AppearanceSection() {
   const [theme, setTheme] = useThemePref();
+  const [uiStyle, setUiStyle] = useUiStylePref();
   const [autostart, setAuto] = useState(false);
   const [keepAwake, setKeep] = useState(false);
   const desktop = isTauri();
@@ -47,12 +49,12 @@ export function AppearanceSection() {
   const toggleKeep = async (v: boolean) => setKeep(!!(await setKeepAwake(v)));
   const runSetupAgain = async () => {
     await setOnboarded(false);
-    window.dispatchEvent(new CustomEvent("coworker:open-onboarding"));
+    window.dispatchEvent(new CustomEvent("cogniwork:open-onboarding"));
   };
 
   return (
     <section>
-      <PanelHead title="General" sub="How OpenWorker looks and behaves on this machine." />
+      <PanelHead title="General" sub="How CogniOS looks and behaves on this machine." />
 
       <div className={CARD + " p-4 mb-4"}>
         <div className={FIELD_LABEL}>Theme Preset</div>
@@ -64,6 +66,14 @@ export function AppearanceSection() {
           ))}
         </div>
         <div className={FIELD_HELP}>Copper (Orange) theme. Auto follows your system appearance.</div>
+      </div>
+
+      <div className={CARD + " p-4 mb-4"}>
+        <div className={FIELD_LABEL}>UI Style</div>
+        <UiStyleSegmentedControl value={uiStyle} onChange={setUiStyle} />
+        <div className={FIELD_HELP}>
+          Liquid Glass adds premium translucent material with depth and layered surfaces. Works with any theme preset above.
+        </div>
       </div>
 
       <SidebarCard />
@@ -78,7 +88,7 @@ export function AppearanceSection() {
             <input type="checkbox" className="mt-0.5 accent-accent" checked={autostart} onChange={(e) => toggleAuto(e.target.checked)} />
             <span>
               <span className="block text-[13px] text-fg">Open at login</span>
-              <span className="block text-[12px] text-muted">Launch OpenWorker automatically when you sign in.</span>
+              <span className="block text-[12px] text-muted">Launch CogniOS automatically when you sign in.</span>
             </span>
           </label>
           <label className="flex items-start gap-3 py-2 cursor-pointer">
@@ -127,7 +137,7 @@ function TrustedWorkspacesCard() {
     <div className={CARD + " p-4 mb-4"} data-testid="trusted-workspaces-card">
       <div className={FIELD_LABEL}>Trusted workspaces</div>
       <div className={FIELD_HELP}>
-        Trusted projects may manage their command allowances in .coworker/config.toml.
+        Trusted projects may manage their command allowances in .cogniwork/config.toml.
       </div>
       {workspaces === null ? (
         <div className="text-[12px] text-muted mt-3">Loading…</div>
@@ -210,7 +220,7 @@ function UpdateInline() {
             ? "You're on the latest version."
             : state === "error"
               ? "Couldn't check right now — try again later."
-              : "Downloading — OpenWorker restarts by itself when it's ready."}
+              : "Downloading — CogniOS restarts by itself when it's ready."}
         </span>
       )}
     </span>
@@ -274,7 +284,7 @@ function SidebarCard() {
     <div className={CARD + " p-4 mb-4"}>
       <div className={FIELD_LABEL}>Sidebar</div>
       <label className="flex items-center gap-3 mt-2.5">
-        <span className="text-[13px] text-fg">Conversations shown per coworker</span>
+        <span className="text-[13px] text-fg">Conversations shown per CogniWork</span>
         <input
           type="number"
           min={1}
@@ -285,7 +295,7 @@ function SidebarCard() {
         />
       </label>
       <div className={FIELD_HELP}>
-        Longer lists collapse behind &ldquo;Show more&rdquo;. Applies per coworker and per project.
+        Longer lists collapse behind &ldquo;Show more&rdquo;. Applies per CogniWork and per project.
       </div>
     </div>
   );
@@ -334,7 +344,7 @@ function FilesCard() {
         <input
           className={INPUT}
           type="text"
-          placeholder="~/OpenWorker"
+          placeholder="~/CogniOS"
           value={scratchDraft}
           spellCheck={false}
           autoComplete="off"

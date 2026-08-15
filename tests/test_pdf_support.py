@@ -9,9 +9,9 @@ import zlib
 
 import pytest
 
-from coworker import pdf_support
-from coworker.providers.base import ModelCapabilities
-from coworker.providers.capabilities import capabilities_for
+from cogniwork import pdf_support
+from cogniwork.providers.base import ModelCapabilities
+from cogniwork.providers.capabilities import capabilities_for
 
 
 def _blank_pdf_url(pages: int = 3) -> str:

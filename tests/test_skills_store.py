@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from coworker.skills import SkillLoader, SkillStore, validate_name
+from cogniwork.skills import SkillLoader, SkillStore, validate_name
 
 
 @pytest.fixture()
@@ -65,7 +65,7 @@ def test_create_project_scoped(store, workspace):
         scope="project",
         workspace=workspace,
     )
-    md = workspace / ".coworker" / "skills" / "release-checklist" / "SKILL.md"
+    md = workspace / ".cogniwork" / "skills" / "release-checklist" / "SKILL.md"
     assert md.is_file()
 
 
@@ -132,7 +132,7 @@ def test_move_roundtrip(store, workspace):
     store.create(name="mover", description="", instructions="x")
     moved = store.move("mover", to_scope="project", workspace=workspace)
     assert moved["scope"] == "project"
-    assert (workspace / ".coworker" / "skills" / "mover" / "SKILL.md").is_file()
+    assert (workspace / ".cogniwork" / "skills" / "mover" / "SKILL.md").is_file()
     assert not (store.global_dir / "mover").exists()
     store.move("mover", to_scope="global", workspace=workspace)
     assert (store.global_dir / "mover" / "SKILL.md").is_file()
@@ -150,7 +150,7 @@ def test_move_collision_leaves_source(store, workspace):
     with pytest.raises(ValueError, match="already exists"):
         store.move("both", to_scope="global", workspace=workspace)
     # most-local find() → the project copy was the move source and it survives
-    assert (workspace / ".coworker" / "skills" / "both" / "SKILL.md").is_file()
+    assert (workspace / ".cogniwork" / "skills" / "both" / "SKILL.md").is_file()
 
 
 # -- parsing edges (null/malformed input never crashes) -----------------------------
@@ -197,7 +197,7 @@ def test_unicode_content_and_crlf_roundtrip(store):
 def test_frontmatter_name_wins_and_keys_collisions(store, workspace):
     store.create(name="brand", description="global copy", instructions="g")
     _manual_skill(
-        workspace / ".coworker" / "skills",
+        workspace / ".cogniwork" / "skills",
         "other-folder",
         "---\nname: brand\ndescription: project copy\n---\nbody",
     )
@@ -314,7 +314,7 @@ def test_corrupt_settings_json_treated_as_empty(store):
 # -- save_skill tool (SKILLS-SPEC §5.2 — the worker-authors door) -------------------
 
 
-from coworker.skills import save_skill_tool
+from cogniwork.skills import save_skill_tool
 
 
 @pytest.fixture()
@@ -394,8 +394,8 @@ def test_save_skill_requires_approval_metadata(store):
     tool = save_skill_tool(store)
     meta = tool.__aisuite_tool_metadata__
     assert meta.requires_approval is True  # → EXTERNAL risk → approval card, every call
-    assert tool.__coworker_schema__["function"]["name"] == "save_skill"
-    required = tool.__coworker_schema__["function"]["parameters"]["required"]
+    assert tool.__cogniwork_schema__["function"]["name"] == "save_skill"
+    required = tool.__cogniwork_schema__["function"]["parameters"]["required"]
     assert required == ["name", "description", "instructions"]
 
 

@@ -1,6 +1,6 @@
 """Alembic migration for user authentication tables.
 
-The runtime uses inline sqlite3 bootstrapping in coworker/auth/store.py (matching the
+The runtime uses inline sqlite3 bootstrapping in cogniwork/auth/store.py (matching the
 rest of the codebase). This migration documents the schema for Alembic-based deployments.
 """
 
@@ -23,6 +23,8 @@ def upgrade() -> None:
             email TEXT NOT NULL UNIQUE COLLATE NOCASE,
             password_hash TEXT NOT NULL,
             favorite_pet_answer_hash TEXT NOT NULL,
+            totp_enabled INTEGER NOT NULL DEFAULT 0,
+            totp_secret_encrypted TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
@@ -33,6 +35,7 @@ def upgrade() -> None:
             user_id INTEGER NOT NULL,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             expires_at TEXT NOT NULL,
+            last_activity TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
         """)
@@ -45,10 +48,18 @@ def upgrade() -> None:
         )
         """)
     op.execute("""
-        CREATE TABLE IF NOT EXISTS auth_rate_limits (
-            key TEXT PRIMARY KEY,
-            attempts INTEGER NOT NULL DEFAULT 0,
-            window_start REAL NOT NULL
+        CREATE TABLE IF NOT EXISTS auth_pending_logins (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            expires_at TEXT NOT NULL
+        )
+        """)
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS auth_totp_setup (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            secret_encrypted TEXT NOT NULL,
+            expires_at TEXT NOT NULL
         )
         """)
 

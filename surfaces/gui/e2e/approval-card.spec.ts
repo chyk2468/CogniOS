@@ -10,7 +10,7 @@ test("routine write → compact row: humanized title, inline preview, Allow reso
   page,
 }) => {
   await page.goto("/");
-  const box = page.getByPlaceholder(/Ask the coworker/);
+  const box = page.getByPlaceholder(/Ask CogniWork/);
   await box.fill("please write a file");
   await page.getByRole("button", { name: "Send" }).click();
 
@@ -38,7 +38,7 @@ test("run_shell → full card: description title, command preview, stays-on-this
   page,
 }) => {
   await page.goto("/");
-  const box = page.getByPlaceholder(/Ask the coworker/);
+  const box = page.getByPlaceholder(/Ask CogniWork/);
   await box.fill("please run a tool");
   await page.getByRole("button", { name: "Send" }).click();
 
@@ -46,7 +46,7 @@ test("run_shell → full card: description title, command preview, stays-on-this
   // the preview; the reason still renders; the scope note replaces the old badge.
   await expect(page.getByText("Run a command").last()).toBeVisible();
   await expect(page.getByText("stays on this computer").last()).toBeVisible();
-  await expect(page.getByText("The coworker wants to run a command.").first()).toBeVisible();
+  await expect(page.getByText("CogniWork wants to run a command.").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Always allow this command" }).last()).toBeVisible();
   await expect(page.getByText(/local action/)).toHaveCount(0);
 
@@ -60,7 +60,7 @@ test("a one-paragraph digest send is clamped to a card, expandable in place", as
   page,
 }) => {
   await page.goto("/");
-  const box = page.getByPlaceholder(/Ask the coworker/);
+  const box = page.getByPlaceholder(/Ask CogniWork/);
   await box.fill("post the long digest");
   await page.getByRole("button", { name: "Send" }).click();
 

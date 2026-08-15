@@ -1,21 +1,21 @@
-# OpenWorker Chat System — Complete Architectural Illustration
+# CogniOS Chat System — Complete Architectural Illustration
 
-This document provides an in-depth, end-to-end architectural breakdown of how the **Chat System** in OpenWorker operates. It covers everything from the desktop UI user interaction to the WebSocket protocol, background agent loop execution, tool approval gates, multi-provider LLM streaming via `aisuite`, state persistence, and context compaction.
+This document provides an in-depth, end-to-end architectural breakdown of how the **Chat System** in CogniOS operates. It covers everything from the desktop UI user interaction to the WebSocket protocol, background agent loop execution, tool approval gates, multi-provider LLM streaming via `aisuite`, state persistence, and context compaction.
 
 ---
 
 ## 1. System Overview & Core Architecture
 
-OpenWorker uses a **local-first, event-driven desktop architecture**. The system is split into two primary layers running on the user's local machine:
+CogniOS uses a **local-first, event-driven desktop architecture**. The system is split into two primary layers running on the user's local machine:
 
 1. **Frontend Surface (Desktop App / Web App)**
    - Built with **React + Vite + TypeScript**, wrapped in a **Tauri** desktop shell.
    - Communicates with the backend server over **HTTP REST** for static session data and **WebSockets** (`/ws/session/{session_id}`) for real-time bidirectional message streaming, tool approval cards, and event dispatch.
    
 2. **Backend Agent Server (Python ASGI Service)**
-   - Powered by **FastAPI** (`coworker/server/app.py` & `manager.py`).
-   - Runs locally at `127.0.0.1:8765`, protected by an origin check and an in-memory loopback token (`X-OpenWorker-Token`).
-   - Hosts the **`AgentEngine`** (`coworker/engine.py`), tool execution registries, risk & permission evaluation engines, and the cross-surface Inbox manager.
+   - Powered by **FastAPI** (`cogniwork/server/app.py` & `manager.py`).
+   - Runs locally at `127.0.0.1:8765`, protected by an origin check and an in-memory loopback token (`X-CogniOS-Token`).
+   - Hosts the **`AgentEngine`** (`cogniwork/engine.py`), tool execution registries, risk & permission evaluation engines, and the cross-surface Inbox manager.
 
 ```mermaid
 graph TD
@@ -25,13 +25,13 @@ graph TD
         UI --> ApiTS
     end
 
-    subgraph Backend Server ["Local Agent Server (coworker/server/)"]
+    subgraph Backend Server ["Local Agent Server (cogniwork/server/)"]
         FastAPI[FastAPI App / WebSocket Endpoint<br/>app.py]
         SessionMgr[Session Manager<br/>manager.py]
         FastAPI <--> SessionMgr
     end
 
-    subgraph Core Agent Engine ["Core Engine & Tool Infrastructure (coworker/)"]
+    subgraph Core Agent Engine ["Core Engine & Tool Infrastructure (cogniwork/)"]
         Engine[AgentEngine<br/>engine.py]
         PermEngine[Permission Engine & Risk Classifier<br/>permissions.py & risk.py]
         Tools[Tool Registry & MCP Integration<br/>tools/ & mcp/]
@@ -124,18 +124,18 @@ sequenceDiagram
 ## 3. Detailed Component Breakdown
 
 ### A. Frontend Layer (`surfaces/gui/src/`)
-- **[api.ts](file:///C:/Users/91630/Desktop/openworker/surfaces/gui/src/api.ts)**: Implements the `Session` class which manages the active WebSocket connection (`/ws/session/{session_id}`). Handles Outbox queuing while connecting, message dispatch (`userMessage`, `approve`, `respondDirectory`, `respondPlan`, `respondQuestion`, `interrupt`, `retry`), and incoming event routing.
-- **[Composer.tsx](file:///C:/Users/91630/Desktop/openworker/surfaces/gui/src/components/Composer.tsx)**: The interactive prompt bar. Handles text input, image/PDF attachments, slash-commands (`/skill`), and model selection.
-- **[Transcript.tsx](file:///C:/Users/91630/Desktop/openworker/surfaces/gui/src/components/Transcript.tsx)**: Renders the full chat transcript timeline including user bubbles, assistant markdown streams, thinking panels, tool execution cards, and approval request cards.
-- **[itemsFromMessages.ts](file:///C:/Users/91630/Desktop/openworker/surfaces/gui/src/itemsFromMessages.ts)**: Transforms raw stored conversation messages into normalized UI view items (`user`, `assistant`, `tool`, `connector`, `notice`).
+- **[api.ts](file:///C:/Users/91630/Desktop/cognios/surfaces/gui/src/api.ts)**: Implements the `Session` class which manages the active WebSocket connection (`/ws/session/{session_id}`). Handles Outbox queuing while connecting, message dispatch (`userMessage`, `approve`, `respondDirectory`, `respondPlan`, `respondQuestion`, `interrupt`, `retry`), and incoming event routing.
+- **[Composer.tsx](file:///C:/Users/91630/Desktop/cognios/surfaces/gui/src/components/Composer.tsx)**: The interactive prompt bar. Handles text input, image/PDF attachments, slash-commands (`/skill`), and model selection.
+- **[Transcript.tsx](file:///C:/Users/91630/Desktop/cognios/surfaces/gui/src/components/Transcript.tsx)**: Renders the full chat transcript timeline including user bubbles, assistant markdown streams, thinking panels, tool execution cards, and approval request cards.
+- **[itemsFromMessages.ts](file:///C:/Users/91630/Desktop/cognios/surfaces/gui/src/itemsFromMessages.ts)**: Transforms raw stored conversation messages into normalized UI view items (`user`, `assistant`, `tool`, `connector`, `notice`).
 
-### B. Server & WebSocket Layer (`coworker/server/`)
-- **[app.py](file:///C:/Users/91630/Desktop/openworker/coworker/server/app.py)**: Defines FastAPI routes and the main WebSocket endpoint `@app.websocket("/ws/session/{session_id}")`.
+### B. Server & WebSocket Layer (`cogniwork/server/`)
+- **[app.py](file:///C:/Users/91630/Desktop/cognios/cogniwork/server/app.py)**: Defines FastAPI routes and the main WebSocket endpoint `@app.websocket("/ws/session/{session_id}")`.
   - **Security Gates**: Validates CORS origins (`_origin_allowed`), WebSocket protocol headers, rate limiting (max 30 messages per 10s window), max text characters (200k), and attachment payload caps (15 MB total).
   - **Turn Concurrency Lock**: `claim_turn()` uses `manager.try_mark_running(session_id)` to ensure only one active turn executes on a session at any time.
   - **Client Registration & Broadcast**: Registers live sockets so any state update in a session is broadcast across all open windows viewing that session (`manager.broadcast_session`).
 
-### C. Core Agent Engine (`coworker/engine.py`)
+### C. Core Agent Engine (`cogniwork/engine.py`)
 - **`AgentEngine` Class**: The central orchestrator running the LLM cycle.
   - **State (`self.messages`)**: Maintained in OpenAI-compatible JSON format (`role`, `content`, `tool_calls`, `ts`).
   - **`run(user_input, display)`**: Starts a turn by appending the user message, clearing cancellation signals, emitting `TURN_START`, and starting `_loop()`.
@@ -150,7 +150,7 @@ sequenceDiagram
 
 ## 4. Tool Execution & Security Approval Pipeline
 
-OpenWorker features a **Human-In-The-Loop (HITL)** security model designed to prevent untrusted LLM actions.
+CogniOS features a **Human-In-The-Loop (HITL)** security model designed to prevent untrusted LLM actions.
 
 ```mermaid
 flowchart TD
@@ -188,9 +188,9 @@ flowchart TD
 
 ---
 
-## 5. Context Window Compaction Engine (`coworker/compaction.py`)
+## 5. Context Window Compaction Engine (`cogniwork/compaction.py`)
 
-To prevent long chat sessions from exceeding LLM context limits or spiking API costs, OpenWorker integrates an automatic **Compaction Policy** (`OPE-27`):
+To prevent long chat sessions from exceeding LLM context limits or spiking API costs, CogniOS integrates an automatic **Compaction Policy** (`OPE-27`):
 
 1. **Trigger Calculation**: Monitored via token count estimation (`_compaction_due()`). Triggers when token usage exceeds the configured percentage of the model's context window.
 2. **Summarizer Execution**: Between turns, the system invokes a lightweight summarizer model to condense older conversation history into a structured summary prompt while preserving:
@@ -203,9 +203,9 @@ To prevent long chat sessions from exceeding LLM context limits or spiking API c
 
 ## 6. Durable Session Persistence & Checkpointing
 
-OpenWorker ensures conversation state and un-answered tool prompts survive application restarts or crashes:
+CogniOS ensures conversation state and un-answered tool prompts survive application restarts or crashes:
 
-- **Checkpoints**: At key lifecycle moments (`turn_start`, `permission_required`, `directory_requested`, `plan_proposed`, `iteration_end`), `manager.save(session_id, engine)` persists the current state to disk (`coworker/conversations.py`).
+- **Checkpoints**: At key lifecycle moments (`turn_start`, `permission_required`, `directory_requested`, `plan_proposed`, `iteration_end`), `manager.save(session_id, engine)` persists the current state to disk (`cogniwork/conversations.py`).
 - **Durable Resume**: When resuming a session after a restart, `engine.resume()` inspects trailing unanswered tool calls, checks if their Inbox item was resolved, and continues execution without double-executing answered calls.
 
 ---
@@ -235,4 +235,4 @@ The WebSocket connection uses a typed event protocol. Key events sent from serve
 
 ## Summary
 
-OpenWorker's chat system stands out because it is **not just a passive text box**—it is an **active agent execution runtime**. The seamless coordination between React UI components, WebSocket streaming, FastAPI session supervision, the `AgentEngine` loop, and the Permission/Inbox safety gate enables complex multi-step AI tasks to run safely on the user's local machine.
+CogniOS's chat system stands out because it is **not just a passive text box**—it is an **active agent execution runtime**. The seamless coordination between React UI components, WebSocket streaming, FastAPI session supervision, the `AgentEngine` loop, and the Permission/Inbox safety gate enables complex multi-step AI tasks to run safely on the user's local machine.

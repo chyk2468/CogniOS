@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CogniOS — An AI Operating Environment for Real Work</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="script.js" defer></script>
+</head>
+<body>
+
+  <!-- Top Scroll Progress Bar -->
+  <div id="scroll-progress"></div>
+
+  <!-- Main Sticky Top Navigation -->
+  <header class="top-nav">
+    <div class="nav-inner">
+      <a href="#overview" class="brand">
+        <div class="brand-icon">C</div>
+        <span>CogniOS</span>
+      </a>
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#overview">Overview</a></li>
+          <li><a href="#problem">Workflow</a></li>
+          <li><a href="#architecture">Architecture</a></li>
+          <li><a href="#turnengine">TurnEngine</a></li>
+          <li><a href="#tools">Tools</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#providers">Providers</a></li>
+          <li><a href="#demo">Demos</a></li>
+          <li><a href="#evidence">Evidence</a></li>
+        </ul>
+      </nav>
+      <div class="nav-kbd-hint">
+        <span>Press</span> <kbd>1</kbd>–<kbd>9</kbd> <span>to navigate</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ==========================================================================
+         SECTION 1: HERO
+         ========================================================================== -->
+    <section id="overview">
+      <div class="container hero-grid">
+        <div class="hero-copy reveal-on-scroll">
+          <div class="section-tag">Forensic Architecture Presentation</div>
+          <h1>CogniOS</h1>
+          <div class="hero-tagline">An AI Operating Environment for Real Work.</div>
+          <p>
+            CogniOS transforms LLMs from passive conversational assistants into permission-controlled agents that can reason, execute, verify, and interact with the user's local environment.
+          </p>
+          <div class="hero-actions">
+            <a href="#architecture" class="btn btn-primary">Explore Architecture</a>
+            <a href="#simulation" class="btn btn-secondary">See How It Works</a>
+          </div>
+        </div>
+
+        <div class="hero-status reveal-on-scroll stagger-1">
+          <div class="runtime-card">
+            <div class="runtime-header">
+              <span>COGNIOS RUNTIME STATUS</span>
+              <span class="badge badge-online"><span class="status-dot"></span> VERIFIED</span>
+            </div>
+            <div class="runtime-grid">
+              <div class="runtime-row">
+                <span class="runtime-label">Agent Engine (`TurnEngine`)</span>
+                <span class="badge badge-online">ONLINE</span>
+              </div>
+              <div class="runtime-row">
+                <span class="runtime-label">Tool Runtime (`ToolRegistry`)</span>
+                <span class="badge badge-online">ONLINE (160+ Tools)</span>
+              </div>
+              <div class="runtime-row">
+                <span class="runtime-label">Model Router (`ProviderRouter`)</span>
+                <span class="badge badge-online">ONLINE (18 Providers)</span>
+              </div>
+              <div class="runtime-row">
+                <span class="runtime-label">Persistent Memory (`SQLite`)</span>
+                <span class="badge badge-online">ONLINE</span>
+              </div>
+              <div class="runtime-row">
+                <span class="runtime-label">Local Voice STT (`whisper.cpp`)</span>
+                <span class="badge badge-online">ONLINE</span>
+              </div>
+              <div class="runtime-row">
+                <span class="runtime-label">Model Context Protocol (`MCP`)</span>
+                <span class="badge badge-ready">READY</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 2: THE PROBLEM (WORKFLOW COMPARISON)
+         ========================================================================== -->
+    <section id="problem">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">The Execution Gap</div>
+          <h2>AI can answer. But can it operate?</h2>
+          <p>
+            Traditional chatbots create an operational bottleneck where humans become the execution bridge. CogniOS integrates reasoning with direct, safe local execution.
+          </p>
+        </div>
+
+        <div class="compare-grid">
+          <!-- Traditional AI -->
+          <div class="flow-card traditional reveal-on-scroll stagger-1">
+            <div class="flow-title">
+              <span>Traditional Chatbot</span>
+              <span class="badge badge-warning">Passive Assistant</span>
+            </div>
+            <p>Generates static text suggestions in a disconnected web browser.</p>
+            <div class="flow-steps">
+              <div class="flow-step"><div class="flow-step-num">1</div><span>User inputs prompt</span></div>
+              <div class="flow-step"><div class="flow-step-num">2</div><span>AI returns code text</span></div>
+              <div class="flow-step"><div class="flow-step-num">3</div><span>Human copies snippet</span></div>
+              <div class="flow-step"><div class="flow-step-num">4</div><span>Human pastes into IDE</span></div>
+              <div class="flow-step"><div class="flow-step-num">5</div><span>Human runs tests & fixes errors</span></div>
+            </div>
+          </div>
+
+          <!-- CogniOS Flow -->
+          <div class="flow-card cognios reveal-on-scroll stagger-2">
+            <div class="flow-title">
+              <span>CogniOS Operating Environment</span>
+              <span class="badge badge-online">Autonomous Execution</span>
+            </div>
+            <p>Executes multi-step workflows across your local repository and tools.</p>
+            <div class="flow-steps" id="cognios-flow-steps">
+              <div class="flow-step active-step"><div class="flow-step-num">1</div><span>User Intent & Task Definition</span></div>
+              <div class="flow-step"><div class="flow-step-num">2</div><span>Agent Iterative Reasoning Loop</span></div>
+              <div class="flow-step"><div class="flow-step-num">3</div><span>Tool Invocation (Files / Shell / Git)</span></div>
+              <div class="flow-step"><div class="flow-step-num">4</div><span>Permission Evaluation & Gate</span></div>
+              <div class="flow-step"><div class="flow-step-num">5</div><span>Observe Results & Finished Deliverable</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 3: WHAT IS COGNIOS?
+         ========================================================================== -->
+    <section id="what-is">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Core Principles</div>
+          <h2>CogniOS is not just a chat interface.</h2>
+          <p>It is a dedicated execution environment built around AI agents.</p>
+        </div>
+
+        <div class="pillar-grid">
+          <div class="pillar-card reveal-on-scroll stagger-1">
+            <div class="pillar-icon">⚡</div>
+            <h3>Local-First Runtime</h3>
+            <p>Supervises an embedded Python server (`cogniwork`) and Rust desktop shell (`Tauri`) running directly on your machine.</p>
+          </div>
+          <div class="pillar-card reveal-on-scroll stagger-2">
+            <div class="pillar-icon">🔄</div>
+            <h3>Autonomous Agent Loop</h3>
+            <p>`TurnEngine` evaluates multi-turn tool loops, managing parallel reads, serial writes, and dynamic mid-stream interruptions.</p>
+          </div>
+          <div class="pillar-card reveal-on-scroll stagger-3">
+            <div class="pillar-icon">🛡️</div>
+            <h3>Permission & Boundary Gates</h3>
+            <p>Strict security model with `Discuss`, `Plan`, `Interactive`, and `Auto` modes, command whitelists, and path sandboxing.</p>
+          </div>
+          <div class="pillar-card reveal-on-scroll stagger-1">
+            <div class="pillar-icon">🧠</div>
+            <h3>Dual-Tier Memory</h3>
+            <p>Combines SQLite-backed scoped facts (`global`/`workspace`) with automatic, non-destructive context window compaction.</p>
+          </div>
+          <div class="pillar-card reveal-on-scroll stagger-2">
+            <div class="pillar-icon">🎙️</div>
+            <h3>Offline Multimodal STT</h3>
+            <p>Local Whisper model (`ggml-large-v3-turbo`) transcribes speech to text with zero network audio transmission.</p>
+          </div>
+          <div class="pillar-card reveal-on-scroll stagger-3">
+            <div class="pillar-icon">🔌</div>
+            <h3>35+ Connectors & MCP</h3>
+            <p>Seamlessly integrates Slack, GitHub, Gmail, Jira, Linear, and arbitrary Model Context Protocol (MCP) servers.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 4: COGNIOS ARCHITECTURE (INTERACTIVE DIAGRAM)
+         ========================================================================== -->
+    <section id="architecture">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">System Architecture</div>
+          <h2>Interactive Layered Architecture</h2>
+          <p>Click any component block to inspect real implementation files, classes, and subsystem responsibilities.</p>
+        </div>
+
+        <div class="arch-container">
+          <div class="diagram-stage reveal-on-scroll stagger-1">
+            <div class="diagram-node" onclick="selectArch('ui')">
+              <div class="diagram-node-title">Desktop Presentation Surface</div>
+              <div class="diagram-node-sub">React 18 + Tauri v2 (Rust) | surfaces/gui/</div>
+            </div>
+
+            <div class="diagram-arrow">↓ Authenticated WebSocket (/ws/session/{id})</div>
+
+            <div class="diagram-node" onclick="selectArch('server')">
+              <div class="diagram-node-title">ASGI Control Plane & Session Manager</div>
+              <div class="diagram-node-sub">FastAPI + SessionManager | cogniwork/server/</div>
+            </div>
+
+            <div class="diagram-arrow">↓ Async Execution Tasks</div>
+
+            <div class="diagram-node selected" onclick="selectArch('engine')">
+              <div class="diagram-node-title">CogniWork Agent Engine</div>
+              <div class="diagram-node-sub">TurnEngine Evaluator Loop | cogniwork/engine.py</div>
+            </div>
+
+            <div class="diagram-arrow">↓ Tool Dispatch & Context Ingestion</div>
+
+            <div class="diagram-tri-split">
+              <div class="diagram-mini-node" onclick="selectArch('providers')">
+                <div class="diagram-node-title">Providers</div>
+                <div class="diagram-node-sub">18+ AI SDKs</div>
+              </div>
+              <div class="diagram-mini-node" onclick="selectArch('tools')">
+                <div class="diagram-node-title">Tools</div>
+                <div class="diagram-node-sub">Files, Shell, MCP</div>
+              </div>
+              <div class="diagram-mini-node" onclick="selectArch('memory')">
+                <div class="diagram-node-title">Storage</div>
+                <div class="diagram-node-sub">SQLite + JSONL</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="arch-detail-drawer reveal-on-scroll stagger-2" id="arch-drawer">
+            <div class="drawer-title" id="drawer-title">TurnEngine Agent Core</div>
+            <div class="drawer-path" id="drawer-path">cogniwork/engine.py:TurnEngine</div>
+            
+            <div class="drawer-section">
+              <h4>Primary Responsibility</h4>
+              <p id="drawer-resp">Orchestrates the multi-turn agent execution cycle, token streaming, tool call evaluation, approval interruption, and outbound payload preparation.</p>
+            </div>
+
+            <div class="drawer-section">
+              <h4>Key Classes & Functions</h4>
+              <ul class="drawer-list" id="drawer-classes">
+                <li><code>TurnEngine._loop()</code> — Main async agent evaluation loop</li>
+                <li><code>TurnEngine._handle_tool_calls()</code> — Risk-tiered tool dispatcher</li>
+                <li><code>TurnEngine._outbound_messages()</code> — System prompt assembler</li>
+                <li><code>TurnEngine._compact_now()</code> — Context window compaction trigger</li>
+              </ul>
+            </div>
+
+            <div class="drawer-section">
+              <h4>Direct Code Connections</h4>
+              <p id="drawer-conns" style="font-size: 0.85rem; color: var(--text-secondary);">
+                Receives tasks from <code>SessionManager</code> via WebSockets, evaluates permissions via <code>PermissionEngine</code>, queries LLMs via <code>ProviderRouter</code>, and invokes <code>ToolRegistry</code>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 5: THE HEART: TURNENGINE
+         ========================================================================== -->
+    <section id="turnengine">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Execution Runtime</div>
+          <h2>The Execution Loop: TurnEngine</h2>
+          <p>Inside `cogniwork/engine.py`, the TurnEngine drives iterative problem-solving with atomic concurrency, live streaming, and graceful error handling.</p>
+        </div>
+
+        <div class="loop-interactive-grid">
+          <div class="loop-canvas reveal-on-scroll stagger-1" id="loop-canvas">
+            <div class="loop-step active-loop" data-step="0">1. User Request & Context Ingestion</div>
+            <div class="diagram-arrow">↓</div>
+            <div class="loop-step" data-step="1">2. Token Stream & Reasoning Evaluation</div>
+            <div class="diagram-arrow">↓</div>
+            <div class="loop-step" data-step="2">3. Tool Proposal & Risk Classification</div>
+            <div class="diagram-arrow">↓</div>
+            <div class="loop-step" data-step="3">4. Permission Gate / Approval Check</div>
+            <div class="diagram-arrow">↓</div>
+            <div class="loop-step" data-step="4">5. Tool Execution (Parallel Reads / Serial Writes)</div>
+            <div class="diagram-arrow">↓</div>
+            <div class="loop-step" data-step="5">6. Observation Result Fed Back to Model</div>
+          </div>
+
+          <div class="glass-panel reveal-on-scroll stagger-2">
+            <h3 style="margin-bottom: 1rem;">What is actually happening?</h3>
+            <p style="margin-bottom: 1.25rem; font-size: 0.95rem;">
+              Unlike single-shot LLM APIs, the CogniOS engine loops continuously until the model signals that the user's objective is fully achieved or requests clarification.
+            </p>
+            <ul class="drawer-list" style="margin-bottom: 1.5rem;">
+              <li><strong>Asynchronous Concurrency:</strong> Non-blocking tool execution using Python's <code>asyncio.to_thread</code> worker pool.</li>
+              <li><strong>Atomic Turn Locking:</strong> <code>manager.try_mark_running(session_id)</code> prevents conversation corruption.</li>
+              <li><strong>Mid-Stream Interruption:</strong> Cancelling drops in-flight token streams and terminates child shell processes immediately.</li>
+              <li><strong>Automatic Compaction:</strong> Triggers at 80% context window capacity to condense older history without modifying canonical JSONL logs.</li>
+            </ul>
+            <div style="display: flex; gap: 0.75rem;">
+              <button class="btn btn-secondary" onclick="stepLoop()">Step Engine Loop</button>
+              <button class="btn btn-outline" id="loop-auto-btn" onclick="toggleLoopAuto()">Auto-Animate</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 6: SIMULATION: FROM CHAT TO EXECUTION
+         ========================================================================== -->
+    <section id="simulation">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Visual Execution Simulation</div>
+          <h2>From Chat to Execution</h2>
+          <p>Watch how CogniOS processes an engineering request step-by-step.</p>
+        </div>
+
+        <div class="sim-box reveal-on-scroll">
+          <div class="sim-header">
+            <div class="sim-prompt-badge">
+              <span>Prompt:</span>
+              <strong>"Refactor the test suite in tests/ and run pytest."</strong>
+            </div>
+            <div>
+              <button class="btn btn-primary" id="sim-play-btn" onclick="playSimulation()">Play Simulation</button>
+              <button class="btn btn-outline" onclick="resetSimulation()">Reset</button>
+            </div>
+          </div>
+
+          <div class="sim-timeline" id="sim-timeline">
+            <div class="sim-card" id="sc-1">
+              <div class="sim-card-num">01</div>
+              <div class="sim-card-body">
+                <h4>Understand Request</h4>
+                <p>Agent parses goal and mounts workspace filesystem roots (`cogniwork/roots.py`).</p>
+              </div>
+            </div>
+            <div class="sim-card" id="sc-2">
+              <div class="sim-card-num">02</div>
+              <div class="sim-card-body">
+                <h4>Inspect Repository</h4>
+                <p>Emits `list_files(path="tests")` and `git_status()` concurrently.</p>
+              </div>
+            </div>
+            <div class="sim-card" id="sc-3">
+              <div class="sim-card-num">03</div>
+              <div class="sim-card-body">
+                <h4>Read Test Files</h4>
+                <p>Executes parallel `read_file` calls across failing test modules.</p>
+              </div>
+            </div>
+            <div class="sim-card" id="sc-4">
+              <div class="sim-card-num">04</div>
+              <div class="sim-card-body">
+                <h4>Plan Modifications</h4>
+                <p>Calculates patch boundaries and prepares unified diffs.</p>
+              </div>
+            </div>
+            <div class="sim-card" id="sc-5">
+              <div class="sim-card-num">05</div>
+              <div class="sim-card-body">
+                <h4>Request Permission</h4>
+                <p>Permission engine identifies write action and prompts user via `ApprovalCard`.</p>
+              </div>
+            </div>
+            <div class="sim-card" id="sc-6">
+              <div class="sim-card-num">06</div>
+              <div class="sim-card-body">
+                <h4>Execute Modifications</h4>
+                <p>User clicks "Allow Once". `write_file` and `apply_patch` write updates to disk.</p>
+              </div>
+            </div>
+            <div class="sim-card" id="sc-7">
+              <div class="sim-card-num">07</div>
+              <div class="sim-card-body">
+                <h4>Run Pytest</h4>
+                <p>Invokes `run_shell(command="pytest")` in stateful shell session.</p>
+              </div>
+            </div>
+            <div class="sim-card" id="sc-8">
+              <div class="sim-card-num">08</div>
+              <div class="sim-card-body">
+                <h4>Observe Results</h4>
+                <p>Captures terminal output: 1105 passed in 1.57s.</p>
+              </div>
+            </div>
+            <div class="sim-card" id="sc-9">
+              <div class="sim-card-num">09</div>
+              <div class="sim-card-body">
+                <h4>Verify Working Tree</h4>
+                <p>Confirms git status is clean and deliverables are complete.</p>
+              </div>
+            </div>
+            <div class="sim-card" id="sc-10">
+              <div class="sim-card-num">10</div>
+              <div class="sim-card-body">
+                <h4>Finish Work</h4>
+                <p>Streams natural-language summary to user. Turn finishes cleanly.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 7: TOOLS CONSTELLATION
+         ========================================================================== -->
+    <section id="tools">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Capability Catalog</div>
+          <h2>Verified Tool Constellation</h2>
+          <p>Over 160 concrete tools verified in the repository across 8 functional domains.</p>
+        </div>
+
+        <div class="tools-filter-bar reveal-on-scroll">
+          <button class="filter-btn active" onclick="filterTools('all')">ALL (160+)</button>
+          <button class="filter-btn" onclick="filterTools('files')">FILES & GIT</button>
+          <button class="filter-btn" onclick="filterTools('shell')">SHELL</button>
+          <button class="filter-btn" onclick="filterTools('web')">WEB & FETCH</button>
+          <button class="filter-btn" onclick="filterTools('memory')">MEMORY & SKILLS</button>
+          <button class="filter-btn" onclick="filterTools('mcp')">MCP PROTOCOL</button>
+          <button class="filter-btn" onclick="filterTools('connectors')">CONNECTORS (35+)</button>
+        </div>
+
+        <div class="tools-grid reveal-on-scroll stagger-1" id="tools-grid">
+          <!-- File Read -->
+          <div class="tool-card" data-cat="files">
+            <div class="tool-card-head">
+              <span class="tool-name">read_file</span>
+              <span class="badge badge-online">LOW RISK</span>
+            </div>
+            <p>Reads file under workspace root with line-numbered indexing.</p>
+            <div class="tool-meta">cogniwork/tools/files.py • Auto-allowed</div>
+          </div>
+
+          <!-- File Write -->
+          <div class="tool-card" data-cat="files">
+            <div class="tool-card-head">
+              <span class="tool-name">write_file</span>
+              <span class="badge badge-warning">MEDIUM RISK</span>
+            </div>
+            <p>Creates or replaces UTF-8 files under sandboxed workspace roots.</p>
+            <div class="tool-meta">cogniwork/tools/files.py • Approval Gated</div>
+          </div>
+
+          <!-- Run Shell -->
+          <div class="tool-card" data-cat="shell">
+            <div class="tool-card-head">
+              <span class="tool-name">run_shell</span>
+              <span class="badge badge-broken">HIGH RISK</span>
+            </div>
+            <p>Executes bash/PowerShell commands with background task support.</p>
+            <div class="tool-meta">cogniwork/tools/shell.py • Whitelist/Approval</div>
+          </div>
+
+          <!-- Web Fetch -->
+          <div class="tool-card" data-cat="web">
+            <div class="tool-card-head">
+              <span class="tool-name">web_fetch</span>
+              <span class="badge badge-online">SAFE SSRF</span>
+            </div>
+            <p>Fetches URL content with DNS pinning, blocking loopback & cloud metadata.</p>
+            <div class="tool-meta">cogniwork/web/fetch.py • Address Guarded</div>
+          </div>
+
+          <!-- Remember Memory -->
+          <div class="tool-card" data-cat="memory">
+            <div class="tool-card-head">
+              <span class="tool-name">remember</span>
+              <span class="badge badge-online">PERSISTENT</span>
+            </div>
+            <p>Persists durable facts into SQLite across global and workspace scopes.</p>
+            <div class="tool-meta">cogniwork/memory/tools.py • Auto-allowed</div>
+          </div>
+
+          <!-- MCP Dynamic Tools -->
+          <div class="tool-card" data-cat="mcp">
+            <div class="tool-card-head">
+              <span class="tool-name">mcp__*</span>
+              <span class="badge badge-ready">DYNAMIC</span>
+            </div>
+            <p>Dynamically bridged tools from stdio or HTTP Streamable MCP servers.</p>
+            <div class="tool-meta">cogniwork/mcp/tools.py • Schema Wrapped</div>
+          </div>
+
+          <!-- GitHub Tools -->
+          <div class="tool-card" data-cat="connectors">
+            <div class="tool-card-head">
+              <span class="tool-name">github__* (7 tools)</span>
+              <span class="badge badge-online">INTEGRATED</span>
+            </div>
+            <p>Search issues, create PRs, list commits, inspect repo tree.</p>
+            <div class="tool-meta">cogniwork/connectors/integration_tools.py</div>
+          </div>
+
+          <!-- Gmail Tools -->
+          <div class="tool-card" data-cat="connectors">
+            <div class="tool-card-head">
+              <span class="tool-name">gmail__* (5 tools)</span>
+              <span class="badge badge-online">INTEGRATED</span>
+            </div>
+            <p>Search threads, read emails, draft replies with sender privacy filters.</p>
+            <div class="tool-meta">cogniwork/connectors/integration_tools.py</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 8: PERMISSIONS & SECURITY
+         ========================================================================== -->
+    <section id="security">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Security Architecture</div>
+          <h2>Giving AI access to your computer requires a boundary.</h2>
+          <p>CogniOS enforces multi-layered permission models, origin validation, and sandbox constraints.</p>
+        </div>
+
+        <div class="sec-grid">
+          <div class="mode-matrix reveal-on-scroll stagger-1">
+            <div class="mode-card">
+              <div class="mode-tag mode-discuss">DISCUSS</div>
+              <div>
+                <strong>Read-Only Analysis</strong>
+                <p style="font-size: 0.85rem;">All modifying tools (writes, shell, mutations) are strictly blocked.</p>
+              </div>
+            </div>
+            <div class="mode-card">
+              <div class="mode-tag mode-plan">PLAN</div>
+              <div>
+                <strong>Architectural Planning</strong>
+                <p style="font-size: 0.85rem;">Agent can read code and formulate plans; proposes plan via interactive card.</p>
+              </div>
+            </div>
+            <div class="mode-card">
+              <div class="mode-tag mode-interactive">INTERACTIVE</div>
+              <div>
+                <strong>Default Safe Operation</strong>
+                <p style="font-size: 0.85rem;">Reads execute automatically; file writes and shell commands prompt user approval.</p>
+              </div>
+            </div>
+            <div class="mode-card">
+              <div class="mode-tag mode-auto">AUTO</div>
+              <div>
+                <strong>Full Autonomy</strong>
+                <p style="font-size: 0.85rem;">Tools execute within mounted workspace roots without manual prompts.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-panel reveal-on-scroll stagger-2">
+            <h3 style="margin-bottom: 1rem;">Defensive Guardrails</h3>
+            <ul class="drawer-list" style="gap: 0.75rem;">
+              <li><strong>Loopback CSWSH Protection:</strong> Strict Origin checking (`tauri://localhost`, `127.0.0.1`) rejecting rogue web origins with HTTP 1008.</li>
+              <li><strong>Per-Launch Sidecar Token:</strong> 64-character random token (`X-CogniOS-Token`) injected into webview headers.</li>
+              <li><strong>Multi-Root Filesystem Sandbox:</strong> Canonical path resolution (`resolve()`) blocks directory traversal (`../`).</li>
+              <li><strong>SSRF Address Guard:</strong> DNS pinning blocks requests to loopback, RFC1918 private IPs, and AWS metadata IP `169.254.169.254`.</li>
+              <li><strong>Single-Owner Local Auth:</strong> Passwords hashed with Argon2id; TOTP secrets encrypted with Fernet symmetric keys.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 9: MULTI-MODEL AI ROUTER
+         ========================================================================== -->
+    <section id="providers">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Model Independence</div>
+          <h2>One runtime. Multiple intelligence providers.</h2>
+          <p>Avoid vendor lock-in. CogniOS routes queries dynamically across 18+ model endpoints via `ProviderRouter`.</p>
+        </div>
+
+        <div class="providers-grid">
+          <div class="provider-card reveal-on-scroll stagger-1">
+            <div class="provider-logo">🟢</div>
+            <h4>OpenAI Responses</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">GPT-5.6, o3-mini, o1 with native reasoning tokens</p>
+          </div>
+          <div class="provider-card reveal-on-scroll stagger-2">
+            <div class="provider-logo">🟣</div>
+            <h4>Anthropic Claude</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Claude 3.7 Sonnet with Prompt Caching</p>
+          </div>
+          <div class="provider-card reveal-on-scroll stagger-3">
+            <div class="provider-logo">🔵</div>
+            <h4>Google GenAI</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Gemini 2.5/3.1/3.6 with thought signatures</p>
+          </div>
+          <div class="provider-card reveal-on-scroll stagger-4">
+            <div class="provider-logo">🟠</div>
+            <h4>AWS Bedrock</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Converse API & Native Claude on user AWS accounts</p>
+          </div>
+          <div class="provider-card reveal-on-scroll stagger-1">
+            <div class="provider-logo">🌐</div>
+            <h4>GCP Vertex AI</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">ADC, Service Accounts, Model Garden MaaS</p>
+          </div>
+          <div class="provider-card reveal-on-scroll stagger-2">
+            <div class="provider-logo">🦙</div>
+            <h4>Local Ollama</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Offline open-weight models (Llama 4, Qwen)</p>
+          </div>
+          <div class="provider-card reveal-on-scroll stagger-3">
+            <div class="provider-logo">⚡</div>
+            <h4>DeepSeek API</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">DeepSeek V4 Flash / Pro reasoning models</p>
+          </div>
+          <div class="provider-card reveal-on-scroll stagger-4">
+            <div class="provider-logo">🚀</div>
+            <h4>Reseller Gateways</h4>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">Together AI, Fireworks, OpenRouter</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 10: MEMORY & CONTEXT SIMULATOR
+         ========================================================================== -->
+    <section id="memory">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Context Intelligence</div>
+          <h2>Dual-Tier Memory & Progressive Disclosure Simulator</h2>
+          <p>Drag the character slider below to see how CogniOS automatically flips between Full Injection Mode and Index Mode.</p>
+        </div>
+
+        <div class="memory-visual-container">
+          <div class="context-meter-box reveal-on-scroll stagger-1">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <h4>Outbound Context Composition</h4>
+              <span id="memory-mode-badge" class="badge badge-online">FULL INJECTION MODE</span>
+            </div>
+            
+            <div class="meter-bar">
+              <div class="meter-slice slice-system" title="System Prompt"></div>
+              <div class="meter-slice slice-memory" title="Scoped Memories"></div>
+              <div class="meter-slice slice-history" title="Recent Verbatim Turns"></div>
+              <div class="meter-slice slice-free" title="Available Headroom"></div>
+            </div>
+
+            <div class="interactive-slider-box">
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                <span>Simulated Memory Content Size:</span>
+                <strong id="memory-chars-count" style="color: var(--accent-cyan);">3,200 chars</strong>
+              </div>
+              <input type="range" id="memory-chars-slider" class="slider-ctrl" min="1000" max="16000" step="200" value="3200" />
+              <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                <span>1,000 chars (Full Mode)</span>
+                <span>Threshold: 8,000 chars</span>
+                <span>16,000 chars (Index Mode)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-panel reveal-on-scroll stagger-2">
+            <h3 style="margin-bottom: 0.75rem;">Simulated System Prompt Output</h3>
+            <div id="simulated-memory-output" style="font-family: var(--font-mono); font-size: 0.8rem; background: #07090e; padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); min-height: 180px;">
+              <!-- Dynamic output updated by script.js -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 11: MULTIMODAL
+         ========================================================================== -->
+    <section id="multimodal">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Multimodal Processing</div>
+          <h2>Images, Offline Voice & Documents</h2>
+          <p>Native pipelines optimized for speed, capability fallback, and data privacy.</p>
+        </div>
+
+        <div class="tabs-nav reveal-on-scroll">
+          <button class="tab-btn active" onclick="switchTab('image')">IMAGE PIPELINE</button>
+          <button class="tab-btn" onclick="switchTab('voice')">OFFLINE VOICE (STT)</button>
+          <button class="tab-btn" onclick="switchTab('document')">PDF & DOCUMENTS</button>
+        </div>
+
+        <!-- Tab 1: Image -->
+        <div class="tab-pane active" id="tab-image">
+          <div class="glass-panel" style="max-width: 840px; margin: 0 auto;">
+            <h3>Image Ingestion & Dynamic Vision Fallback</h3>
+            <p style="margin: 0.75rem 0 1.25rem;">Images dropped into the composer are converted to Base64 data URLs. If the user switches to a non-vision model (e.g. DeepSeek V4), the engine substitutes a placeholder rather than failing the API call.</p>
+            <div style="font-family: var(--font-mono); font-size: 0.85rem; background: #07090e; padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+              Composer Dropzone &rarr; Base64 Data URL &rarr; attachments.py &rarr; Capability Check (vision=True) &rarr; LLM Vision API
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Voice -->
+        <div class="tab-pane" id="tab-voice">
+          <div class="glass-panel" style="max-width: 840px; margin: 0 auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3>Zero-Cloud Speech-to-Text (`stt/src/lib.rs`)</h3>
+              <button class="btn btn-secondary" id="voice-sim-btn" style="font-size: 0.85rem;">🎙️ Start Voice Dictation</button>
+            </div>
+            
+            <div id="voice-sim-waveform" class="waveform-display">
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+              <div class="waveform-bar"></div>
+            </div>
+
+            <div id="voice-sim-transcript" style="font-family: var(--font-mono); font-size: 0.85rem; background: #07090e; padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); color: var(--text-secondary);">
+              Click "Start Voice Dictation" to simulate local microphone audio capture and whisper.cpp transcription.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Document -->
+        <div class="tab-pane" id="tab-document">
+          <div class="glass-panel" style="max-width: 840px; margin: 0 auto;">
+            <h3>PDF Extraction & Local Rasterization Fallback</h3>
+            <p style="margin: 0.75rem 0 1.25rem;">Claude/Gemini receive native PDF bytes. For models without document support, `pdf_support.py` runs local text extraction (`pypdf`) or page rasterization (`pypdfium2`).</p>
+            <div style="font-family: var(--font-mono); font-size: 0.85rem; background: #07090e; padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+              PDF Attachment &rarr; Model Native PDF Check &rarr; [If False] pypdfium2 Rasterizer &rarr; Image Content Parts &rarr; Model
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 12: CONNECTORS & MCP
+         ========================================================================== -->
+    <section id="connectors">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Integration Mesh</div>
+          <h2>35+ Connectors & Model Context Protocol</h2>
+          <p>Verified status across external SaaS platforms and standards.</p>
+        </div>
+
+        <div class="connectors-matrix reveal-on-scroll">
+          <div class="connector-badge-card">
+            <span>Slack Socket Mode</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>GitHub Apps</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>Google Gmail</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>Google Calendar</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>HubSpot CRM</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>Jira Software</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>Linear</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>Notion Workspace</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>Asana</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>Stripe API</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>MCP (stdio / SSE)</span>
+            <span class="badge badge-implemented">ACTIVE</span>
+          </div>
+          <div class="connector-badge-card">
+            <span>Datadog / PagerDuty</span>
+            <span class="badge badge-placeholder">PLACEHOLDER</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 13: DATA & PRIVACY
+         ========================================================================== -->
+    <section id="privacy">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Local-First Storage</div>
+          <h2>Data Architecture: What Stays on Your Machine</h2>
+          <p>CogniOS keeps operational state, transcripts, and credentials local.</p>
+        </div>
+
+        <div style="background: #080b12; border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); padding: 2.5rem; max-width: 880px; margin: 0 auto;" class="reveal-on-scroll">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <div>
+              <h4 style="color: var(--accent-emerald); margin-bottom: 0.75rem;">100% LOCAL (Never Leaves Device)</h4>
+              <ul class="drawer-list" style="font-size: 0.85rem;">
+                <li>`cogniwork.db` SQLite DB (Sessions, Memories, Workspaces, Audit Log)</li>
+                <li>`conversations/*.jsonl` Full Raw Message History</li>
+                <li>`profiles.json` Encrypted API Keys & Tokens</li>
+                <li>`models/` Quantized Whisper Weights</li>
+                <li>Microphone Audio Recordings (In-Memory Only)</li>
+              </ul>
+            </div>
+            <div>
+              <h4 style="color: var(--accent-cyan); margin-bottom: 0.75rem;">OUTBOUND (Sent Only to Selected LLM)</h4>
+              <ul class="drawer-list" style="font-size: 0.85rem;">
+                <li>System Instructions + Scoped Fact Summaries</li>
+                <li>Active Workspace Context (Mounted Directories)</li>
+                <li>Recent Verbatim Chat & Tool Output Messages</li>
+                <li>User-Selected File & Image Attachments</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 14: COMPARISON TABLE
+         ========================================================================== -->
+    <section id="comparison">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Comparison</div>
+          <h2>Why CogniOS is Different</h2>
+          <p>A technical comparison between conventional chatbots and CogniOS.</p>
+        </div>
+
+        <div class="compare-table-container reveal-on-scroll">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Capability Domain</th>
+                <th>Traditional Chatbot</th>
+                <th class="col-cognios">CogniOS Operating Environment</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Execution Model</strong></td>
+                <td>Single-shot text suggestions</td>
+                <td class="col-cognios">Autonomous iterative agent loop (`TurnEngine`)</td>
+              </tr>
+              <tr>
+                <td><strong>Local Filesystem</strong></td>
+                <td>No local access</td>
+                <td class="col-cognios">Sandboxed multi-root file read/write/patch tools</td>
+              </tr>
+              <tr>
+                <td><strong>Shell Execution</strong></td>
+                <td>No shell access</td>
+                <td class="col-cognios">Stateful local shell with background daemons</td>
+              </tr>
+              <tr>
+                <td><strong>Permission Control</strong></td>
+                <td>Opaque / None</td>
+                <td class="col-cognios">Discuss, Plan, Interactive, Auto + Approval Cards</td>
+              </tr>
+              <tr>
+                <td><strong>Speech-to-Text</strong></td>
+                <td>Cloud audio upload</td>
+                <td class="col-cognios">100% offline Whisper transcription (`whisper.cpp`)</td>
+              </tr>
+              <tr>
+                <td><strong>Model Freedom</strong></td>
+                <td>Vendor lock-in</td>
+                <td class="col-cognios">18+ providers (Claude, GPT-5.6, Gemini, Bedrock, Ollama)</td>
+              </tr>
+              <tr>
+                <td><strong>Context Compaction</strong></td>
+                <td>Hard truncation / Drop</td>
+                <td class="col-cognios">Non-destructive summarization preserving JSONL log</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 15: FEATURE MATURITY MATRIX
+         ========================================================================== -->
+    <section id="maturity">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Subsystem Status</div>
+          <h2>Feature Maturity Matrix</h2>
+          <p>Forensic status of every major architectural component based on actual code inspection.</p>
+        </div>
+
+        <div class="maturity-table-wrap reveal-on-scroll">
+          <table class="maturity-table">
+            <thead>
+              <tr>
+                <th>Subsystem / Feature</th>
+                <th>Implemented</th>
+                <th>Tested</th>
+                <th>Production Status</th>
+                <th>Implementation Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>TurnEngine Agent Loop</strong></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-implemented">1105 TESTS</span></td>
+                <td><span class="badge badge-online">PRODUCTION READY</span></td>
+                <td><button class="copy-code-btn" data-code="cogniwork/engine.py:TurnEngine">cogniwork/engine.py:TurnEngine</button></td>
+              </tr>
+              <tr>
+                <td><strong>Multi-Provider Router</strong></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-online">PRODUCTION READY</span></td>
+                <td><button class="copy-code-btn" data-code="cogniwork/providers/registry.py">cogniwork/providers/registry.py (18 Providers)</button></td>
+              </tr>
+              <tr>
+                <td><strong>Offline Whisper STT</strong></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-online">PRODUCTION READY (Tauri)</span></td>
+                <td><button class="copy-code-btn" data-code="stt/src/lib.rs">stt/src/lib.rs (CPAL + whisper.cpp)</button></td>
+              </tr>
+              <tr>
+                <td><strong>SSRF Address Guard</strong></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-online">PRODUCTION READY</span></td>
+                <td><button class="copy-code-btn" data-code="cogniwork/web/guard.py:AddressGuard">cogniwork/web/guard.py:AddressGuard</button></td>
+              </tr>
+              <tr>
+                <td><strong>Single-Owner Local Auth</strong></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-online">PRODUCTION READY</span></td>
+                <td><button class="copy-code-btn" data-code="cogniwork/auth/store.py">cogniwork/auth/store.py (Argon2 + TOTP)</button></td>
+              </tr>
+              <tr>
+                <td><strong>Model Context Protocol</strong></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-online">PRODUCTION READY</span></td>
+                <td><button class="copy-code-btn" data-code="cogniwork/mcp/client.py">cogniwork/mcp/client.py (stdio + SSE)</button></td>
+              </tr>
+              <tr>
+                <td><strong>Headless Browser Tools</strong></td>
+                <td><span class="badge badge-partial">PARTIAL</span></td>
+                <td><span class="badge badge-implemented">YES</span></td>
+                <td><span class="badge badge-warning">OPTIONAL EXTRA</span></td>
+                <td><button class="copy-code-btn" data-code="cogniwork/connectors/browser_automation.py">cogniwork/connectors/browser_automation.py</button></td>
+              </tr>
+              <tr>
+                <td><strong>Cloud Managed OAuth</strong></td>
+                <td><span class="badge badge-partial">PARTIAL</span></td>
+                <td><span class="badge badge-broken">PAUSED</span></td>
+                <td><span class="badge badge-warning">MANUAL TOKENS ONLY</span></td>
+                <td><button class="copy-code-btn" data-code="cogniwork/connectors/descriptors.py">managed_paused=True in descriptors.py</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 16: LIVE DEMO (CINEMATIC SIMULATIONS)
+         ========================================================================== -->
+    <section id="demo">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Interactive Demonstration</div>
+          <h2>Live Workflow Scenarios</h2>
+          <p>Explore three core operational capabilities demonstrated step-by-step.</p>
+        </div>
+
+        <div class="pillar-grid">
+          <div class="pillar-card reveal-on-scroll stagger-1">
+            <div class="pillar-icon">🛠️</div>
+            <h3>1. Autonomous Refactor</h3>
+            <p style="margin-bottom: 1rem;">Inspects repository, prepares unified patch, prompts user approval card, applies changes, and verifies via pytest.</p>
+            <button class="btn btn-secondary" style="width: 100%; font-size: 0.85rem;" onclick="openPitch('tech')">View Execution Trace</button>
+          </div>
+          <div class="pillar-card reveal-on-scroll stagger-2">
+            <div class="pillar-icon">🎙️</div>
+            <h3>2. Offline Voice Dictation</h3>
+            <p style="margin-bottom: 1rem;">Captures local mic stream, processes audio via embedded `whisper.cpp` model, and inserts text with zero cloud latency.</p>
+            <a href="#multimodal" class="btn btn-secondary" style="width: 100%; font-size: 0.85rem;" onclick="switchTab('voice')">Test Waveform Demo</a>
+          </div>
+          <div class="pillar-card reveal-on-scroll stagger-3">
+            <div class="pillar-icon">💾</div>
+            <h3>3. Durable Session Resume</h3>
+            <p style="margin-bottom: 1rem;">Pending tool approvals survive complete app restarts, restoring approval cards cleanly from SQLite inbox on relaunch.</p>
+            <button class="btn btn-secondary" style="width: 100%; font-size: 0.85rem;" onclick="openPitch(300)">Read Persistence Spec</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 17: TECHNICAL DEEP DIVE ACCORDIONS
+         ========================================================================== -->
+    <section id="deepdive">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Architectural Reference</div>
+          <h2>Technical Deep Dive</h2>
+          <p>Detailed breakdown of core subsystems, file structures, and data flows.</p>
+        </div>
+
+        <div class="accordion-group reveal-on-scroll">
+          <!-- Engine -->
+          <div class="accordion-item">
+            <div class="accordion-head" onclick="toggleAccordion(this)">
+              <h3><span>⚙️</span> TurnEngine & Async Loop Mechanics</h3>
+              <span class="accordion-arrow">▼</span>
+            </div>
+            <div class="accordion-body">
+              <p style="margin-bottom: 0.75rem;"><strong>File:</strong> <code>cogniwork/engine.py:TurnEngine</code></p>
+              <p>Maintains `self.messages` containing canonical OpenAI-formatted turn history. The `_loop()` method evaluates tool calls in a loop up to `max_iterations`. Low-risk tools run in parallel via `asyncio.gather`; high-risk tools execute serially. Mid-stream interruption is handled by triggering `request_interrupt()` which sets `self._cancel` and terminates child processes via `executor.interrupt_now`.</p>
+            </div>
+          </div>
+
+          <!-- Permissions -->
+          <div class="accordion-item">
+            <div class="accordion-head" onclick="toggleAccordion(this)">
+              <h3><span>🛡️</span> PermissionEngine & Multi-Root Sandbox</h3>
+              <span class="accordion-arrow">▼</span>
+            </div>
+            <div class="accordion-body">
+              <p style="margin-bottom: 0.75rem;"><strong>File:</strong> <code>cogniwork/permissions.py:PermissionEngine</code> & <code>cogniwork/roots.py:RootDir</code></p>
+              <p>Enforces 4 operational modes. Every filesystem operation resolves target paths against configured `RootDir` instances. Path traversal escapes (`../`) are intercepted and denied. Operations outside mounted roots require dynamic user elevation via `request_directory`.</p>
+            </div>
+          </div>
+
+          <!-- Providers -->
+          <div class="accordion-item">
+            <div class="accordion-head" onclick="toggleAccordion(this)">
+              <h3><span>🌐</span> Multi-Provider Routing & Prompt Caching</h3>
+              <span class="accordion-arrow">▼</span>
+            </div>
+            <div class="accordion-body">
+              <p style="margin-bottom: 0.75rem;"><strong>File:</strong> <code>cogniwork/providers/router.py:ProviderRouter</code></p>
+              <p>Routes model requests based on prefix. Implements native Anthropic prompt caching (`cache_control`), OpenAI Responses API, Google GenAI SDK, AWS Bedrock, GCP Vertex AI, and local Ollama. Capabilities (vision, pdf, tools, reasoning) are dynamically inspected per model.</p>
+            </div>
+          </div>
+
+          <!-- STT -->
+          <div class="accordion-item">
+            <div class="accordion-head" onclick="toggleAccordion(this)">
+              <h3><span>🎙️</span> Native Offline Speech-to-Text</h3>
+              <span class="accordion-arrow">▼</span>
+            </div>
+            <div class="accordion-body">
+              <p style="margin-bottom: 0.75rem;"><strong>File:</strong> <code>stt/src/lib.rs:Dictation</code></p>
+              <p>CPAL captures microphone audio at 16,000 Hz mono into an in-memory sample buffer. On stop, `whisper_rs` runs local inference against the quantized `ggml-large-v3-turbo-q5_0.bin` model. Provides real-time RMS input metering for UI waveforms.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 18: WHY COGNIOS EXISTS (PRODUCT VISION)
+         ========================================================================== -->
+    <section id="vision">
+      <div class="container reveal-on-scroll" style="text-align: center; max-width: 800px;">
+        <div class="section-tag">Product Evolution</div>
+        <h2 style="margin-bottom: 1.5rem;">Why CogniOS Exists</h2>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem; font-family: var(--font-mono); font-size: 1.1rem; color: var(--text-secondary); margin: 2rem 0;">
+          <div>AI that talks</div>
+          <div style="color: var(--accent-indigo);">↓</div>
+          <div>AI that reasons</div>
+          <div style="color: var(--accent-indigo);">↓</div>
+          <div>AI that uses tools</div>
+          <div style="color: var(--accent-indigo);">↓</div>
+          <div>AI that executes</div>
+          <div style="color: var(--accent-cyan); font-weight: 700; font-size: 1.25rem;">↓</div>
+          <div style="color: var(--text-primary); font-size: 1.35rem; font-weight: 700;">An AI Operating Environment</div>
+        </div>
+        <p style="font-size: 1.125rem; line-height: 1.8;">
+          "CogniOS is an attempt to make AI an active participant in the computing environment—not just a conversational interface."
+        </p>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 19: FINAL PITCH
+         ========================================================================== -->
+    <section id="pitch">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Executive Summary</div>
+          <h2>"CogniOS turns AI from something you talk to into something that can work with you."</h2>
+          <p>Select a presentation format tailored to your audience.</p>
+        </div>
+
+        <div class="pitch-buttons-grid reveal-on-scroll">
+          <button class="btn btn-secondary" onclick="openPitch(10)">10-Second Pitch</button>
+          <button class="btn btn-secondary" onclick="openPitch(60)">60-Second Pitch</button>
+          <button class="btn btn-secondary" onclick="openPitch(300)">5-Minute Pitch</button>
+          <button class="btn btn-primary" onclick="openPitch('tech')">Technical Architect Pitch</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================================================
+         SECTION 20: CODEBASE EVIDENCE TABLE
+         ========================================================================== -->
+    <section id="evidence">
+      <div class="container">
+        <div class="section-header reveal-on-scroll">
+          <div class="section-tag">Forensic Verification</div>
+          <h2>Repository Evidence & Traceability</h2>
+          <p>Every major architectural claim verified directly against codebase implementations.</p>
+        </div>
+
+        <div class="maturity-table-wrap reveal-on-scroll">
+          <table class="maturity-table">
+            <thead>
+              <tr>
+                <th>Feature / Capability</th>
+                <th>Exact File Location</th>
+                <th>Key Class / Function</th>
+                <th>Verification Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Agent Core Execution</td>
+                <td><code>cogniwork/engine.py</code></td>
+                <td><code>TurnEngine._loop()</code></td>
+                <td><span class="badge badge-implemented">VERIFIED</span></td>
+              </tr>
+              <tr>
+                <td>Multi-Provider Router</td>
+                <td><code>cogniwork/providers/registry.py</code></td>
+                <td><code>DESCRIPTORS (18 providers)</code></td>
+                <td><span class="badge badge-implemented">VERIFIED</span></td>
+              </tr>
+              <tr>
+                <td>Offline Speech-to-Text</td>
+                <td><code>stt/src/lib.rs</code></td>
+                <td><code>Dictation / whisper.cpp</code></td>
+                <td><span class="badge badge-implemented">VERIFIED</span></td>
+              </tr>
+              <tr>
+                <td>Context Compaction</td>
+                <td><code>cogniwork/compaction.py</code></td>
+                <td><code>should_compact() / build_state()</code></td>
+                <td><span class="badge badge-implemented">VERIFIED</span></td>
+              </tr>
+              <tr>
+                <td>Permission Sandbox</td>
+                <td><code>cogniwork/permissions.py</code></td>
+                <td><code>PermissionEngine.evaluate()</code></td>
+                <td><span class="badge badge-implemented">VERIFIED</span></td>
+              </tr>
+              <tr>
+                <td>SSRF Address Guard</td>
+                <td><code>cogniwork/web/guard.py</code></td>
+                <td><code>AddressGuard.validate_url()</code></td>
+                <td><span class="badge badge-implemented">VERIFIED</span></td>
+              </tr>
+              <tr>
+                <td>Single-Owner Local Auth</td>
+                <td><code>cogniwork/auth/store.py</code></td>
+                <td><code>AuthStore / Argon2 / TOTP</code></td>
+                <td><span class="badge badge-implemented">VERIFIED</span></td>
+              </tr>
+              <tr>
+                <td>Model Context Protocol</td>
+                <td><code>cogniwork/mcp/client.py</code></td>
+                <td><code>MCPClientSession / Dynamic OAuth</code></td>
+                <td><span class="badge badge-implemented">VERIFIED</span></td>
+              </tr>
+              <tr>
+                <td>Tauri Desktop Shell</td>
+                <td><code>surfaces/gui/src-tauri/src/lib.rs</code></td>
+                <td><code>run() / sidecar launcher</code></td>
+                <td><span class="badge badge-implemented">VERIFIED</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Pitch Modal -->
+  <div class="pitch-modal-overlay" id="pitch-modal" onclick="closePitch(event)">
+    <div class="pitch-modal-content" onclick="event.stopPropagation()">
+      <button class="modal-close-btn" onclick="closePitchDirect()">✕</button>
+      <h3 id="modal-title" style="margin-bottom: 1rem; color: var(--accent-cyan);">Pitch</h3>
+      <div id="modal-body" style="font-size: 1rem; line-height: 1.7; color: var(--text-secondary); white-space: pre-line;"></div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="container">
+      <p>CogniOS Architecture Presentation • Generated from Complete Codebase Forensic Investigation</p>
+      <p style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-dim);">Pure HTML/CSS/JS • Zero external dependencies • Local-first</p>
+    </div>
+  </footer>
+
+</body>
+</html>

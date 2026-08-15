@@ -96,10 +96,10 @@ function normalizeTodos(raw: unknown): TodoItem[] {
 
 // Fallbacks used only before the persona list loads (the in-component, family-aware
 // needsWorkspace/gatesWorkspace consult the real persona once available).
-const needsWorkspaceFallback = (a: string) => a === "code" || a === "cowork";
+const needsWorkspaceFallback = (a: string) => a === "code" || a === "cogniwork" || a === "cowork";
 const gatesWorkspaceFallback = (a: string) => a === "code";
-const LAST_SESSION_KEY = "coworker:last-session-by-agent:v1";
-const NAV_COLLAPSED_KEY = "coworker:nav-collapsed:v1";
+const LAST_SESSION_KEY = "cogniwork:last-session-by-agent:v1";
+const NAV_COLLAPSED_KEY = "cogniwork:nav-collapsed:v1";
 
 type LastSession = { sessionId: string; workspace: string; updatedAt: number };
 
@@ -157,7 +157,7 @@ export function App() {
   const [showGate, setShowGate] = useState(false);
   const [workspaceTrustRequest, setWorkspaceTrustRequest] =
     useState<WorkspaceCommandTrust | null>(null);
-  const [agent, setAgent] = useState("cowork");
+  const [agent, setAgent] = useState("cogniwork");
   const [model, setModel] = useState("gpt-5.6-sol");
   const [models, setModels] = useState<string[]>([]);
   const [modelLabels, setModelLabels] = useState<Record<string, string>>({});
@@ -170,7 +170,7 @@ export function App() {
   // Per-session token usage (OPE-42): rebuilt from the transcript on session load,
   // accumulated live from assistant_message events, reset with the transcript.
   const [usage, setUsage] = useState<SessionUsage>(emptyUsage());
-  const [surfaces, setSurfaces] = useState<SurfaceVisibility>({ cowork: true, chat: false, code: false });
+  const [surfaces, setSurfaces] = useState<SurfaceVisibility>({ cogniwork: true, chat: false, code: false });
   const [mode, setMode] = useState("interactive");
   const [connected, setConnected] = useState(false);
   const [running, setRunning] = useState(false);
@@ -202,10 +202,10 @@ export function App() {
   const [gateCreate, setGateCreate] = useState(false);
   // Which Settings section the full-page Settings surface opens on (§ Settings-as-page).
   const [settingsTab, setSettingsTab] = useState<
-    "appearance" | "models" | "skills" | "voice" | "memory" | "personas"
+    "appearance" | "authentication" | "models" | "skills" | "voice" | "memory" | "personas"
   >("appearance");
   const openSettings = (
-    tab: "appearance" | "models" | "skills" | "voice" | "memory" | "personas" = "appearance",
+    tab: "appearance" | "authentication" | "models" | "skills" | "voice" | "memory" | "personas" = "appearance",
   ) => {
     setSettingsTab(tab);
     setSurface("settings");
@@ -344,8 +344,8 @@ export function App() {
   // The desktop tray's "Settings" item dispatches this on the window.
   useEffect(() => {
     const open = () => openSettings("appearance");
-    window.addEventListener("coworker:open-settings", open);
-    return () => window.removeEventListener("coworker:open-settings", open);
+    window.addEventListener("cogniwork:open-settings", open);
+    return () => window.removeEventListener("cogniwork:open-settings", open);
   }, []);
 
   // "Run setup again" (from Settings) re-opens the wizard.
@@ -353,8 +353,8 @@ export function App() {
     const open = () => {
       setOnboarding(true);
     };
-    window.addEventListener("coworker:open-onboarding", open);
-    return () => window.removeEventListener("coworker:open-onboarding", open);
+    window.addEventListener("cogniwork:open-onboarding", open);
+    return () => window.removeEventListener("cogniwork:open-onboarding", open);
   }, []);
 
   const sessionRef = useRef<Session | null>(null);
@@ -414,7 +414,7 @@ export function App() {
     try {
       const recents = await getRecentWorkspaces();
       setProjects(recents);
-      // Only auto-adopt a recent folder for gated surfaces (Code). Cowork starts orphan.
+      // Only auto-adopt a recent folder for gated surfaces (Code). CogniWork starts orphan.
       if (gatesWorkspace(agent)) {
         const ws = recents.find((w) => w.exists) || recents[0];
         if (ws) {
@@ -446,7 +446,7 @@ export function App() {
           // effect). resumeLastOrGate is async — if we cleared `booting` first, the throwaway
           // initial sessionId would connect against an empty/stale workspace and the server
           // would provision a junk per-conversation scratch dir for it before resume could
-          // flip to the real session. Cowork ignores default_workspace (a Code concept).
+          // flip to the real session. CogniWork ignores default_workspace (a Code concept).
           if (h.default_workspace && gatesWorkspace(agent)) setWorkspace(h.default_workspace);
           else await resumeLastOrGate();
           // The mount-time loadSettings races the sidecar boot and swallows its failure —
@@ -528,11 +528,11 @@ export function App() {
   }, [refreshSessions]);
 
   // If the active surface isn't visible (hidden in Settings, or a resumed session landed on a
-  // hidden surface), fall back to Cowork (always visible). Watches both agent and surfaces so it
+  // hidden surface), fall back to CogniWork (always visible). Watches both agent and surfaces so it
   // corrects regardless of which settled last.
   useEffect(() => {
     if ((agent === "chat" && !surfaces.chat) || (agent === "code" && !surfaces.code)) {
-      switchAgent("cowork");
+      switchAgent("cogniwork");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agent, surfaces]);
@@ -576,7 +576,7 @@ export function App() {
           if (d.model) setModel(d.model);
           if (d.mode) setMode(d.mode);
           if (d.command_trust?.required) setWorkspaceTrustRequest(d.command_trust);
-          // Cowork: adopt the server-provisioned scratch dir (only when we don't already have one).
+          // CogniWork: adopt the server-provisioned scratch dir (only when we don't already have one).
           if (d.workspace) setWorkspace((cur) => cur || d.workspace);
           break;
         case "turn_start":
@@ -771,7 +771,7 @@ export function App() {
     // NOTE: `workspace` is intentionally NOT a dependency. Every real workspace change
     // (pick folder, select/switch session, new session) is paired with a `sessionId`
     // change, so the socket still reconnects when it should. The one workspace-only change
-    // is the `ready` handler adopting the server's provisioned Cowork scratch dir — listing
+    // is the `ready` handler adopting the server's provisioned CogniWork scratch dir — listing
     // `workspace` here made that adoption tear down and rebuild the socket immediately after
     // first connect, dropping the user's first message (the "send twice" bug). The scratch
     // dir is deterministic from `sessionId` server-side, so skipping that reconnect is safe.
@@ -828,9 +828,9 @@ export function App() {
   }, [items, streaming]);
 
   // Track produced-file count for the topbar "Artifacts" affordance (works even when the rail is
-  // hidden, where the rail itself doesn't fetch). Cowork only; refreshes on file writes/turn end.
+  // hidden, where the rail itself doesn't fetch). CogniWork only; refreshes on file writes/turn end.
   useEffect(() => {
-    if (agent !== "cowork" || surface !== "session") {
+    if ((agent !== "cogniwork" && agent !== "cowork") || surface !== "session") {
       setArtifactCount(0);
       return;
     }
@@ -987,7 +987,7 @@ export function App() {
     const inheritable = gatesWorkspace(agent) ? workspace : null;
 
     if (target) {
-      // Code falls back to a recent folder; Cowork resumes its scratch (target.workspace) or
+      // Code falls back to a recent folder; CogniWork resumes its scratch (target.workspace) or
       // starts orphan ("" → server provisions). Chat has no workspace.
       const targetWorkspace = gatesWorkspace(name)
         ? target.workspace || fallbackWorkspace(inheritable, knownProjects)
@@ -998,7 +998,7 @@ export function App() {
         setWorkspace(targetWorkspace);
         setBranch(null);
       } else if (!targetWorkspace) {
-        setWorkspace(null); // orphan cowork: clear so the next `ready` adopts a fresh scratch
+        setWorkspace(null); // orphan cogniwork: clear so the next `ready` adopts a fresh scratch
       }
       if (!gatesWorkspace(name)) setShowGate(false);
       else if (targetWorkspace) setShowGate(false);
@@ -1021,7 +1021,7 @@ export function App() {
       setWorkspace(fallback);
       setBranch(null);
     } else if (!fallback && needsWorkspace(name)) {
-      setWorkspace(null); // orphan cowork: server provisions a fresh scratch on connect
+      setWorkspace(null); // orphan cogniwork: server provisions a fresh scratch on connect
     }
     setSessionId(id);
     rememberLastSession(name, id, fallback);
@@ -1042,7 +1042,7 @@ export function App() {
   };
   // "New project" lives under a project-scoped persona's accordion. Switch to that persona, start a
   // fresh session with no folder yet, and open the gate in create mode — so the gate's
-  // surface==="session" && gatesWorkspace(agent) guard passes even if the active session was Chat/Cowork.
+  // surface==="session" && gatesWorkspace(agent) guard passes even if the active session was Chat/CogniWork.
   const newProject = (forAgent?: string) => {
     const target = forAgent || agent;
     setSurface("session");
@@ -1110,7 +1110,7 @@ export function App() {
     modelLabels[model]?.split(" · ")[0] ||
     (model.includes(":") ? model.split(":").slice(1).join(":") : model);
   // Persona name dropped for this release (owner ask 2026-07-22): personas are hidden,
-  // so "Coworker" read as noise. The model (+ project folder) are the real fixed facts.
+  // so "CogniWork" read as noise. The model (+ project folder) are the real fixed facts.
   const subtitleParts = [modelDisplay];
   if (isProjectScoped(personaOf(agent)) && workspace) subtitleParts.push(baseName(workspace));
   const activeInfo = sessions.find((s) => s.session_id === sessionId);
@@ -1138,7 +1138,7 @@ export function App() {
         {overlay && (
           <div className="titlebar-drag" data-tauri-drag-region>
             <span className="titlebar-brand brand-wordmark">
-              <Icon name="logo" size={13} className="mark" /> OpenWorker<span className="beta-tag">BETA</span>
+              <Icon name="logo" size={13} className="mark" /> CogniOS<span className="beta-tag">BETA</span>
             </span>
           </div>
         )}
@@ -1147,13 +1147,13 @@ export function App() {
             <span /><span /><span />
           </div>
         )}
-        {/* The real OpenWorker mark (6-point star, same as the app/tray icon) — the old
+        {/* The real CogniOS mark (6-point star, same as the app/tray icon) — the old
             ✦ text glyph was a 4-point sparkle that read as another product's logo. */}
         <div className="boot-mark">
           <Icon name="logo" size={38} />
         </div>
         <div className="boot-text">
-          {resumedExisting ? "Restoring your session…" : "Starting OpenWorker…"}
+          {resumedExisting ? "Restoring your session…" : "Starting CogniOS…"}
           <span className="beta-tag">BETA</span>
         </div>
       </div>
@@ -1281,7 +1281,7 @@ export function App() {
             <div className="main-chat">
               <div className="main-scroll" ref={scrollRef} onScroll={handleScroll}>
                 {idle ? (
-                  agent === "cowork" ? (
+                  agent === "cogniwork" || agent === "cowork" ? (
                     <SessionIntro
                       sessionId={sessionId}
                       onOpenSessionSettings={openAccess}
@@ -1381,7 +1381,7 @@ export function App() {
                     ? "Ask the coder to build, fix, or explain…  (drop or paste files)"
                     : agent === "chat"
                       ? "Ask anything…  (drop or paste files)"
-                      : "Ask the coworker…  (drop or paste files)"
+                      : "Ask CogniWork…  (drop or paste files)"
                 }
                 approvalSlot={
                   !unattended && pendingPlan?.kind === "planreq" ? (
@@ -1426,12 +1426,12 @@ export function App() {
               todo={todo}
               running={running}
               onPreviewChange={onArtifactPreview}
-              showArtifacts={agent === "cowork"}
+              showArtifacts={agent === "cogniwork" || agent === "cowork"}
               personaId={agent}
               projectScoped={isProjectScoped(personaOf(agent))}
               workspace={workspace || undefined}
               branch={branch}
-              scratchPrimary={agent === "cowork"}
+              scratchPrimary={agent === "cogniwork" || agent === "cowork"}
               openAccessKey={accessKey}
               onOpenIntegrations={() => setSurface("integrations")}
             />

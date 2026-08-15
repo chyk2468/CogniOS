@@ -225,7 +225,7 @@ export function SkillsTab({
                     onCreateSkill?.("");
                   }}
                 >
-                  <div className="text-[13px] font-medium">Create with OpenWorker</div>
+                  <div className="text-[13px] font-medium">Create with CogniOS</div>
                   <div className="text-[11.5px] text-muted">
                     Starts a conversation — the worker builds it and asks before adding it to
                     your skills

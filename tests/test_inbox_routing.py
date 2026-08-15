@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from coworker.inbox import InboxStore
-from coworker.inbox_routing import (
+from cogniwork.inbox import InboxStore
+from cogniwork.inbox_routing import (
     DEFAULT_INBOX,
     InboxRouting,
     deliver,
@@ -13,7 +13,7 @@ from coworker.inbox_routing import (
 
 def test_route_precedence(tmp_path):
     r = InboxRouting(tmp_path / "routing.json")
-    r.set_binding("ops", channel="slack", target="#ops-coworker")
+    r.set_binding("ops", channel="slack", target="#ops-cogniwork")
     r.set_persona_default("ops", "ops")
     # Persona default applies...
     assert r.route_for("s1", "ops") == "ops"
@@ -21,7 +21,7 @@ def test_route_precedence(tmp_path):
     r.set_session_override("s1", DEFAULT_INBOX)
     assert r.route_for("s1", "ops") == DEFAULT_INBOX
     # Unbound persona/session → default.
-    assert r.route_for("s2", "cowork") == DEFAULT_INBOX
+    assert r.route_for("s2", "cogniwork") == DEFAULT_INBOX
 
 
 def test_bindings_persist(tmp_path):
@@ -83,7 +83,7 @@ def test_reply_without_token_is_ignored(tmp_path):
 
 
 def test_inbound_legacy_ocw_token_still_resolves(tmp_path):
-    """Replies to messages sent BEFORE the @OpenWorker rename carry [ocw:…] — must keep working."""
+    """Replies to messages sent BEFORE the @CogniOS rename carry [ocw:…] — must keep working."""
     store = InboxStore(tmp_path / "inbox.json")
     item = store.add_approval("s1", "Deploy?", inbox="ops")
     assert resolve_from_reply(f"deny [ocw:{item.id}]", store.resolve) is True

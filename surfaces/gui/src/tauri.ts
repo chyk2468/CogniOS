@@ -24,6 +24,8 @@ export type DictationStatus = {
   download_in_progress: boolean;
   model_name: string;
   model_bytes: number;
+  installed_bytes?: number;
+  download_total_bytes?: number;
   supported: boolean;
   device_summary: string;
   compatibility_reason: string | null;
@@ -83,6 +85,7 @@ export const getDictationStatus = () => invoke<DictationStatus>("get_dictation_s
 /** Instantaneous mic loudness 0..1 while recording (0 otherwise) — drives the composer's
  * live waveform. Cheap; poll at ~10Hz. */
 export const getDictationLevel = () => invoke<number>("dictation_level");
+export const getDictationPartialTranscript = () => invokeStrict<string>("dictation_partial_transcript");
 export const startDictation = () => invokeStrict<DictationStatus>("start_dictation");
 export const stopDictation = () => invokeStrict<string>("stop_dictation");
 export const cancelDictation = () => invokeStrict<void>("cancel_dictation");

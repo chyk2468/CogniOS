@@ -9,10 +9,10 @@ from __future__ import annotations
 import subprocess
 from types import SimpleNamespace
 
-from coworker.tools.files import file_tools
-from coworker.tools.git import git_tools
-from coworker.tools.search import _py_grep, search_tools
-from coworker.web.fetch import _html_to_text, make_web_fetch_tool
+from cogniwork.tools.files import file_tools
+from cogniwork.tools.git import git_tools
+from cogniwork.tools.search import _py_grep, search_tools
+from cogniwork.web.fetch import _html_to_text, make_web_fetch_tool
 
 
 # -- grep ----------------------------------------------------------------------
@@ -40,7 +40,7 @@ def test_grep_finds_matches_and_respects_glob(tmp_path):
 
 
 def test_ripgrep_uses_the_same_ignored_dirs_as_the_python_fallback(tmp_path, monkeypatch):
-    from coworker.tools import search
+    from cogniwork.tools import search
 
     commands = []
     monkeypatch.setattr(search.shutil, "which", lambda name: "rg")
@@ -153,8 +153,8 @@ def test_html_to_text_strips_scripts_and_tags():
 
 # -- Code agent wiring ---------------------------------------------------------
 def test_code_agent_has_grep_and_git_log_not_search_files(tmp_path):
-    from coworker.agents.base import AgentContext
-    from coworker.agents.code import code_agent
+    from cogniwork.agents.base import AgentContext
+    from cogniwork.agents.code import code_agent
 
     ctx = AgentContext(workspace=tmp_path, executor=None, todo=None)
     names = {getattr(t, "__name__", "") for t in code_agent().build_tools(ctx)}
@@ -164,13 +164,13 @@ def test_code_agent_has_grep_and_git_log_not_search_files(tmp_path):
     assert {"read_file", "write_file", "git_status", "git_diff"} <= names
 
 
-def test_cowork_has_grep_not_search_files(tmp_path):
-    from coworker.agents.base import AgentContext
-    from coworker.agents.cowork import cowork_tool_factory
+def test_cogniwork_has_grep_not_search_files(tmp_path):
+    from cogniwork.agents.base import AgentContext
+    from cogniwork.agents.cogniwork import cogniwork_tool_factory
 
     names = {
         getattr(t, "__name__", "")
-        for t in cowork_tool_factory(AgentContext(workspace=tmp_path))
+        for t in cogniwork_tool_factory(AgentContext(workspace=tmp_path))
     }
     assert "grep" in names and "search_files" not in names
-    assert "git_log" not in names  # git history isn't useful for Cowork
+    assert "git_log" not in names  # git history isn't useful for CogniWork

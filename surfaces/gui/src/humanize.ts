@@ -57,7 +57,7 @@ export function humanizeTool(name: string, args: any): HumanLine {
       return { pre: "Looked through recent git history" };
     case "todo_write": {
       // `todos` is current; `items` renders histories from before the rename (the old
-      // key breaks Together's GLM-5.2 chat template — see coworker/tools/todo.py).
+      // key breaks Together's GLM-5.2 chat template — see cogniwork/tools/todo.py).
       const items = Array.isArray(a.todos) ? a.todos : Array.isArray(a.items) ? a.items : [];
       if (items.length === 1) {
         const it = items[0] || {};

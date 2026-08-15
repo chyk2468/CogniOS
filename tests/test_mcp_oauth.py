@@ -12,17 +12,17 @@ import pytest
 from fastapi.testclient import TestClient
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
-from coworker.mcp import oauth as mcp_oauth
-from coworker.mcp.config import load_mcp_servers
-from coworker.secrets import SecretStore
-from coworker.server.app import create_app
-from coworker.server.manager import SessionManager
+from cogniwork.mcp import oauth as mcp_oauth
+from cogniwork.mcp.config import load_mcp_servers
+from cogniwork.secrets import SecretStore
+from cogniwork.server.app import create_app
+from cogniwork.server.manager import SessionManager
 
 GRANOLA = {"type": "http", "url": "https://mcp.granola.ai/mcp", "auth": "oauth"}
 
 
 def _state(tmp_path, monkeypatch, servers=None):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
     path = tmp_path / "state" / "mcp.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"mcpServers": servers or {}}), encoding="utf-8")

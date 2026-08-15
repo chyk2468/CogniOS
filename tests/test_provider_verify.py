@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from coworker.providers import detect_provider, verify_provider_key
+from cogniwork.providers import detect_provider, verify_provider_key
 
 
 # -- detect_provider ------------------------------------------------------------

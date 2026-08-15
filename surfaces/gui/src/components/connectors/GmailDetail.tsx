@@ -43,7 +43,7 @@ export function GmailDetail({ c, slack: _slack, onChanged }: DetailProps) {
           className={PILL_ACCENT + " opacity-50"}
           data-testid="add-account-btn"
           disabled={true}
-          title={"Google sign-in requires OpenWorker Cloud which has been removed."}
+          title={"Google sign-in requires CogniOS Cloud which has been removed."}
         >
           ＋ Add account (Unavailable)
         </button>

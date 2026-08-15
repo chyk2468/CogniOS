@@ -121,7 +121,7 @@ function McpOneClick({ c, onConnected }: { c: Connector; onConnected: () => void
     <div className="px-5 py-4 space-y-3">
       <p className="text-[13px] text-muted">
         Opens {c.title} in your browser — sign in and approve access there. No tokens
-        typed, and no OpenWorker account needed: the sign-in runs entirely on this
+        typed, and no CogniOS account needed: the sign-in runs entirely on this
         computer.
       </p>
       <button

@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from coworker.providers import ModelCapabilities, ProviderClient
-from coworker.server.manager import SessionManager
-from coworker.skills import (
+from cogniwork.providers import ModelCapabilities, ProviderClient
+from cogniwork.server.manager import SessionManager
+from cogniwork.skills import (
     SessionSkillStore,
     SkillLoader,
     effective_skills,
@@ -116,8 +116,8 @@ def test_concurrent_sessions_same_workspace_independent(tmp_path):
 def test_no_workspace_means_global_only(manager, tmp_path):
     _skill(manager.skill_store.global_dir, "everywhere")
     ws = tmp_path / "elsewhere"
-    (ws / ".coworker" / "skills").mkdir(parents=True)
-    _skill(ws / ".coworker" / "skills", "local-only")
+    (ws / ".cogniwork" / "skills").mkdir(parents=True)
+    _skill(ws / ".cogniwork" / "skills", "local-only")
     assert manager.effective_skill_names("s1") == {"everywhere"}
     assert manager.effective_skill_names("s1", ws) == {"everywhere", "local-only"}
 
@@ -129,7 +129,7 @@ def test_workspace_without_skills_dir_is_fine(manager, tmp_path):
 
 
 def test_empty_catalog_is_safe(tmp_path):
-    from coworker.tools.registry import ToolRegistry
+    from cogniwork.tools.registry import ToolRegistry
 
     loader = SkillLoader([tmp_path / "nowhere"])
     assert skill_catalog_text(loader) == ""
@@ -147,8 +147,8 @@ def test_live_load_skill_semantics(manager):
     · load_skill consults live state per call (create-after-build loadable; a Settings
       disable applies to RUNNING sessions; delete ≡ disable to the model);
     · the ONLY thing that persists is what a conversation already loaded (history)."""
-    from coworker.agent import build_engine
-    from coworker.agents.registry import get_agent
+    from cogniwork.agent import build_engine
+    from cogniwork.agents.registry import get_agent
 
     _skill(manager.skill_store.global_dir, "early", body="early body")
     engine = build_engine(
@@ -196,8 +196,8 @@ def test_disable_countermand_for_loaded_skills(manager):
     history are not. Recomputed fresh: re-enabling clears it; unloaded skills never get one."""
     import json as _json
 
-    from coworker.agent import build_engine
-    from coworker.agents.registry import get_agent
+    from cogniwork.agent import build_engine
+    from cogniwork.agents.registry import get_agent
 
     _skill(manager.skill_store.global_dir, "used-one", body="used body")
     _skill(manager.skill_store.global_dir, "unused-one", body="never loaded")

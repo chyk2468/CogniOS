@@ -47,7 +47,7 @@ interface Props {
   // to give the preview (PDF/webpage/sheet) more room (#3).
   onPreviewChange?: (open: boolean) => void;
   // §32: the rail is the ONE session panel for every non-chat persona. Artifacts stays
-  // cowork-only (deliverables; code-family gets "Files" later — slot reserved); the Access
+  // cogniwork-only (deliverables; code-family gets "Files" later — slot reserved); the Access
   // section (the former Session-settings drawer) renders for all.
   showArtifacts?: boolean;
   personaId?: string;
@@ -262,7 +262,7 @@ function ProgressSummary({ running, toolNames, todo }: { running: boolean; toolN
   }
   return (
     <div className="rail-muted">
-      For longer multi-step tasks, progress will appear here while OpenWorker plans, uses tools, waits for approval, and produces artifacts.
+      For longer multi-step tasks, progress will appear here while CogniOS plans, uses tools, waits for approval, and produces artifacts.
     </div>
   );
 }

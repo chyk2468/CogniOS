@@ -11,21 +11,21 @@ from types import SimpleNamespace
 
 import aisuite as ai
 
-from coworker.engine import TurnEngine
-from coworker.events import EventType
-from coworker.permissions import PermissionEngine
-from coworker.providers import (
+from cogniwork.engine import TurnEngine
+from cogniwork.events import EventType
+from cogniwork.permissions import PermissionEngine
+from cogniwork.providers import (
     AssistantTurn,
     ModelCapabilities,
     ProviderClient,
 )
-from coworker.providers.anthropic_provider import AnthropicProvider
-from coworker.providers.base import TokenUsage
-from coworker.providers.bedrock_provider import _BedrockConverseClient
-from coworker.providers.gemini_provider import GeminiProvider
-from coworker.providers.matrix import model_context_windows
-from coworker.providers.openai_provider import OpenAIProvider
-from coworker.tools import ToolRegistry
+from cogniwork.providers.anthropic_provider import AnthropicProvider
+from cogniwork.providers.base import TokenUsage
+from cogniwork.providers.bedrock_provider import _BedrockConverseClient
+from cogniwork.providers.gemini_provider import GeminiProvider
+from cogniwork.providers.matrix import model_context_windows
+from cogniwork.providers.openai_provider import OpenAIProvider
+from cogniwork.tools import ToolRegistry
 
 
 def _final_turn(chunks):

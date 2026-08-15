@@ -4,9 +4,9 @@ plus the gateway's recently-seen senders (each flagged authorized), and allow/di
 
 from fastapi.testclient import TestClient
 
-from coworker.providers import ModelCapabilities, ProviderClient
-from coworker.server import create_app
-from coworker.server.manager import SessionManager
+from cogniwork.providers import ModelCapabilities, ProviderClient
+from cogniwork.server import create_app
+from cogniwork.server.manager import SessionManager
 
 
 class ScriptedProvider(ProviderClient):

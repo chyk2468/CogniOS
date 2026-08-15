@@ -15,7 +15,7 @@ const TURN: Item[] = [
   { kind: "tool", id: "t1", name: "read_file", args: { path: "docs/runbook.md" }, status: "ok" },
   { kind: "approval", name: "send_message", args: { target: "slack:T1/C9" }, reason: "", resolved: "once" },
   { kind: "tool", id: "t2", name: "send_message", args: { target: "slack:T1/C9", text: "hi" }, status: "ok", preview: '{"ok": true}' },
-  { kind: "assistant", text: "Posted to #all-openworker." },
+  { kind: "assistant", text: "Posted to #all-cognios." },
 ];
 
 describe("TurnGroup (Transcript §33)", () => {
@@ -29,7 +29,7 @@ describe("TurnGroup (Transcript §33)", () => {
     expect(screen.queryByText(/Sent a Slack message/)).toBeNull();
 
     // The final answer is a normal bubble OUTSIDE the disclosure, visible while collapsed.
-    expect(screen.getByText("Posted to #all-openworker.")).toBeTruthy();
+    expect(screen.getByText("Posted to #all-cognios.")).toBeTruthy();
 
     // Expand → narration renders quiet inside; steps are English lines, not raw args;
     // the approval is a chip on the send_message row, not a separate box.
@@ -150,7 +150,7 @@ describe("bubble hover affordances (FB-005)", () => {
   const TS = 1752969720; // unix seconds, as the server stamps them
   const ITEMS: Item[] = [
     { kind: "user", text: "post the digest", ts: TS },
-    { kind: "assistant", text: "Done — posted to #all-openworker." }, // pre-stamp history: no ts
+    { kind: "assistant", text: "Done — posted to #all-cognios." }, // pre-stamp history: no ts
   ];
 
   it("copy button copies the bubble's raw text and flashes Copied", async () => {
@@ -166,7 +166,7 @@ describe("bubble hover affordances (FB-005)", () => {
     // not claim success), hence the await.
     await waitFor(() => expect(copies[0].textContent).toBe("Copied"));
     fireEvent.click(copies[1]);
-    expect(writeText).toHaveBeenCalledWith("Done — posted to #all-openworker.");
+    expect(writeText).toHaveBeenCalledWith("Done — posted to #all-cognios.");
   });
 
   it("timestamp renders only when the item carries ts; full date rides the title", () => {

@@ -7,18 +7,18 @@ import { PersonasTab } from "./PersonasTab";
 import { SkillsTab } from "./SkillsTab";
 import { showPersonas } from "../flags";
 import { AppearanceSection } from "./settings/GeneralTab";
+import { AuthenticationSection } from "./settings/AuthenticationSection";
 import { VoiceInputSection } from "./settings/VoiceInputSection";
 
-type SetTab = "appearance" | "models" | "skills" | "voice" | "memory" | "personas";
-
-
+type SetTab = "appearance" | "authentication" | "models" | "skills" | "voice" | "memory" | "personas";
 
 const SET_TABS: {
   key: SetTab;
   label: string;
-  icon: "sliders" | "code" | "mic" | "archive" | "sparkle" | "book";
+  icon: "sliders" | "code" | "mic" | "archive" | "sparkle" | "book" | "gear";
 }[] = [
   { key: "appearance", label: "General", icon: "sliders" },
+  { key: "authentication", label: "Authentication", icon: "gear" },
   { key: "models", label: "Models", icon: "code" },
   { key: "skills", label: "Skills", icon: "book" },
   { key: "voice", label: "Voice input", icon: "mic" },
@@ -74,6 +74,8 @@ export function SettingsView({
         <div className="flex-1 min-w-0 overflow-y-auto hairline-scroll p-6">
           {tab === "appearance" ? (
             <AppearanceSection />
+          ) : tab === "authentication" ? (
+            <AuthenticationSection />
           ) : tab === "models" ? (
             <section>
               <PanelHead
@@ -102,7 +104,7 @@ function PersonasSection({ onOpenPersona }: { onOpenPersona?: (id: string) => vo
     <section>
       <PanelHead
         title="Personas"
-        sub="Which coworkers are enabled and shown in the picker, plus installing new persona bundles."
+        sub="Which CogniWork agents are enabled and shown in the picker, plus installing new persona bundles."
       />
       <PersonasTab onOpenPersona={onOpenPersona} />
     </section>

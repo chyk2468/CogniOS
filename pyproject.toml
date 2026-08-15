@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "coworker"
+name = "cogniwork"
 version = "0.0.0"
-description = "Agent coworker platform — provider-agnostic agentic coworker runtime"
+description = "CogniOS agent platform — provider-agnostic CogniWork runtime"
 requires-python = ">=3.10"
 dependencies = [
     "openai>=1.0",
@@ -37,6 +37,9 @@ dependencies = [
     # tomllib landed in the 3.11 stdlib; on the 3.10 floor config.py falls back to tomli.
     "tomli>=2; python_version < '3.11'",
     "argon2-cffi>=23.1",
+    "pyotp>=2.9",
+    "qrcode[pil]>=7.4",
+    "cryptography>=42",
 ]
 
 [project.optional-dependencies]
@@ -45,22 +48,22 @@ dev = ["pytest>=8", "pytest-asyncio", "httpx"]
 # aiohttp is slack-bolt's Socket Mode transport at runtime (and the FakeSlack test harness
 # drives the real handler) — declare it so CI installs it, not just transitively.
 messaging = ["python-telegram-bot>=21", "slack-bolt>=1.18", "aiohttp>=3.9"]
-# Interactive Cowork browser automation.
+# Interactive CogniWork browser automation.
 browser = ["playwright>=1.44"]
 # AWS Bedrock provider (lazy-imported; desktop builds bundle it, pip users opt in).
 bedrock = ["boto3>=1.34"]
 
 [project.scripts]
-openworker = "coworker.cli:main"
-openworker-server = "coworker.server.run:main"
-openworker-connectors = "coworker.connectors.cli:main"
+cognios = "cogniwork.cli:main"
+cognios-server = "cogniwork.server.run:main"
+cogniwork-connectors = "cogniwork.connectors.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["coworker*"]
+include = ["cogniwork*"]
 
 [tool.setuptools.package-data]
-coworker = ["personas/builtin/*.md"]
+cogniwork = ["personas/builtin/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

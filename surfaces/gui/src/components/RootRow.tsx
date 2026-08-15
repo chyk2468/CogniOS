@@ -4,7 +4,7 @@ import { baseName } from "../paths";
 
 // One directory row, shared by the composer popover and the session start panel. The primary is the
 // session's bound workspace — the repo/folder for Code/Ops (shown by name), or a throwaway scratch
-// for Cowork (shown as "Temporary space"). It's always read-write and can't be removed.
+// for CogniWork (shown as "Temporary space"). It's always read-write and can't be removed.
 export function RootRow({
   root,
   busy,

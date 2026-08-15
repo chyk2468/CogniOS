@@ -75,7 +75,7 @@ export function IntegrationsView({ onClose }: { onClose?: () => void }) {
             <section>
               <PanelHead
                 title="Connectors"
-                sub="Apps and tools your coworkers can use. Connected ones come first."
+                sub="Apps and tools your CogniWork agents can use. Connected ones come first."
               />
               <ConnectorsSection />
             </section>

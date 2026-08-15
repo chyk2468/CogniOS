@@ -6,9 +6,9 @@ message still goes to the handler."""
 
 from __future__ import annotations
 
-from coworker.connectors import ConnectorSettings, FakeAdapter, Gateway, MessageEvent
-from coworker.inbox import InboxStore
-from coworker.inbox_routing import resolve_from_reply
+from cogniwork.connectors import ConnectorSettings, FakeAdapter, Gateway, MessageEvent
+from cogniwork.inbox import InboxStore
+from cogniwork.inbox_routing import resolve_from_reply
 
 
 async def test_inbound_reply_resolves_item_and_is_not_routed(tmp_path):

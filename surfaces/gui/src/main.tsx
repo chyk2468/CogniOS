@@ -2,17 +2,19 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, HashRouter, Routes, Route } from "react-router-dom";
 import { App } from "./App";
-import { initTheme } from "./theme";
+import { initTheme, initUiStyle } from "./theme";
 import { platformOS, isTauri } from "./tauri";
 import { AuthProvider } from "./auth/AuthContext";
-import { ProtectedRoute, PublicOnlyRoute, RootRedirect } from "./auth/ProtectedRoute";
+import { ProtectedRoute, PublicOnlyRoute, RootRedirect, SignUpRoute } from "./auth/ProtectedRoute";
 import { SignInPage } from "./pages/SignInPage";
 import { SignUpPage } from "./pages/SignUpPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import "./tailwind.css";
 import "./styles.css";
+import "./liquid-glass.css";
 
 initTheme();
+initUiStyle();
 document.documentElement.dataset.platform = platformOS();
 
 window.addEventListener("dragover", (e) => e.preventDefault());
@@ -37,9 +39,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route
             path="/signup"
             element={
-              <PublicOnlyRoute>
+              <SignUpRoute>
                 <SignUpPage />
-              </PublicOnlyRoute>
+              </SignUpRoute>
             }
           />
           <Route

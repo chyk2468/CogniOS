@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
+import { AuthProvider } from "../auth/AuthContext";
 import type { SessionInfo } from "../types";
+
+const render = (ui: React.ReactElement) =>
+  rtlRender(
+    <MemoryRouter>
+      <AuthProvider>{ui}</AuthProvider>
+    </MemoryRouter>,
+  );
 
 // Hermetic fetch stub routing by URL substring + method; records calls for POST assertions.
 type Call = { url: string; method: string; body: any };
@@ -24,25 +33,25 @@ function stubFetch(routes: { match: string; method?: string; json: any }[]) {
 
 const PERSONAS = {
   personas: [
-    { id: "cowork", name: "OpenWorker", icon: "cowork", tagline: "general assistant", family: "knowledge", enabled: true, surfaced: true, default: true },
+    { id: "cogniwork", name: "CogniOS", icon: "cogniwork", tagline: "general assistant", family: "knowledge", enabled: true, surfaced: true, default: true },
     { id: "ops", name: "Ops", icon: "ops", tagline: "incidents, runbooks", family: "code", enabled: true, surfaced: true, default: false },
     { id: "code", name: "Code", icon: "code", tagline: "repository work", family: "code", enabled: true, surfaced: true, default: false },
-    { id: "secret", name: "Disabled One", icon: "cowork", tagline: "off", family: "knowledge", enabled: false, surfaced: false, default: false },
+    { id: "secret", name: "Disabled One", icon: "cogniwork", tagline: "off", family: "knowledge", enabled: false, surfaced: false, default: false },
   ],
 };
 
 const SESSIONS: SessionInfo[] = [
   { session_id: "s-ops-1", title: "incident watch", workspace: "/w", agent: "ops", model: "m", mode: "interactive", updated_at: "2026-06-29", messages: 2 },
-  { session_id: "s-cowork-1", title: "hi there", workspace: "", agent: "cowork", model: "m", mode: "interactive", updated_at: "2026-06-29", messages: 1 },
+  { session_id: "s-cogniwork-1", title: "hi there", workspace: "", agent: "cogniwork", model: "m", mode: "interactive", updated_at: "2026-06-29", messages: 1 },
 ];
 
 const baseProps = {
-  agent: "cowork",
+  agent: "cogniwork",
   workspace: "",
-  surfaces: { cowork: true, chat: false, code: false },
+  surfaces: { cogniwork: true, chat: false, code: false },
   sessions: SESSIONS,
   projects: [],
-  activeSession: "s-cowork-1",
+  activeSession: "s-cogniwork-1",
   onSwitchAgent: vi.fn(),
   onNewSession: vi.fn(),
   onSelectSession: vi.fn(),
@@ -92,7 +101,7 @@ describe("Sidebar group/filter control", () => {
     });
 
     // Close the popover (it stays open so you can group AND filter in one visit) before asserting
-    // the accordion — otherwise "Ops" also matches the filter-by-coworker checkbox.
+    // the accordion — otherwise "Ops" also matches the filter-by-cogniwork checkbox.
     fireEvent.click(control);
 
     // Grouped view = the per-persona accordion. The Ops header appears; expanding it lists its
@@ -167,7 +176,7 @@ describe("From Slack group (§31)", () => {
     session_id: "s-slack-1",
     title: "#general — check the deploy?",
     workspace: "",
-    agent: "cowork",
+    agent: "cogniwork",
     model: "m",
     mode: "interactive",
     updated_at: "2026-07-13",
@@ -201,7 +210,7 @@ describe("New-session split button", () => {
       {
         match: "/v1/personas",
         method: "GET",
-        json: { personas: [PERSONAS.personas[0], PERSONAS.personas[3]] }, // cowork + a disabled one
+        json: { personas: [PERSONAS.personas[0], PERSONAS.personas[3]] }, // cogniwork + a disabled one
       },
       { match: "/v1/settings", method: "GET", json: { nav_layout: "flat" } },
     ]);
@@ -211,7 +220,7 @@ describe("New-session split button", () => {
     // No ▾ — nothing to pick; the primary button starts the sole enabled persona.
     await waitFor(() => expect(screen.queryByLabelText("Choose a persona")).toBeNull());
     fireEvent.click(container.querySelector(".newsplit-primary")!);
-    expect(baseProps.onNewSession).toHaveBeenCalledWith("cowork");
+    expect(baseProps.onNewSession).toHaveBeenCalledWith("cogniwork");
   });
 
   it("primary starts the last-used persona; the menu lists enabled personas + Manage personas…", async () => {
@@ -225,7 +234,7 @@ describe("New-session split button", () => {
 
     // Primary action → a new session with the current (last-used) persona.
     fireEvent.click(container.querySelector(".newsplit-primary")!);
-    expect(baseProps.onNewSession).toHaveBeenCalledWith("cowork");
+    expect(baseProps.onNewSession).toHaveBeenCalledWith("cogniwork");
 
     // ▾ opens the persona menu: enabled personas appear, the disabled one does not, plus a manage entry.
     fireEvent.click(screen.getByLabelText("Choose a persona"));

@@ -60,7 +60,7 @@ export function FloatingWindow({
       {/* Optional fallback overlay backdrop if desired, but dragging usually implies free floating */}
       <div
         ref={contentRef}
-        className="w-[720px] max-w-[92vw] h-[85vh] flex flex-col rounded-lg border border-border bg-panel text-fg shadow-2xl overflow-hidden pointer-events-auto"
+        className="floating-window w-[720px] max-w-[92vw] h-[85vh] flex flex-col rounded-lg border border-border bg-panel text-fg shadow-2xl overflow-hidden pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Draggable Modal Header */}
@@ -88,7 +88,7 @@ export function FloatingWindow({
         </div>
 
         {/* Modal Body */}
-        <div className="flex-1 min-h-0 flex overflow-hidden bg-panel">{children}</div>
+        <div className="floating-window-body flex-1 min-h-0 flex overflow-hidden bg-panel">{children}</div>
       </div>
     </div>
   );

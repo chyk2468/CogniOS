@@ -1,6 +1,6 @@
 import { fetch, httpBase } from "./client";
 
-export const PERSONAS_CHANGED = "coworker:personas-changed";
+export const PERSONAS_CHANGED = "cogniwork:personas-changed";
 function announcePersonasChanged() {
   window.dispatchEvent(new CustomEvent(PERSONAS_CHANGED));
 }

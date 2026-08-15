@@ -84,7 +84,7 @@ export function MemorySection() {
     <section>
       <PanelHead
         title="Memory"
-        sub="Your coworkers can remember useful things about you between conversations. Everything they know is listed here."
+        sub="Your CogniWork agents can remember useful things about you between conversations. Everything they know is listed here."
       />
 
       {/* On/off — one switch, no other setup (§5.4). */}
@@ -176,7 +176,7 @@ function UserRulesCard({
     <div className={CARD + " p-4"} data-testid="user-rules-card">
       <div className={FIELD_LABEL}>Your instructions</div>
       <div className={FIELD_HELP}>
-        Your coworkers follow these in every conversation.
+        Your CogniWork agents follow these in every conversation.
       </div>
       <textarea
         value={draft}

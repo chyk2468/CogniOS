@@ -9,13 +9,13 @@ import asyncio
 
 from fastapi.testclient import TestClient
 
-from coworker.connectors.base import MessageEvent, SessionSource
-from coworker.engine import TurnEngine
-from coworker.permissions import PermissionEngine
-from coworker.providers import AssistantTurn, ModelCapabilities, ProviderClient
-from coworker.server import create_app
-from coworker.server.manager import SessionManager
-from coworker.tools import ToolRegistry
+from cogniwork.connectors.base import MessageEvent, SessionSource
+from cogniwork.engine import TurnEngine
+from cogniwork.permissions import PermissionEngine
+from cogniwork.providers import AssistantTurn, ModelCapabilities, ProviderClient
+from cogniwork.server import create_app
+from cogniwork.server.manager import SessionManager
+from cogniwork.tools import ToolRegistry
 
 
 class CapturingProvider(ProviderClient):
@@ -181,7 +181,7 @@ def test_tool_display_sidecar_is_agent_invisible(tmp_path):
     """`_display` on a tool result (e.g. gmail filter-hidden counts) mirrors the
     `source` contract: lifted onto the message for the GUI, audited as a rule+count
     row, and stripped from every provider feed — the agent sees no tombstone."""
-    from coworker.providers.base import ToolCall
+    from cogniwork.providers.base import ToolCall
 
     audits: list[dict] = []
     engine = TurnEngine(

@@ -7,14 +7,14 @@ from __future__ import annotations
 
 import pytest
 
-from coworker.connectors import accounts, descriptors
-from coworker.connectors.descriptors import ConnectorDescriptor, Field, ValidationResult
-from coworker.connectors.setup import (
+from cogniwork.connectors import accounts, descriptors
+from cogniwork.connectors.descriptors import ConnectorDescriptor, Field, ValidationResult
+from cogniwork.connectors.setup import (
     connect_connector,
     connector_list,
     disconnect_connector,
 )
-from coworker.secrets import SecretStore
+from cogniwork.secrets import SecretStore
 
 
 def _fake_descriptor(name="acmeapp", account_field="project_id", managed=False):
@@ -151,9 +151,9 @@ def test_generic_account_routes(acme, secrets, tmp_path, monkeypatch):
     account-patterned connectors and refuse everything else."""
     from fastapi.testclient import TestClient
 
-    from coworker.providers import ModelCapabilities, ProviderClient
-    from coworker.server.app import create_app
-    from coworker.server.manager import SessionManager
+    from cogniwork.providers import ModelCapabilities, ProviderClient
+    from cogniwork.server.app import create_app
+    from cogniwork.server.manager import SessionManager
 
     class _Provider(ProviderClient):
         def complete(self, *, model, messages, tools=None, **settings):
@@ -162,7 +162,7 @@ def test_generic_account_routes(acme, secrets, tmp_path, monkeypatch):
         def capabilities(self, model):
             return ModelCapabilities()
 
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
     manager = SessionManager(workspace=tmp_path, provider=_Provider())
     accounts.add_account(manager.secrets, "acmeapp", "p1", {"api_key": "k1"})
     accounts.add_account(manager.secrets, "acmeapp", "p2", {"api_key": "k2"})

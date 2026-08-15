@@ -8,10 +8,10 @@ import json
 
 from test_durable_resume import ScriptedProvider, _run_until_pending, _text, _tool
 
-from coworker.inbox import InboxItem, InboxStore
-from coworker.interactions import buttons_for, decode
-from coworker.server.manager import SessionManager
-from coworker.tools.ask import (
+from cogniwork.inbox import InboxItem, InboxStore
+from cogniwork.interactions import buttons_for, decode
+from cogniwork.server.manager import SessionManager
+from cogniwork.tools.ask import (
     MAX_GROUPED_QUESTIONS,
     answer_result,
     ask_user_tool,
@@ -25,7 +25,7 @@ from coworker.tools.ask import (
 
 
 def test_schema_advertises_rich_options_and_grouped_questions():
-    fn = ask_user_tool().__coworker_schema__["function"]
+    fn = ask_user_tool().__cogniwork_schema__["function"]
     assert fn["name"] == "ask_user"
     props = fn["parameters"]["properties"]
     # options: string-or-object union, object requires `label`
@@ -199,7 +199,7 @@ def test_grouped_ask_round_trip_through_manager(tmp_path):
     sid = "grouped-q"
 
     async def scenario():
-        engine = mgr.get_engine(sid, agent="cowork", workspace=str(tmp_path))
+        engine = mgr.get_engine(sid, agent="cogniwork", workspace=str(tmp_path))
         item = await _run_until_pending(mgr, sid, engine)
         assert item.kind == "question" and item.tool_call_id == "call_g"
         assert item.title == "Chart style?" and len(item.questions) == 2

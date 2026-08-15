@@ -97,7 +97,7 @@ export function PersonasTab({ onOpenPersona }: { onOpenPersona?: (id: string) =>
   return (
     <div>
       <p className="text-[12.5px] text-muted mb-3 leading-relaxed">
-        Enable a coworker, then choose whether it appears in the new-session picker. The starred persona
+        Enable a CogniWork agent, then choose whether it appears in the new-session picker. The starred persona
         is the default for new sessions.
       </p>
 

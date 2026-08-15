@@ -7,12 +7,12 @@ import asyncio
 import httpx
 from fastapi.testclient import TestClient
 
-from coworker.connectors import ConnectorSettings, Gateway, TeamAuth
-from coworker.connectors.base import InteractionEvent, MessageEvent, SessionSource
-from coworker.interactions import encode
-from coworker.providers import ModelCapabilities, ProviderClient
-from coworker.server import create_app
-from coworker.server.manager import SessionManager
+from cogniwork.connectors import ConnectorSettings, Gateway, TeamAuth
+from cogniwork.connectors.base import InteractionEvent, MessageEvent, SessionSource
+from cogniwork.interactions import encode
+from cogniwork.providers import ModelCapabilities, ProviderClient
+from cogniwork.server import create_app
+from cogniwork.server.manager import SessionManager
 
 
 class NoTurnsProvider(ProviderClient):

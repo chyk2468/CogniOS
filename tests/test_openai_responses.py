@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from coworker.providers.openai_responses import (
+from cogniwork.providers.openai_responses import (
     OpenAIResponsesProvider,
     _param_fix_retry,
     convert_messages,
@@ -562,8 +562,8 @@ def test_ensure_client_without_key_raises(monkeypatch):
 
 
 def test_registry_routes_blank_endpoint_to_responses():
-    from coworker.providers import OpenAIProvider
-    from coworker.providers.registry import build_provider_client
+    from cogniwork.providers import OpenAIProvider
+    from cogniwork.providers.registry import build_provider_client
 
     assert isinstance(
         build_provider_client("openai", {}, None), OpenAIResponsesProvider

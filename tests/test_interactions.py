@@ -3,12 +3,12 @@
 import asyncio
 import json
 
-from coworker.connectors.base import InteractionEvent
-from coworker.connectors.senders import _slack_blocks
-from coworker.inbox import InboxStore
-from coworker.interactions import Button, buttons_for, decode, encode
-from coworker.providers import ModelCapabilities, ProviderClient
-from coworker.server.manager import SessionManager
+from cogniwork.connectors.base import InteractionEvent
+from cogniwork.connectors.senders import _slack_blocks
+from cogniwork.inbox import InboxStore
+from cogniwork.interactions import Button, buttons_for, decode, encode
+from cogniwork.providers import ModelCapabilities, ProviderClient
+from cogniwork.server.manager import SessionManager
 
 
 class ScriptedProvider(ProviderClient):

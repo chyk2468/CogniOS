@@ -64,7 +64,7 @@ export async function closeBrowser(): Promise<{ ok?: boolean; error?: string }> 
 
 
 
-export const INBOX_UNLOCK = "coworker:inbox-unlock";
+export const INBOX_UNLOCK = "cogniwork:inbox-unlock";
 export function announceInboxUnlock() {
   window.dispatchEvent(new CustomEvent(INBOX_UNLOCK));
 }
@@ -236,7 +236,7 @@ export interface MemorySettings {
   user_rules: string;
 }
 
-export const MEMORY_CHANGED = "coworker:memory-changed";
+export const MEMORY_CHANGED = "cogniwork:memory-changed";
 export function announceMemoryChanged() {
   window.dispatchEvent(new CustomEvent(MEMORY_CHANGED));
 }
@@ -336,7 +336,7 @@ export async function getAutomations(): Promise<Automation[]> {
   return (await res.json()).tasks ?? [];
 }
 
-export const AUTOMATIONS_CHANGED = "coworker:automations-changed";
+export const AUTOMATIONS_CHANGED = "cogniwork:automations-changed";
 export function announceAutomationsChanged() {
   window.dispatchEvent(new CustomEvent(AUTOMATIONS_CHANGED));
 }

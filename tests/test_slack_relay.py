@@ -8,14 +8,14 @@ import asyncio
 
 import pytest
 
-from coworker.connectors import relay_client
-from coworker.connectors.adapters import make_adapter
-from coworker.connectors.base import InteractionEvent, MessageEvent
-from coworker.connectors.config import load_settings
-from coworker.connectors.relay_client import SlackRelayAdapter
-from coworker.connectors.slack_addr import qualify, split
-from coworker.connectors.tools import make_send_message_tool
-from coworker.secrets import SecretStore
+from cogniwork.connectors import relay_client
+from cogniwork.connectors.adapters import make_adapter
+from cogniwork.connectors.base import InteractionEvent, MessageEvent
+from cogniwork.connectors.config import load_settings
+from cogniwork.connectors.relay_client import SlackRelayAdapter
+from cogniwork.connectors.slack_addr import qualify, split
+from cogniwork.connectors.tools import make_send_message_tool
+from cogniwork.secrets import SecretStore
 
 
 @pytest.fixture(autouse=True)
@@ -342,7 +342,7 @@ async def test_relay_send_selects_per_team_token(monkeypatch):
 
     def fake_send(token, chat_id, text, thread_id=None):
         captured.update(token=token, chat_id=chat_id, text=text)
-        from coworker.connectors.base import SendResult
+        from cogniwork.connectors.base import SendResult
 
         return SendResult(True, message_id="ts1")
 
@@ -366,7 +366,7 @@ def test_send_message_tool_per_team_and_default_token():
 
     def fake_slack(token, chat_id, text, thread_id):
         calls.append((token, chat_id))
-        from coworker.connectors.base import SendResult
+        from cogniwork.connectors.base import SendResult
 
         return SendResult(True, message_id="ts")
 
@@ -395,7 +395,7 @@ def test_make_adapter_relay_mode_builds_relay_client():
 
 
 def test_make_adapter_socket_mode_builds_socket_adapter():
-    from coworker.connectors.adapters import SlackAdapter
+    from cogniwork.connectors.adapters import SlackAdapter
 
     adapter = make_adapter("slack", {"bot_token": "xoxb", "app_token": "xapp"})
     assert isinstance(adapter, SlackAdapter)

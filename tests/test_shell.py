@@ -12,9 +12,9 @@ import time
 
 import pytest
 
-from coworker.permissions import PermissionEngine
-from coworker.tools import ToolRegistry
-from coworker.tools.shell import LocalExecutor, shell_tools
+from cogniwork.permissions import PermissionEngine
+from cogniwork.tools import ToolRegistry
+from cogniwork.tools.shell import LocalExecutor, shell_tools
 
 _WIN = sys.platform == "win32"
 

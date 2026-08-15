@@ -1,5 +1,5 @@
 // Left-nav polish (§20): collapse (⌘B / brand button → reveal button docks it back) and the
-// RECENT-header group/filter popover (Group by Persona↔Chronological, Filter by coworker).
+// RECENT-header group/filter popover (Group by Persona↔Chronological, Filter by cogniwork).
 import { expect } from "@playwright/test";
 import { test } from "./fixtures";
 
@@ -29,7 +29,7 @@ test("⌘B toggles the sidebar collapse", async ({ page }) => {
   await expect(app).not.toHaveClass(/nav-collapsed/);
 });
 
-test("RECENT header group/filter popover: switch grouping + see coworker filters", async ({
+test("RECENT header group/filter popover: switch grouping + see cogniwork filters", async ({
   page,
 }) => {
   await page.goto("/");
@@ -39,13 +39,13 @@ test("RECENT header group/filter popover: switch grouping + see coworker filters
   await header.getByRole("button", { name: "Group and filter conversations" }).click();
   const menu = page.getByTestId("group-filter-menu");
   await expect(menu).toContainText("Group by");
-  await expect(menu).toContainText("Filter by coworker");
+  await expect(menu).toContainText("Filter by cogniwork");
 
-  // Switch to Chronological → the persona accordion collapses into a flat list (the "OpenWorker"
+  // Switch to Chronological → the persona accordion collapses into a flat list (the "CogniOS"
   // persona group header is no longer a row; sessions list directly).
   await menu.getByText("Chronological").click();
   await expect(menu.getByText("Chronological").locator("xpath=..")).toContainText("✓");
 
-  // Filter-by-coworker checkboxes are present (none checked by default → all shown).
+  // Filter-by-cogniwork checkboxes are present (none checked by default → all shown).
   await expect(menu).toContainText("None checked shows all.");
 });

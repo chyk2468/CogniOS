@@ -7,8 +7,8 @@ from pathlib import Path
 import aisuite as ai
 import pytest
 
-from coworker.permissions import Mode, PermissionEngine
-from coworker.tools import ToolRegistry
+from cogniwork.permissions import Mode, PermissionEngine
+from cogniwork.tools import ToolRegistry
 
 
 def _registry(root: Path) -> ToolRegistry:

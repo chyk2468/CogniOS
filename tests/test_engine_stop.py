@@ -8,17 +8,17 @@ from __future__ import annotations
 import asyncio
 import time
 
-from coworker.engine import ApprovalOutcome, TurnEngine
-from coworker.events import EventType
-from coworker.permissions import PermissionEngine
-from coworker.providers import (
+from cogniwork.engine import ApprovalOutcome, TurnEngine
+from cogniwork.events import EventType
+from cogniwork.permissions import PermissionEngine
+from cogniwork.providers import (
     AssistantTurn,
     ModelCapabilities,
     ProviderClient,
     StreamChunk,
     ToolCall,
 )
-from coworker.tools import ToolRegistry
+from cogniwork.tools import ToolRegistry
 
 
 class EndlessStreamProvider(ProviderClient):

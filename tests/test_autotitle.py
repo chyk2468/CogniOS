@@ -10,8 +10,8 @@ from __future__ import annotations
 import asyncio
 import time
 
-from coworker.providers import AssistantTurn, ModelCapabilities, ProviderClient
-from coworker.server.manager import SessionManager
+from cogniwork.providers import AssistantTurn, ModelCapabilities, ProviderClient
+from cogniwork.server.manager import SessionManager
 
 
 class TitleAwareProvider(ProviderClient):

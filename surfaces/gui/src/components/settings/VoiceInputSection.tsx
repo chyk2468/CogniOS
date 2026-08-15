@@ -19,14 +19,14 @@ import {
 const voiceError = (error: unknown) =>
   error instanceof Error ? error.message : typeof error === "string" ? error : "Voice Input could not complete that action.";
 
-const formatBytes = (bytes: number) => {
-  if (!bytes) return "0 MiB";
+const formatBytes = (bytes?: number) => {
+  if (!bytes || bytes <= 0) return "0 MiB";
   return `${Math.round(bytes / 1024 / 1024)} MiB`;
 };
 
 const CARD = "rounded-md border border-border bg-panel";
-const BTN_ACCENT = "text-[12.5px] px-3 py-2 rounded-md bg-accent text-white shrink-0 disabled:opacity-40 font-medium";
-const BTN_BORDERED = "text-[12.5px] px-3 py-2 rounded-md border border-border bg-bg hover:border-border shrink-0 text-fg";
+const BTN_ACCENT = "text-[12.5px] px-3 py-2 rounded-md bg-accent text-white shrink-0 disabled:opacity-40 font-medium cursor-pointer hover:brightness-110";
+const BTN_BORDERED = "text-[12.5px] px-3 py-2 rounded-md border border-border bg-bg hover:border-border shrink-0 text-fg cursor-pointer";
 
 export function VoiceInputSection() {
   const [status, setStatus] = useState<DictationStatus | null>(null);
@@ -38,7 +38,7 @@ export function VoiceInputSection() {
 
   const publish = (next: DictationStatus) => {
     setStatus(next);
-    window.dispatchEvent(new CustomEvent("coworker:voice-input-changed", { detail: next }));
+    window.dispatchEvent(new CustomEvent("cogniwork:voice-input-changed", { detail: next }));
   };
 
   useEffect(() => {
@@ -73,7 +73,7 @@ export function VoiceInputSection() {
 
   const download = async () => {
     setError(null);
-    setProgress({ downloaded_bytes: 0, total_bytes: status?.model_bytes || 0 });
+    setProgress({ downloaded_bytes: 0, total_bytes: status?.download_total_bytes || status?.model_bytes || 0 });
     setPhase("downloading");
     try {
       publish(await downloadDictationModel());
@@ -137,9 +137,11 @@ export function VoiceInputSection() {
   };
 
   const downloading = phase === "downloading" || !!status?.download_in_progress;
-  const progressTotal = progress?.total_bytes || status?.model_bytes || 1;
+  const progressTotal = progress?.total_bytes || status?.download_total_bytes || status?.model_bytes || 1;
   const progressPercent = Math.min(100, Math.round(((progress?.downloaded_bytes || 0) / progressTotal) * 100));
   const ready = !!status?.supported && !!status?.model_verified && !!status?.test_passed;
+  const installedSize = formatBytes(status?.installed_bytes || status?.model_bytes);
+  const downloadSize = formatBytes(status?.download_total_bytes || status?.model_bytes);
 
   return (
     <section>
@@ -149,18 +151,19 @@ export function VoiceInputSection() {
       />
 
       {!desktop ? (
-        <div className={CARD + " p-4 text-[13px] text-muted"}>Voice Input setup is available in the OpenWorker desktop app.</div>
+        <div className={CARD + " p-4 text-[13px] text-muted"}>Voice Input setup is available in the CogniOS desktop app.</div>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-md border border-accent/30 bg-accent/10 px-4 py-3 text-[12.5px] text-fg">
-            <span className="font-medium text-accent">Private by design.</span> Audio is held in memory only while you record and is transcribed locally.
+          <div className="rounded-md border border-accent/30 bg-accent/10 px-4 py-3 text-[12.5px] text-fg flex items-center gap-2">
+            <span className="font-semibold text-accent">Private by design.</span>
+            <span>Audio is held in memory only while you record and is transcribed locally.</span>
           </div>
 
           <div className={CARD}>
             <div className="p-4 flex items-start gap-3">
               <Icon name="code" size={18} className="text-accent mt-0.5" />
               <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-medium text-fg">This device</div>
+                <div className="text-[13.5px] font-medium text-fg">This device is supported</div>
                 <div className="text-[12px] text-muted mt-1">{status?.device_summary || "Checking compatibility…"}</div>
                 {status?.compatibility_reason && <div className="text-[12px] text-danger mt-1.5">{status.compatibility_reason}</div>}
               </div>
@@ -182,16 +185,18 @@ export function VoiceInputSection() {
             <div className="p-4 flex items-center gap-3">
               <div className="w-9 h-9 rounded-md bg-accent/20 text-accent grid place-items-center font-semibold">W</div>
               <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-medium text-fg">Whisper Base · English</div>
+                <div className="text-[13.5px] font-medium text-fg">{status?.model_name || "Whisper Large v3 Turbo (q5_0)"}</div>
                 <div className="text-[12px] text-muted mt-0.5">
-                  {status?.model_verified ? `Installed and verified · ${formatBytes(status.model_bytes)}` : `Local voice model · ${formatBytes(status?.model_bytes || 147_964_211)}`}
+                  {status?.model_verified
+                    ? `Installed and verified · ${installedSize}`
+                    : `Fast local transcription · Download size ${downloadSize}`}
                 </div>
               </div>
               {status?.model_verified ? (
                 <>
-                  <span className="text-[11.5px] px-2 py-1 rounded-md bg-accent/20 text-accent font-medium">Verified</span>
+                  <span className="text-[11.5px] px-2 py-1 rounded-md bg-accent/20 text-accent font-medium">● Ready</span>
                   <button className={BTN_BORDERED} onClick={() => void repair()}>Repair</button>
-                  <button className="text-[12px] text-danger px-2 py-2" onClick={() => void remove()}>Delete</button>
+                  <button className="text-[12px] text-danger px-2 py-2 hover:underline cursor-pointer" onClick={() => void remove()}>Delete</button>
                 </>
               ) : downloading ? (
                 <button className={BTN_BORDERED} onClick={() => void cancelDownload()}>Cancel</button>
@@ -203,8 +208,13 @@ export function VoiceInputSection() {
             </div>
             {downloading && (
               <div className="border-t border-border px-4 py-3">
-                <div className="h-1.5 rounded-md bg-line overflow-hidden"><div className="h-full bg-accent transition-all" style={{ width: `${progressPercent}%` }} /></div>
-                <div className="mt-1.5 text-[11.5px] text-muted flex"><span>{formatBytes(progress?.downloaded_bytes || 0)} of {formatBytes(progressTotal)}</span><span className="ml-auto">{progressPercent}%</span></div>
+                <div className="h-1.5 rounded-md bg-line overflow-hidden">
+                  <div className="h-full bg-accent transition-all" style={{ width: `${progressPercent}%` }} />
+                </div>
+                <div className="mt-1.5 text-[11.5px] text-muted flex">
+                  <span>{formatBytes(progress?.downloaded_bytes || 0)} of {formatBytes(progressTotal)}</span>
+                  <span className="ml-auto">{progressPercent}%</span>
+                </div>
               </div>
             )}
           </div>
@@ -215,19 +225,50 @@ export function VoiceInputSection() {
               <div className="min-w-0 flex-1">
                 <div className="text-[13.5px] font-medium text-fg">Microphone test</div>
                 <div className="text-[12px] text-muted mt-0.5">
-                  {ready ? "Your microphone and local transcription engine are working." : "Record a short phrase to enable the composer microphone."}
+                  {ready ? "Your microphone and local transcription engine are working." : "Available after the model is downloaded and verified."}
                 </div>
               </div>
-              {ready && <span className="text-[11.5px] px-2 py-1 rounded-md bg-accent/20 text-accent font-medium">● Ready</span>}
+              {ready && <span className="text-[11.5px] px-2 py-1 rounded-md bg-accent/20 text-accent font-medium">● Passed</span>}
               <button className={BTN_BORDERED} disabled={!status?.supported || !status?.model_verified || phase === "transcribing"} onClick={() => void toggleTest()}>
                 {status?.recording ? "Stop and check" : phase === "transcribing" ? "Transcribing…" : ready ? "Test again" : "Test microphone"}
               </button>
             </div>
-            {status?.recording && <div className="border-t border-border px-4 py-3 text-[12px] text-accent" role="status">● Listening… speak a short phrase, then stop.</div>}
-            {testTranscript && <div className="border-t border-border bg-bg/50 px-4 py-3 text-[13px] text-fg">“{testTranscript}”</div>}
+            {status?.recording && <div className="border-t border-border px-4 py-3 text-[12px] text-accent font-medium" role="status">● Listening… speak a short phrase, then click stop.</div>}
+            {testTranscript && <div className="border-t border-border bg-bg/50 px-4 py-3 text-[13px] text-fg italic">“{testTranscript}”</div>}
           </div>
 
           {error && <div role="alert" className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2.5 text-[12px] text-danger">{error}</div>}
+
+          {/* §37 Composer behavior in this state */}
+          <div className="mt-6 pt-4 border-t border-border">
+            <div className="text-[11px] uppercase tracking-wider text-faint mb-2 font-medium">Composer behavior in this state</div>
+            <div className="rounded-md border border-border bg-panel p-3.5 shadow-sm">
+              <div className="text-faint text-[13px] min-h-[36px]">Ask CogniOS anything…</div>
+              <div className="flex items-center gap-1.5 pt-1">
+                <button type="button" className="w-7 h-7 rounded-md grid place-items-center text-muted" disabled>＋</button>
+                <span className="text-[12px] text-muted px-2 py-0.5 rounded-md bg-bg border border-border">Ask for approval⌄</span>
+                <span className="flex-1" />
+                <button
+                  type="button"
+                  className={"w-7 h-7 grid place-items-center rounded-md relative " + (ready ? "text-accent" : "text-faint bg-bg")}
+                  disabled
+                >
+                  <Icon name="mic" size={16} />
+                </button>
+                <span className="text-[12px] text-muted ml-1">
+                  {ready ? "Voice input ready" : downloading ? "Voice model is downloading" : "Voice input needs setup"}
+                </span>
+                <button type="button" className="w-7 h-7 rounded-full grid place-items-center bg-bg border border-border text-faint opacity-60 ml-auto" disabled>
+                  ↑
+                </button>
+              </div>
+            </div>
+            <div className="text-[11.5px] text-faint mt-2">
+              {ready
+                ? "Voice input is ready. Click the microphone icon in the composer to record."
+                : "Before Ready, the muted mic opens this Settings section. After Ready it becomes the normal record/stop control."}
+            </div>
+          </div>
         </div>
       )}
     </section>

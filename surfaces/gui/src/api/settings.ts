@@ -1,7 +1,8 @@
 import { fetch, httpBase } from "./client";
 
 export interface SurfaceVisibility {
-  cowork: boolean;
+  cogniwork: boolean;
+  cowork?: boolean;
   chat: boolean;
   code: boolean;
 }

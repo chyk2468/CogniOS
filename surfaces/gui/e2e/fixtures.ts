@@ -31,10 +31,10 @@ const SETTINGS = {
   source: "store",
   onboarded: true,
   experimental_connectors: false,
-  surfaces: { cowork: true, chat: false, code: true },
+  surfaces: { cogniwork: true, chat: false, code: true },
   nav_layout: "grouped",
-  scratch_base: "~/OpenWorker",
-  secrets_path: "/Users/test/.config/coworker/secrets.json",
+  scratch_base: "~/CogniOS",
+  secrets_path: "/Users/test/.config/cogniwork/secrets.json",
   sessions_peek: 5,
   // Token savings (PDF attachments): 2-page limit keeps the composer threshold test's
   // fixture PDF small; the real default is 20.
@@ -55,22 +55,22 @@ const SETTINGS = {
 
 const PERSONAS = {
   personas: [
-    { id: "cowork", name: "OpenWorker", icon: "cowork", tagline: "Produce a deliverable — research, analysis, scripts", needs_workspace: true, builtin: true, family: "knowledge", workspace: "deliverable", tools: ["files", "search"], enabled: true, surfaced: true, default: true },
+    { id: "cogniwork", name: "CogniOS", icon: "cogniwork", tagline: "Produce a deliverable — research, analysis, scripts", needs_workspace: true, builtin: true, family: "knowledge", workspace: "deliverable", tools: ["files", "search"], enabled: true, surfaced: true, default: true },
     { id: "code", name: "Code", icon: "code", tagline: "Work in a codebase — files, git, shell", needs_workspace: true, builtin: true, family: "code", workspace: "git", tools: ["code_files", "git"], enabled: true, surfaced: true, default: false },
     { id: "chat", name: "Chat", icon: "chat", tagline: "Quick questions — no workspace", needs_workspace: false, builtin: true, family: "knowledge", workspace: "none", tools: [], enabled: true, surfaced: false, default: false },
-    { id: "ops", name: "Ops Coworker", icon: "wrench", tagline: "Operate and investigate — runbooks, logs, infrastructure", needs_workspace: true, builtin: true, family: "knowledge", workspace: "deliverable", tools: ["files", "shell"], enabled: true, surfaced: true, default: false },
+    { id: "ops", name: "Ops CogniWork", icon: "wrench", tagline: "Operate and investigate — runbooks, logs, infrastructure", needs_workspace: true, builtin: true, family: "knowledge", workspace: "deliverable", tools: ["files", "shell"], enabled: true, surfaced: true, default: false },
     // A non-builtin install (disabled pending consent — invisible to picker specs) so the
     // Personas page's delete/enable affordances have a target.
-    { id: "acme-notes", name: "Acme Notes", icon: "pencil", tagline: "Acme's note-taking coworker", needs_workspace: true, builtin: false, family: "knowledge", workspace: "deliverable", tools: ["files"], enabled: false, surfaced: false, default: false },
+    { id: "acme-notes", name: "Acme Notes", icon: "pencil", tagline: "Acme's note-taking CogniWork agent", needs_workspace: true, builtin: false, family: "knowledge", workspace: "deliverable", tools: ["files"], enabled: false, surfaced: false, default: false },
   ],
 };
 
 // The boot-resume target (most recent updated_at) — existing specs open it by title.
 const PINNED_SESSION = {
-  session_id: "pinned-cowork-1",
+  session_id: "pinned-cogniwork-1",
   title: "Draft the launch note",
-  workspace: "/Users/test/OpenWorker/launch-note",
-  agent: "cowork",
+  workspace: "/Users/test/CogniOS/launch-note",
+  agent: "cogniwork",
   model: "anthropic:claude-opus-4-8",
   mode: "interactive",
   updated_at: "2026-07-01 09:00:00",
@@ -82,14 +82,14 @@ const PINNED_SESSION = {
   subscriptions: [],
 };
 
-// Seven unpinned Coworker sessions: enough to exercise the sidebar peek cap (5) + "Show more (2)".
+// Seven unpinned CogniWork sessions: enough to exercise the sidebar peek cap (5) + "Show more (2)".
 // wp-3 carries the pending Inbox approval below (attention badge parity). All OLDER than the
 // pinned session so boot-resume stays deterministic.
 const EXTRA_SESSIONS = Array.from({ length: 7 }, (_, i) => ({
   session_id: `wp-${i + 1}`,
   title: `Weekly plan ${i + 1}`,
   workspace: "",
-  agent: "cowork",
+  agent: "cogniwork",
   model: "anthropic:claude-opus-4-8",
   mode: "interactive",
   updated_at: `2026-06-2${8 - Math.min(i, 7)} 10:00:00`,
@@ -106,7 +106,7 @@ const EXTRA_SESSIONS = Array.from({ length: 7 }, (_, i) => ({
 const OPS_SESSION = {
   session_id: "ops-1",
   title: "Ops triage",
-  workspace: "/Users/test/OpenWorker/ops-triage",
+  workspace: "/Users/test/CogniOS/ops-triage",
   agent: "ops",
   model: "anthropic:claude-opus-4-8",
   mode: "interactive",
@@ -125,7 +125,7 @@ const SLACK_SESSION = {
   session_id: "slack-thread-1",
   title: "#general — check the deploy?",
   workspace: "",
-  agent: "cowork",
+  agent: "cogniwork",
   model: "anthropic:claude-opus-4-8",
   mode: "interactive",
   updated_at: "2026-06-10 10:00:00",
@@ -179,7 +179,7 @@ const INBOX_ITEMS = [
     created_at: "2026-07-01 08:00:00",
     resolved_at: null,
     session_title: "Weekly plan 3",
-    session_agent: "cowork",
+    session_agent: "cogniwork",
     session_workspace: "",
     session_exists: true,
   },
@@ -217,13 +217,13 @@ const GALLERY_PERSONAS = [
   {
     slug: "sales",
     version: 1,
-    name: "Sales Coworker",
+    name: "Sales CogniWork",
     icon: "chart",
     tagline: "Research accounts, prep meetings, draft follow-ups",
-    description: "A sales-focused coworker.",
+    description: "A sales-focused CogniWork agent.",
     family: "knowledge",
     workspace: "deliverable",
-    publisher: "OpenWorker",
+    publisher: "CogniOS",
     recommended_connectors: ["hubspot", "gmail"],
     risk_summary: "Declarative manifest; no executable code.",
     featured: true,
@@ -234,10 +234,10 @@ const GALLERY_PERSONAS = [
     name: "Recruiter",
     icon: "search",
     tagline: "Sourcing summaries and scheduling loops",
-    description: "A recruiting coworker.",
+    description: "A recruiting CogniWork agent.",
     family: "knowledge",
     workspace: "deliverable",
-    publisher: "OpenWorker",
+    publisher: "CogniOS",
     recommended_connectors: ["gmail"],
     risk_summary: "Declarative manifest; no executable code.",
     featured: false,
@@ -247,9 +247,9 @@ const GALLERY_PERSONAS = [
 // Persona detail (GET /v1/personas/:id) — SourcesDrawer/PersonaView read `recommends` and
 // `default_connections` as arrays, so these must be present (not the catch-all {}).
 const PERSONA_DETAIL = {
-  id: "cowork",
-  name: "OpenWorker",
-  icon: "cowork",
+  id: "cogniwork",
+  name: "CogniOS",
+  icon: "cogniwork",
   tagline: "Produce a deliverable — research, analysis, scripts",
   description: "",
   enabled: true,
@@ -284,7 +284,7 @@ const AUTOMATION = {
   schedule: "Every day at ~5:40 PM",
   schedule_raw: { kind: "cron", cron: "40 17 * * *", fire_at: null, timezone: "local" },
   workspace: "",
-  agent: "cowork",
+  agent: "cogniwork",
   enabled: true,
   next_run: Math.floor(Date.now() / 1000) + 3600,
   last_run: Math.floor(Date.now() / 1000) - 60,
@@ -326,7 +326,7 @@ const AUTOMATION_RUNS = [
   },
 ];
 
-const PRIMARY_ROOT = { path: "/Users/test/OpenWorker/launch-note", writable: true, label: "scratch", primary: true, exists: true };
+const PRIMARY_ROOT = { path: "/Users/test/CogniOS/launch-note", writable: true, label: "scratch", primary: true, exists: true };
 const baseName = (p: string) => p.split("/").filter(Boolean).pop() || p;
 
 const PROVIDERS = [
@@ -346,7 +346,7 @@ export async function mockApi(page: import("@playwright/test").Page) {
   const subscriptions: any[] = [
     // One existing subscription (a non-pinned session) so the Slack page's per-workspace
     // "Listening" row has an entry. Relay-mode channels are team-qualified (slack:T…/C…).
-    { session_id: "wp-1", session_title: "Weekly plan 1", agent: "cowork", channel: "slack:T1DL/C0AAA111", channel_name: "ocw-test", routing_target: null, collision: false },
+    { session_id: "wp-1", session_title: "Weekly plan 1", agent: "cogniwork", channel: "slack:T1DL/C0AAA111", channel_name: "ocw-test", routing_target: null, collision: false },
   ];
   // Parked unauthorized messages (§19) — mutable so Allow/Dismiss round-trip through the UI.
   // The relay is multi-workspace: parked items carry their team so the Slack page files them
@@ -605,7 +605,7 @@ export async function mockApi(page: import("@playwright/test").Page) {
           send("permission_required", {
             name: "run_shell",
             arguments: { command: "ls" },
-            reason: "The coworker wants to run a command.",
+            reason: "CogniWork wants to run a command.",
           });
           return; // suspended on the approval
         }
@@ -917,6 +917,9 @@ export async function mockApi(page: import("@playwright/test").Page) {
     }
     if (p.endsWith("/v1/skills")) return json({ skills });
 
+    if (p.endsWith("/v1/auth/status")) {
+      return json({ owner_exists: true, signup_allowed: false });
+    }
     if (p.endsWith("/v1/auth/me")) {
       return json({
         authenticated: true,
@@ -1252,7 +1255,7 @@ export async function mockApi(page: import("@playwright/test").Page) {
       });
     if (p.endsWith("/v1/cloud/status")) return json({ ...CLOUD_STATE });
     if (p.endsWith("/v1/cloud/login") && m === "POST") {
-      Object.assign(CLOUD_STATE, { signed_in: true, account: "rohit@openworker.com", user_id: "usr_e2e" });
+      Object.assign(CLOUD_STATE, { signed_in: true, account: "rohit@cognios.com", user_id: "usr_e2e" });
       return json({ ok: true });
     }
     if (p.endsWith("/v1/cloud/telemetry") && m === "POST") {
@@ -1311,8 +1314,8 @@ export async function mockApi(page: import("@playwright/test").Page) {
       // Outlook managed connect = add the next mailbox (email-keyed accounts).
       if (p.includes("/connectors/outlook/")) {
         outlookState.accounts.push({
-          account_id: `mbx${outlookState.accounts.length + 1}@openworker.com`,
-          name: `mbx${outlookState.accounts.length + 1}@openworker.com`,
+          account_id: `mbx${outlookState.accounts.length + 1}@cognios.com`,
+          name: `mbx${outlookState.accounts.length + 1}@cognios.com`,
           default: outlookState.accounts.length === 0,
           managed: true,
         });

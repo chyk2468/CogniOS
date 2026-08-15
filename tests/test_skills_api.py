@@ -13,8 +13,8 @@ import zipfile
 
 from fastapi.testclient import TestClient
 
-from coworker.providers import AssistantTurn, ModelCapabilities, ProviderClient
-from coworker.server import SessionManager, create_app
+from cogniwork.providers import AssistantTurn, ModelCapabilities, ProviderClient
+from cogniwork.server import SessionManager, create_app
 
 
 class ScriptedProvider(ProviderClient):
@@ -143,7 +143,7 @@ def test_scratch_workspace_rejected_for_skill_writes(tmp_path):
     scratch_base = tmp_path / "scratchpads"
     manager.set_scratch_base(str(scratch_base))
     scratch_ws = scratch_base / "6d57038c-50d"
-    (scratch_ws / ".coworker" / "skills").mkdir(parents=True)
+    (scratch_ws / ".cogniwork" / "skills").mkdir(parents=True)
 
     res = client.post(
         "/v1/skills",
@@ -270,8 +270,8 @@ def test_engine_catalog_respects_settings_disable(tmp_path):
     )
     client.patch("/v1/skills/hidden", json={"enabled": False})
 
-    from coworker.agent import build_engine
-    from coworker.agents.registry import get_agent
+    from cogniwork.agent import build_engine
+    from cogniwork.agents.registry import get_agent
 
     engine = build_engine(
         agent=get_agent("chat"),

@@ -16,7 +16,7 @@ slack_bolt stack driven by FakeSlack (no network, no tokens, no Slack app consol
 4. Mute Slack for the session -> a further channel post does NOT wake it (but is still buffered).
 5. `GET /v1/sessions/{id}/connections` `attention` == the persona's unconnected recommends count.
 
-State is fully isolated: `COWORKER_STATE_DIR` redirects the SecretStore and the manager's data
+State is fully isolated: `COGNIWORK_STATE_DIR` redirects the SecretStore and the manager's data
 dir lives under `tmp_path`, so the machine-global secrets/config are never touched.
 """
 
@@ -27,16 +27,16 @@ import time
 
 from fastapi.testclient import TestClient
 
-from coworker.interactions import decode
-from coworker.providers import (
+from cogniwork.interactions import decode
+from cogniwork.providers import (
     AssistantTurn,
     ModelCapabilities,
     ProviderClient,
     ToolCall,
 )
-from coworker.server import create_app
-from coworker.server.manager import SessionManager
-from coworker.sessions import SessionRecord
+from cogniwork.server import create_app
+from cogniwork.server.manager import SessionManager
+from cogniwork.sessions import SessionRecord
 
 SID = "incident"
 CHANNEL = "C_OPS"
@@ -113,8 +113,8 @@ def _find_reply(outbound, channel, text):
 
 async def test_ui_refresh_cross_cutting_e2e(fake_slack, tmp_path, monkeypatch):
     # Isolate the SecretStore (machine-global otherwise) so "is slack connected?" is decided only
-    # by what this test writes; the manager's own data dir lives under tmp_path/.coworker.
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    # by what this test writes; the manager's own data dir lives under tmp_path/.cogniwork.
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
 
     ws = tmp_path / "ops_ws"
     ws.mkdir()
@@ -313,5 +313,5 @@ async def test_ui_refresh_cross_cutting_e2e(fake_slack, tmp_path, monkeypatch):
         await mgr.aclose()
 
     # State-dir isolation held: the SecretStore resolved to the tmp_path-scoped path, never the
-    # machine-global ~/.config/coworker (so this run cannot mutate the real secrets hash).
+    # machine-global ~/.config/cogniwork (so this run cannot mutate the real secrets hash).
     assert str(tmp_path) in str(mgr.secrets.path)

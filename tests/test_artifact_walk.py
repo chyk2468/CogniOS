@@ -1,7 +1,7 @@
 """list_artifacts must never descend into OS application-data directories.
 
 On macOS 14+, merely traversing ~/Library/Application Support (other apps' containers)
-trips the App Data TCC protection and the user gets an alarming "OpenWorker would like to
+trips the App Data TCC protection and the user gets an alarming "CogniOS would like to
 access data from other apps" prompt. The artifacts panel refreshes after every turn, so a
 home-directory workspace produced that prompt unprompted. Pruning must happen DURING the
 walk (rglob descends first and filters after, which is what caused the bug).
@@ -9,8 +9,8 @@ walk (rglob descends first and filters after, which is what caused the bug).
 
 import os
 
-from coworker.server.manager import SessionManager
-from coworker.tools.search import OS_DATA_DIRS
+from cogniwork.server.manager import SessionManager
+from cogniwork.tools.search import OS_DATA_DIRS
 
 
 def _ws(tmp_path):
@@ -34,7 +34,7 @@ def test_os_data_dirs_are_not_traversed(tmp_path, monkeypatch):
             walked.append(dirpath)
             yield dirpath, dirs, files
 
-    monkeypatch.setattr("coworker.server.manager.os.walk", spy)
+    monkeypatch.setattr("cogniwork.server.manager.os.walk", spy)
     m = SessionManager(data_dir=tmp_path / "data", workspace=str(ws))
     names = [a["name"] for a in m.list_artifacts("s1")]
 

@@ -1,7 +1,7 @@
-//! OpenWorker desktop shell.
+//! CogniOS desktop shell.
 //!
 //! Tauri is a thin native window over the existing React SPA. It:
-//!   1. picks a free localhost port and starts the Python `openworker-server` as a managed
+//!   1. picks a free localhost port and starts the Python `cognios-server` as a managed
 //!      sidecar on that port (so it never clashes with a hand-run server on 8765);
 //!   2. injects the sidecar HTTP/WS addresses and per-launch authentication token before the
 //!      SPA loads (single codebase — the browser build still hits 8765);
@@ -12,7 +12,7 @@
 //!
 //! The sidecar inherits this process's environment, so a shell-launched `npm run tauri dev`
 //! passes `OPENAI_API_KEY` through. A Finder-launched app has no shell env — there the key
-//! comes from the SecretStore (Settings tab), see `coworker.providers.resolve_api_key`.
+//! comes from the SecretStore (Settings tab), see `cogniwork.providers.resolve_api_key`.
 
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -48,22 +48,24 @@ fn launch_token() -> String {
 }
 
 /// Path to the server entrypoint. Resolution order:
-///   1. `COWORKER_SERVER_BIN` env override.
+///   1. `COGNIWORK_SERVER_BIN` env override.
 ///   2. The bundled onedir sidecar shipped via Tauri `resources` (production): the
 ///      `sidecar/` folder lands in Contents/Resources on macOS and in the install dir
 ///      (next to the app exe) on Windows.
-///   3. Legacy onefile slot: `openworker-server[.exe]` next to the app binary (pre-onedir
+///   3. Legacy onefile slot: `cognios-server[.exe]` next to the app binary (pre-onedir
 ///      builds used Tauri externalBin).
 ///   4. Dev fallback: the repo venv, relative to this crate (`src-tauri` → repo-root `.venv`;
 ///      `bin/` on POSIX, `Scripts\` on Windows).
 fn server_bin() -> PathBuf {
-    if let Ok(p) = std::env::var("COWORKER_SERVER_BIN") {
+    if let Ok(p) = std::env::var("COGNIWORK_SERVER_BIN")
+        .or_else(|_| std::env::var("COWORKER_SERVER_BIN"))
+    {
         return PathBuf::from(p);
     }
     let exe_name = if cfg!(windows) {
-        "openworker-server.exe"
+        "cognios-server.exe"
     } else {
-        "openworker-server"
+        "cognios-server"
     };
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
@@ -83,42 +85,56 @@ fn server_bin() -> PathBuf {
     }
     let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     if cfg!(windows) {
-        p.push("../../../.venv/Scripts/openworker-server.exe");
+        p.push("../../../.venv/Scripts/cognios-server.exe");
     } else {
-        p.push("../../../.venv/bin/openworker-server");
+        p.push("../../../.venv/bin/cognios-server");
     }
     p
 }
 
-/// Mirror of `coworker.secrets.state_dir()` so the shell and server agree on `desktop.json`.
-/// Windows: `%APPDATA%\coworker`; POSIX: `~/.config/coworker`. `COWORKER_STATE_DIR` overrides.
+/// Mirror of `cogniwork.secrets.state_dir()` so the shell and server agree on `desktop.json`.
+/// Windows: `%APPDATA%\cogniwork`; POSIX: `~/.config/cogniwork`. `COGNIWORK_STATE_DIR` overrides.
 fn state_dir() -> PathBuf {
-    if let Ok(d) = std::env::var("COWORKER_STATE_DIR") {
+    if let Ok(d) = std::env::var("COGNIWORK_STATE_DIR")
+        .or_else(|_| std::env::var("COWORKER_STATE_DIR"))
+    {
         return PathBuf::from(d);
     }
     #[cfg(windows)]
     {
         if let Ok(appdata) = std::env::var("APPDATA") {
-            return PathBuf::from(appdata).join("coworker");
+            let new_dir = PathBuf::from(&appdata).join("cogniwork");
+            let legacy_dir = PathBuf::from(&appdata).join("coworker");
+            if legacy_dir.is_dir() && !new_dir.is_dir() {
+                return legacy_dir;
+            }
+            return new_dir;
         }
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    PathBuf::from(home).join(".config").join("coworker")
+    let config = PathBuf::from(&home).join(".config");
+    let new_dir = config.join("cogniwork");
+    let legacy_dir = config.join("coworker");
+    if legacy_dir.is_dir() && !new_dir.is_dir() {
+        legacy_dir
+    } else {
+        new_dir
+    }
 }
 
 fn desktop_prefs_path() -> PathBuf {
     state_dir().join("desktop.json")
 }
 
-/// The sidecar's log file: `<state_dir>/logs/openworker-server.log`, fresh per
+/// The sidecar's log file: `<state_dir>/logs/cognios-server.log`, fresh per
 /// launch with the previous run kept as `.old`. None (→ /dev/null) only if the
 /// directory can't be created — logging must never block startup.
 fn server_log_file() -> Option<std::fs::File> {
     let dir = state_dir().join("logs");
     std::fs::create_dir_all(&dir).ok()?;
-    let path = dir.join("openworker-server.log");
+    let path = dir.join("cognios-server.log");
     if path.exists() {
-        let _ = std::fs::rename(&path, dir.join("openworker-server.log.old"));
+        let _ = std::fs::rename(&path, dir.join("cognios-server.log.old"));
     }
     std::fs::File::create(&path).ok()
 }
@@ -289,6 +305,8 @@ struct VoiceInputStatus {
     download_in_progress: bool,
     model_name: &'static str,
     model_bytes: u64,
+    installed_bytes: u64,
+    download_total_bytes: u64,
     supported: bool,
     device_summary: String,
     compatibility_reason: Option<String>,
@@ -305,6 +323,8 @@ fn voice_input_status(dictation: &Dictation) -> VoiceInputStatus {
         download_in_progress: status.download_in_progress,
         model_name: status.model_name,
         model_bytes: status.model_bytes,
+        installed_bytes: status.installed_bytes,
+        download_total_bytes: status.download_total_bytes,
         supported,
         device_summary,
         compatibility_reason,
@@ -414,6 +434,16 @@ async fn stop_dictation(state: tauri::State<'_, Arc<Dictation>>) -> Result<Strin
 }
 
 #[tauri::command]
+async fn dictation_partial_transcript(
+    state: tauri::State<'_, Arc<Dictation>>,
+) -> Result<String, String> {
+    let dictation = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || dictation.partial_transcript())
+        .await
+        .map_err(|e| format!("Dictation partial transcript failed: {e}"))?
+}
+
+#[tauri::command]
 fn cancel_dictation(state: tauri::State<Arc<Dictation>>) {
     state.cancel();
 }
@@ -487,7 +517,7 @@ fn show_main(app: &tauri::AppHandle) {
 // else — no global plugin JS): check, background pre-download, install. Update
 // artifacts are minisign-verified against the pubkey in tauri.conf.json before
 // anything is installed; the manifest lives at the endpoints configured there
-// (download.openworker.com → GitHub Releases).
+// (download.cognios.com → GitHub Releases).
 
 #[derive(serde::Serialize)]
 struct UpdateInfo {
@@ -573,7 +603,7 @@ async fn install_update(
     }
     // Windows never reaches here (the NSIS installer takes over and relaunches).
     // macOS: the .app was swapped in place — restart into the new version. The tray
-    // Exit path's sidecar kill runs via RunEvent, so no orphaned openworker-server.
+    // Exit path's sidecar kill runs via RunEvent, so no orphaned cognios-server.
     app.restart();
 }
 
@@ -584,7 +614,7 @@ pub fn run() {
     let ws = format!("ws://127.0.0.1:{port}");
     // Debug-format yields a quoted JS string literal.
     let inject = format!(
-        "window.__COWORKER_HTTP__={http:?};window.__COWORKER_WS__={ws:?};window.__COWORKER_API_TOKEN__={api_token:?};window.__OCW_PLATFORM__={:?};",
+        "window.__COGNIWORK_HTTP__={http:?};window.__COGNIWORK_WS__={ws:?};window.__COGNIWORK_API_TOKEN__={api_token:?};window.__OCW_PLATFORM__={:?};",
         std::env::consts::OS
     );
 
@@ -592,7 +622,7 @@ pub fn run() {
         // MUST be the first plugin: when a second launch happens (e.g. the user relaunches
         // while the window is closed-to-tray), this fires in the ALREADY-running instance to
         // surface its healthy window, and the second process exits before it can spawn a
-        // duplicate sidecar — which previously left a window stuck on "Starting coworker…".
+        // duplicate sidecar — which previously left a window stuck on "Starting cogniwork…".
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_main(app);
         }))
@@ -612,6 +642,7 @@ pub fn run() {
             get_dictation_status,
             start_dictation,
             stop_dictation,
+            dictation_partial_transcript,
             cancel_dictation,
             download_dictation_model,
             cancel_dictation_model_download,
@@ -634,12 +665,12 @@ pub fn run() {
                 // The explicit PID matters: under PyInstaller onefile the python process is a
                 // *grandchild* (bootloader in between), so getppid() never points at us and a
                 // reparenting check alone leaks both processes on quit.
-                .env("COWORKER_EXIT_WITH_PARENT", "1")
-                .env("COWORKER_PARENT_PID", std::process::id().to_string())
-                .env("COWORKER_API_TOKEN", &api_token)
+                .env("COGNIWORK_EXIT_WITH_PARENT", "1")
+                .env("COGNIWORK_PARENT_PID", std::process::id().to_string())
+                .env("COGNIWORK_API_TOKEN", &api_token)
                 // This GUI app has no console, so a console-subsystem child would inherit
                 // invalid std handles and crash a few seconds in when uvicorn writes its logs
-                // (the "Starting coworker…" freeze on Windows). Hand it real handles: the
+                // (the "Starting cogniwork…" freeze on Windows). Hand it real handles: the
                 // server's output goes to a log file so field issues are debuggable at all
                 // ("relay off, no messages" was undiagnosable with everything on /dev/null).
                 // One file per launch, previous run kept as .old.
@@ -668,7 +699,7 @@ pub fn run() {
             let child = match server_cmd.spawn() {
                 Ok(child) => Some(child),
                 Err(e) => {
-                    eprintln!("[coworker] failed to start server sidecar: {e}");
+                    eprintln!("[cogniwork] failed to start server sidecar: {e}");
                     None
                 }
             };
@@ -690,7 +721,7 @@ pub fn run() {
             //    Overlay title bar (macOS): traffic lights float over the edge-to-edge UI.
             let mut builder =
                 WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                    .title("OpenWorker")
+                    .title("CogniOS")
                     .inner_size(1360.0, 900.0)
                     .min_inner_size(980.0, 640.0)
                     // Let the WEBVIEW receive OS file drags: Tauri's own drag-drop handler
@@ -722,7 +753,7 @@ pub fn run() {
             });
 
             // 3. System tray: Open / Settings / Quit.
-            let open_i = MenuItem::with_id(app, "open", "Open OpenWorker", true, None::<&str>)?;
+            let open_i = MenuItem::with_id(app, "open", "Open CogniOS", true, None::<&str>)?;
             let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open_i, &settings_i, &quit_i])?;
@@ -731,7 +762,7 @@ pub fn run() {
             // it for light/dark automatically — not the full-color app icon.
             let tray_icon = tauri::image::Image::new(include_bytes!("../icons/tray.rgba"), 44, 44);
             TrayIconBuilder::new()
-                .tooltip("OpenWorker")
+                .tooltip("CogniOS")
                 .icon(tray_icon)
                 .icon_as_template(true)
                 .menu(&menu)
@@ -741,7 +772,7 @@ pub fn run() {
                         show_main(app);
                         if let Some(w) = app.get_webview_window("main") {
                             let _ = w.eval(
-                                "window.dispatchEvent(new CustomEvent('coworker:open-settings'))",
+                                "window.dispatchEvent(new CustomEvent('cogniwork:open-settings'))",
                             );
                         }
                     }
@@ -753,7 +784,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building the OpenWorker desktop app")
+        .expect("error while building the CogniOS desktop app")
         .run(|app, event| {
             // Also on Exit: belt-and-suspenders in case a quit path reaches teardown without
             // a preceding ExitRequested (observed with macOS Cmd+Q under the tray setup).

@@ -1,15 +1,15 @@
-declare const __COWORKER_DEV_TOKEN__: string;
+declare const __COGNIWORK_DEV_TOKEN__: string;
 
 import { isTauri } from "../tauri";
 
-// Endpoint resolution order: runtime-injected globals (Tauri sets `window.__COWORKER_HTTP__`
+// Endpoint resolution order: runtime-injected globals (Tauri sets `window.__COGNIWORK_HTTP__`
 // for its dynamically-chosen sidecar port) → Vite env → the 127.0.0.1:8765 dev default.
 // In browser dev, use same-origin URLs so the Vite proxy can forward cookies for auth.
 export const httpBase = (): string => {
   if (isTauri()) {
     return (
-      (globalThis as any).__COWORKER_HTTP__ ||
-      (import.meta as any).env?.VITE_COWORKER_HTTP ||
+      (globalThis as any).__COGNIWORK_HTTP__ ||
+      (import.meta as any).env?.VITE_COGNIWORK_HTTP ||
       "http://127.0.0.1:8765"
     );
   }
@@ -19,8 +19,8 @@ export const httpBase = (): string => {
 export const wsBase = (): string => {
   if (isTauri()) {
     return (
-      (globalThis as any).__COWORKER_WS__ ||
-      (import.meta as any).env?.VITE_COWORKER_WS ||
+      (globalThis as any).__COGNIWORK_WS__ ||
+      (import.meta as any).env?.VITE_COGNIWORK_WS ||
       "ws://127.0.0.1:8765"
     );
   }
@@ -29,9 +29,9 @@ export const wsBase = (): string => {
 };
 
 export const apiToken = (): string =>
-  (globalThis as any).__COWORKER_API_TOKEN__ ||
-  (import.meta as any).env?.VITE_COWORKER_API_TOKEN ||
-  (typeof __COWORKER_DEV_TOKEN__ === "string" ? __COWORKER_DEV_TOKEN__ : "");
+  (globalThis as any).__COGNIWORK_API_TOKEN__ ||
+  (import.meta as any).env?.VITE_COGNIWORK_API_TOKEN ||
+  (typeof __COGNIWORK_DEV_TOKEN__ === "string" ? __COGNIWORK_DEV_TOKEN__ : "");
 
 // All local REST calls pass through this module wrapper applying launch authentication
 export const fetch = (
@@ -40,13 +40,13 @@ export const fetch = (
 ): Promise<Response> => {
   const headers = new Headers(init.headers);
   const token = apiToken();
-  if (token) headers.set("X-OpenWorker-Token", token);
+  if (token) headers.set("X-CogniOS-Token", token);
   return globalThis.fetch(input, { ...init, headers, credentials: "include" });
 };
 
 export const openWebSocket = (url: string): WebSocket => {
   const token = apiToken();
   return token
-    ? new WebSocket(url, ["openworker", token])
+    ? new WebSocket(url, ["cognios", token])
     : new WebSocket(url);
 };

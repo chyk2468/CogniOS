@@ -8,17 +8,17 @@ import time
 
 import aisuite as ai
 
-from coworker.engine import ApprovalOutcome, PermissionRequest, TurnEngine
-from coworker.events import EventType
-from coworker.permissions import PermissionEngine
-from coworker.providers import (
+from cogniwork.engine import ApprovalOutcome, PermissionRequest, TurnEngine
+from cogniwork.events import EventType
+from cogniwork.permissions import PermissionEngine
+from cogniwork.providers import (
     AssistantTurn,
     ModelCapabilities,
     ProviderClient,
     StreamChunk,
     ToolCall,
 )
-from coworker.tools import ToolRegistry
+from cogniwork.tools import ToolRegistry
 
 
 def _text_turn(text):

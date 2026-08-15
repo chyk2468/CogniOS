@@ -8,10 +8,10 @@ connected (auth="none"), so effective-set assertions use subsets, not exact equa
 
 from fastapi.testclient import TestClient
 
-from coworker.providers import ModelCapabilities, ProviderClient
-from coworker.server import create_app
-from coworker.server.manager import SessionManager
-from coworker.sessions import SessionRecord
+from cogniwork.providers import ModelCapabilities, ProviderClient
+from cogniwork.server import create_app
+from cogniwork.server.manager import SessionManager
+from cogniwork.sessions import SessionRecord
 
 
 class ScriptedProvider(ProviderClient):
@@ -28,7 +28,7 @@ class ScriptedProvider(ProviderClient):
 def _mgr(tmp_path, monkeypatch) -> SessionManager:
     # Isolate the SecretStore (which is otherwise the machine-global state dir) so a connector the
     # developer happens to have connected locally can't leak into "is it connected?" assertions.
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
     return SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
 
 
@@ -64,7 +64,7 @@ def test_persona_detail_endpoint(tmp_path, monkeypatch):
     detail = client.get("/v1/personas/ops").json()
     # identity + capabilities (from the manifest/entry)
     assert detail["id"] == "ops"
-    assert detail["name"] == "Ops Coworker"
+    assert detail["name"] == "Ops CogniWork"
     assert detail["enabled"] is False  # non-default personas ship disabled (opt-in)
     assert (
         detail["workspace"] == "deliverable"
@@ -131,8 +131,8 @@ def test_persona_enable_toggle(tmp_path, monkeypatch):
     client = TestClient(create_app(mgr))
 
     before = {p["id"]: p for p in client.get("/v1/personas").json()["personas"]}
-    assert before["ops"]["enabled"] is False  # ships disabled; only cowork starts on
-    assert before["cowork"]["enabled"] is True
+    assert before["ops"]["enabled"] is False  # ships disabled; only cogniwork starts on
+    assert before["cogniwork"]["enabled"] is True
 
     resp = client.post("/v1/personas/ops/enable", json={"enabled": True}).json()
     assert resp["ok"] is True
@@ -184,7 +184,7 @@ def test_session_connections_endpoint(tmp_path, monkeypatch):
 
 def test_fresh_session_view_uses_persona_hint(tmp_path, monkeypatch):
     # A brand-new session has no SessionRecord until its first turn persists. Without the
-    # GUI's persona hint the view resolved to the DEFAULT persona (cowork) — the owner's
+    # GUI's persona hint the view resolved to the DEFAULT persona (cogniwork) — the owner's
     # 2026-07-03 finding: a fresh session showed the wrong defaults and no recommends.
     mgr = _mgr(tmp_path, monkeypatch)
     _connect_slack(mgr)

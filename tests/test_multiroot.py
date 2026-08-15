@@ -1,6 +1,6 @@
 """Slice B — multi-root file toolkit + permission scoping + the context injector.
 
-Orphan Cowork sessions own a primary writable scratch dir and may gain additional folders,
+Orphan CogniWork sessions own a primary writable scratch dir and may gain additional folders,
 each read-only or read-write. These cover the three layers that share the roots list.
 """
 
@@ -12,12 +12,12 @@ from pathlib import Path
 import aisuite as ai
 import pytest
 
-from coworker.engine import TurnEngine
-from coworker.events import EventType
-from coworker.permissions import PermissionEngine
-from coworker.providers import AssistantTurn, ToolCall
-from coworker.roots import RootDir, normalize_roots, render_context
-from coworker.tools import ToolRegistry
+from cogniwork.engine import TurnEngine
+from cogniwork.events import EventType
+from cogniwork.permissions import PermissionEngine
+from cogniwork.providers import AssistantTurn, ToolCall
+from cogniwork.roots import RootDir, normalize_roots, render_context
+from cogniwork.tools import ToolRegistry
 
 
 def _bare_engine(**kw):
@@ -176,9 +176,9 @@ def test_outbound_messages_noop_without_provider():
 # -- Slice C: add/remove session folders (RO/RW) + persistence ------------------
 
 
-def _cowork_manager(tmp_path):
-    from coworker.providers import ModelCapabilities, ProviderClient
-    from coworker.server import SessionManager
+def _cogniwork_manager(tmp_path):
+    from cogniwork.providers import ModelCapabilities, ProviderClient
+    from cogniwork.server import SessionManager
 
     class _Provider(ProviderClient):
         def complete(self, *, model, messages, tools=None, **s):
@@ -193,13 +193,13 @@ def _cowork_manager(tmp_path):
 
 
 def test_add_and_remove_roots_live_and_persisted(tmp_path):
-    mgr = _cowork_manager(tmp_path)
+    mgr = _cogniwork_manager(tmp_path)
     ro = tmp_path / "shared_ro"
     rw = tmp_path / "shared_rw"
     ro.mkdir()
     rw.mkdir()
     sid = "sessC"
-    engine = mgr.get_engine(sid, agent="cowork")
+    engine = mgr.get_engine(sid, agent="cogniwork")
     assert engine is not None
 
     # only the primary scratch to start
@@ -230,7 +230,7 @@ def test_add_and_remove_roots_live_and_persisted(tmp_path):
 
     # persist (as a turn would) and reload in a fresh manager → the rw folder survives
     mgr.save(sid, engine)
-    mgr2 = _cowork_manager(tmp_path)
+    mgr2 = _cogniwork_manager(tmp_path)
     persisted = {r["path"]: r for r in mgr2.get_roots(sid)}
     assert (
         str(rw.resolve()) in persisted
@@ -241,9 +241,9 @@ def test_add_and_remove_roots_live_and_persisted(tmp_path):
 
 def test_add_root_before_first_turn_persists(tmp_path):
     """Adding a folder on a brand-new conversation (no record, no engine yet) must survive:
-    the manager creates a minimal cowork record so the grant isn't lost (GUI start panel).
+    the manager creates a minimal cogniwork record so the grant isn't lost (GUI start panel).
     """
-    mgr = _cowork_manager(tmp_path)
+    mgr = _cogniwork_manager(tmp_path)
     shared = tmp_path / "shared"
     shared.mkdir()
     sid = "fresh-session"
@@ -254,12 +254,12 @@ def test_add_root_before_first_turn_persists(tmp_path):
     paths = {r["path"] for r in res["roots"]}
     assert str(shared.resolve()) in paths
 
-    # the grant survived: a fresh manager (no engines) still sees it, under the cowork agent
-    mgr2 = _cowork_manager(tmp_path)
+    # the grant survived: a fresh manager (no engines) still sees it, under the cogniwork agent
+    mgr2 = _cogniwork_manager(tmp_path)
     persisted = {r["path"]: r for r in mgr2.get_roots(sid)}
     assert str(shared.resolve()) in persisted
     record = mgr2.session_store.load(sid)
-    assert record is not None and record.agent == "cowork"
+    assert record is not None and record.agent == "cogniwork"
 
 
 # -- Slice D: request_directory (interactive grant) ----------------------------

@@ -7,23 +7,24 @@ export function isProjectScoped(p?: { workspace?: string; family?: string }): bo
   return p?.family === "code";
 }
 
-// Persona naming: the product is "OpenWorker"; the personas are a "Coworker" family — Coworker
-// (general), Code Coworker, Ops Coworker. In lists/chrome we use the SHORT label (Coworker / Code /
-// Ops); the persona detail page uses the FULL family name. Backend names are left untouched (the
-// API + tests keep "OpenWorker" / "Ops Coworker"); this is purely the display layer.
+// Persona naming: the product is "CogniOS"; the personas are a "CogniWork" family — CogniWork
+// (general), Code, Ops CogniWork. In lists/chrome we use the SHORT label (CogniWork / Code /
+// Ops); the persona detail page uses the FULL family name.
 
-// Short label for the sidebar + top bar: "Coworker" / "Code" / "Ops" / "Chat".
+// Short label for the sidebar + top bar: "CogniWork" / "Code" / "Ops" / "Chat".
 export function shortPersonaName(name?: string, id?: string): string {
-  if (id === "cowork") return "Coworker";
+  if (id === "cogniwork" || id === "cowork") return "CogniWork";
   const n = (name || id || "").trim();
-  return n.replace(/\s*coworker$/i, "").trim() || n;
+  return n.replace(/\s*cogniwork$/i, "").replace(/\s*coworker$/i, "").trim() || n;
 }
 
-// Full family name for the persona detail page: "Coworker" / "Code Coworker" / "Ops Coworker".
-// Chat isn't a coworker — left as-is.
+// Full family name for the persona detail page: "CogniWork" / "Code CogniWork" / "Ops CogniWork".
 export function fullPersonaName(name?: string, id?: string): string {
-  if (id === "cowork") return "Coworker";
+  if (id === "cogniwork" || id === "cowork") return "CogniWork";
   const n = (name || id || "").trim();
   if (id === "chat" || !n) return n;
-  return /coworker$/i.test(n) ? n : `${n} Coworker`;
+  if (/cogniwork$/i.test(n) || /coworker$/i.test(n)) {
+    return n.replace(/\s*coworker$/i, " CogniWork").replace(/\s*cogniwork$/i, " CogniWork").trim();
+  }
+  return `${n} CogniWork`;
 }

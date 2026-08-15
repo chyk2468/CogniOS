@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from coworker.providers import (
+from cogniwork.providers import (
     AssistantTurn,
     ModelCapabilities,
     OpenAIProvider,
@@ -14,8 +14,8 @@ from coworker.providers import (
     StreamChunk,
     capabilities_for,
 )
-from coworker.providers.openai_provider import _salvage_tool_calls_from_text
-from coworker.providers.registry import _normalize_ollama_url, build_provider_client
+from cogniwork.providers.openai_provider import _salvage_tool_calls_from_text
+from cogniwork.providers.registry import _normalize_ollama_url, build_provider_client
 
 
 # -- base_url passthrough -------------------------------------------------------
@@ -98,7 +98,7 @@ def _patch_build(monkeypatch):
         state["latest"][name] = rec
         return rec
 
-    monkeypatch.setattr("coworker.providers.router.build_provider_client", fake_build)
+    monkeypatch.setattr("cogniwork.providers.router.build_provider_client", fake_build)
     return state
 
 
@@ -291,8 +291,8 @@ def test_complete_salvages_only_when_tools_requested():
 
 # -- manager get/set_provider ---------------------------------------------------
 def test_manager_provider_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
-    from coworker.server.manager import SessionManager
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
+    from cogniwork.server.manager import SessionManager
 
     mgr = SessionManager(data_dir=tmp_path)
     assert isinstance(mgr.provider, ProviderRouter)
@@ -314,13 +314,13 @@ def test_manager_curated_models(tmp_path, monkeypatch):
     """No seed list: the picker is the curated matrix filtered to key-holding providers,
     plus user-added custom ids. A fresh install shows only the (not-yet-usable) default.
     """
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
-    from coworker.providers.registry import provider_descriptors
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
+    from cogniwork.providers.registry import provider_descriptors
 
     for d in provider_descriptors():  # ambient dev-shell keys must not leak in
         if d.env_key:
             monkeypatch.delenv(d.env_key, raising=False)
-    from coworker.server.manager import SessionManager
+    from cogniwork.server.manager import SessionManager
 
     # `ollama:*` selectability is an HTTP probe of a local server; pin it so this test
     # covers picker mechanics only (the probe itself is covered by
@@ -365,8 +365,8 @@ def test_manager_curated_models(tmp_path, monkeypatch):
 
 
 def test_set_provider_auto_adds_recommended_when_pulled(tmp_path, monkeypatch):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
-    from coworker.server.manager import SessionManager
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
+    from cogniwork.server.manager import SessionManager
 
     mgr = SessionManager(data_dir=tmp_path)
     monkeypatch.setattr(  # pretend the recommended model is pulled
@@ -380,8 +380,8 @@ def test_set_provider_auto_adds_recommended_when_pulled(tmp_path, monkeypatch):
 
 
 def test_set_provider_skips_recommended_when_not_pulled(tmp_path, monkeypatch):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
-    from coworker.server.manager import SessionManager
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
+    from cogniwork.server.manager import SessionManager
 
     mgr = SessionManager(data_dir=tmp_path)
     monkeypatch.setattr(mgr, "_suggested_models", lambda name: [])  # nothing pulled
@@ -392,8 +392,8 @@ def test_set_provider_skips_recommended_when_not_pulled(tmp_path, monkeypatch):
 def test_provider_builders(monkeypatch):
     import pytest
 
-    from coworker.providers import AnthropicProvider, GeminiProvider
-    from coworker.providers.registry import build_provider_client
+    from cogniwork.providers import AnthropicProvider, GeminiProvider
+    from cogniwork.providers.registry import build_provider_client
 
     # anthropic and gemini are native: key resolution deferred to first call
     p = build_provider_client("anthropic", {"api_key": "sk-ant-x"}, None)
@@ -411,7 +411,7 @@ def test_provider_builders(monkeypatch):
 
     # OpenAI custom endpoint (Azure /openai/v1, OpenRouter, vLLM, …) passes through and
     # keeps Chat Completions; a blank endpoint means stock OpenAI → the Responses API.
-    from coworker.providers import OpenAIResponsesProvider
+    from cogniwork.providers import OpenAIResponsesProvider
 
     o = build_provider_client(
         "openai", {"base_url": "https://my.azure.example/openai/v1"}, None
@@ -429,10 +429,10 @@ def test_anthropic_gemini_capabilities():
 
 
 def test_anthropic_gemini_provider_config(tmp_path, monkeypatch):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    from coworker.server.manager import SessionManager
+    from cogniwork.server.manager import SessionManager
 
     mgr = SessionManager(data_dir=tmp_path)
     provs = {p["name"]: p for p in mgr.get_providers()}
@@ -456,10 +456,10 @@ def test_anthropic_gemini_provider_config(tmp_path, monkeypatch):
 
 
 def test_first_configured_provider_wins_default(tmp_path, monkeypatch):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
     for var in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
         monkeypatch.delenv(var, raising=False)
-    from coworker.server.manager import SessionManager
+    from cogniwork.server.manager import SessionManager
 
     mgr = SessionManager(data_dir=tmp_path)
     assert (
@@ -476,13 +476,13 @@ def test_first_configured_provider_wins_default(tmp_path, monkeypatch):
 
 
 def test_surface_visibility(tmp_path, monkeypatch):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
-    from coworker.server.manager import SessionManager
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
+    from cogniwork.server.manager import SessionManager
 
     mgr = SessionManager(data_dir=tmp_path)
-    # default: Cowork only
+    # default: CogniWork only
     s = mgr.get_settings()["surfaces"]
-    assert s == {"cowork": True, "chat": False, "code": False}
+    assert s == {"cogniwork": True, "chat": False, "code": False}
 
     mgr.set_surfaces(chat=True)
     assert mgr.get_settings()["surfaces"]["chat"] is True
@@ -490,20 +490,20 @@ def test_surface_visibility(tmp_path, monkeypatch):
 
     mgr.set_surfaces(code=True)
     assert mgr.get_settings()["surfaces"] == {
-        "cowork": True,
+        "cogniwork": True,
         "chat": True,
         "code": True,
     }
 
     mgr.set_surfaces(chat=False)
     assert mgr.get_settings()["surfaces"]["chat"] is False
-    # cowork is always on regardless
-    assert mgr.get_settings()["surfaces"]["cowork"] is True
+    # cogniwork is always on regardless
+    assert mgr.get_settings()["surfaces"]["cogniwork"] is True
 
 
 def test_provider_suggested_models(tmp_path, monkeypatch):
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
-    from coworker.server.manager import SessionManager
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
+    from cogniwork.server.manager import SessionManager
 
     mgr = SessionManager(data_dir=tmp_path)
     provs = {p["name"]: p for p in mgr.get_providers()}
@@ -540,10 +540,10 @@ def test_router_on_use_failures_never_break_the_call():
 def test_manager_key_hygiene_stamps(tmp_path, monkeypatch):
     """set_provider stamps key_set_at; _note_provider_use records (throttled) last_used_at;
     get_providers exposes both for the Settings pane."""
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
     from datetime import date
 
-    from coworker.server.manager import SessionManager
+    from cogniwork.server.manager import SessionManager
 
     mgr = SessionManager(data_dir=tmp_path)
     mgr.set_provider("deepseek", {"api_key": "ds-key"})

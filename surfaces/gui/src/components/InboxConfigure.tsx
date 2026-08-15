@@ -297,7 +297,7 @@ function SubscriptionsCard() {
         </table>
       ) : (
         <div className="px-4 py-3 text-[12.5px] text-muted">
-          No channel subscriptions yet — add one below or ask a coworker to watch a channel.
+          No channel subscriptions yet — add one below or ask a CogniWork agent to watch a channel.
         </div>
       )}
 

@@ -11,17 +11,17 @@ from pathlib import Path
 
 import pytest
 
-from coworker.connections import (
+from cogniwork.connections import (
     PersonaConnectionStore,
     SessionConnectionStore,
     effective,
 )
-from coworker.connectors.base import MessageEvent, SessionSource
-from coworker.personas import registry as persona_registry
-from coworker.personas.manifest import load_manifest_file
-from coworker.providers import ModelCapabilities, ProviderClient
-from coworker.server.manager import SessionManager
-from coworker.sessions import SessionRecord
+from cogniwork.connectors.base import MessageEvent, SessionSource
+from cogniwork.personas import registry as persona_registry
+from cogniwork.personas.manifest import load_manifest_file
+from cogniwork.providers import ModelCapabilities, ProviderClient
+from cogniwork.server.manager import SessionManager
+from cogniwork.sessions import SessionRecord
 
 
 @pytest.fixture(autouse=True)
@@ -29,11 +29,11 @@ def _isolate_state_dir(tmp_path, monkeypatch):
     """Isolate the global state/secret dir for every test here.
 
     The `SessionManager` tests build a real `SecretStore()`, which defaults to the developer's
-    global state dir (`~/.config/coworker`) unless `COWORKER_STATE_DIR` is set — so without this a
+    global state dir (`~/.config/cogniwork`) unless `COGNIWORK_STATE_DIR` is set — so without this a
     test's `secrets.put("github:default", …)` would write a fake token into the real secret store.
     Pin it at a throwaway dir. (Harmless for the pure store/resolver tests that use explicit paths.)
     """
-    monkeypatch.setenv("COWORKER_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("COGNIWORK_STATE_DIR", str(tmp_path / "state"))
 
 
 class ScriptedProvider(ProviderClient):
@@ -164,7 +164,7 @@ def test_delete_session_clears_overrides(tmp_path):
             workspace=str(tmp_path),
             model="gpt-5.5",
             mode="interactive",
-            agent="cowork",
+            agent="cogniwork",
         )
     )
     mgr.session_connections.set("sX", "slack", False)
@@ -223,7 +223,7 @@ def test_dm_muted_session_not_delivered(tmp_path, monkeypatch):
 # -- runtime gating: outbound / tools ------------------------------------------
 def test_muted_connector_tools_absent(tmp_path):
     mgr = SessionManager(workspace=tmp_path, provider=ScriptedProvider())
-    # github connected so its tools would otherwise be exposed to a connectors persona (cowork)
+    # github connected so its tools would otherwise be exposed to a connectors persona (cogniwork)
     mgr.secrets.put("github:default", {"token": "ghp_test", "enabled": True})
 
     for sid in ("sOn", "sOff"):
@@ -233,7 +233,7 @@ def test_muted_connector_tools_absent(tmp_path):
                 workspace=str(tmp_path),
                 model="gpt-5.5",
                 mode="interactive",
-                agent="cowork",
+                agent="cogniwork",
             )
         )
     mgr.session_connections.set("sOff", "github", False)  # mute github for sOff only

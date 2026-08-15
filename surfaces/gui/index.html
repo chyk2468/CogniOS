@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenWorker</title>
+    <title>CogniOS</title>
     <!-- Resolve the theme before first paint (no white flash for dark users).
          Must match src/theme.ts: key "openwork-theme", absent/invalid = auto = follow macOS. -->
     <script>
@@ -11,6 +11,11 @@
         var t = localStorage.getItem("openwork-theme");
         var dark = t === "dark" || (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.dataset.theme = dark ? "dark" : "light";
+        if (localStorage.getItem("openwork-ui-style") === "glassmorphism") {
+          document.documentElement.dataset.uiStyle = "glassmorphism";
+        } else if (localStorage.getItem("openwork-ui-style") === "liquid-glass") {
+          document.documentElement.dataset.uiStyle = "liquid-glass";
+        }
       } catch (e) {}
     </script>
   </head>

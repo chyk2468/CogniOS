@@ -18,6 +18,7 @@ import { PanelHead } from "./IntegrationsView";
 import { shortPersonaName } from "../personaScope";
 
 const ICON_FOR: Record<string, "diamond" | "chat" | "code"> = {
+  cogniwork: "diamond",
   cowork: "diamond",
   chat: "chat",
   code: "code",
@@ -118,14 +119,14 @@ export function InboxView({
     const p = personas?.find((x) => x.id === it.session_agent);
     const label = it.session_title || it.session_id;
     const icon = (p && ICON_FOR[p.icon]) || "diamond";
-    const cls = `ico-${p?.icon || "cowork"}`;
+    const cls = `ico-${p?.icon || "cogniwork"}`;
     return (
       <button
         className="inbox-session-chip"
         title={exists ? `Open “${label}”` : "Session unavailable"}
         disabled={!exists}
         onClick={() =>
-          exists && onOpenSession(it.session_id, it.session_workspace || "", it.session_agent || "cowork")
+          exists && onOpenSession(it.session_id, it.session_workspace || "", it.session_agent || "cogniwork")
         }
       >
         <span className={"inbox-chip-ico " + cls}>
@@ -146,7 +147,7 @@ export function InboxView({
         <div className="max-w-4xl mx-auto px-7 py-6">
           <PanelHead
             title="Inbox"
-            sub="Approvals, questions, and notifications from your coworkers — including sessions running unattended."
+            sub="Approvals, questions, and notifications from your CogniWork agents — including sessions running unattended."
           />
 
           <div className="flex gap-5 border-b border-border mb-4">
@@ -225,7 +226,7 @@ export function InboxView({
                       className={CHIP(personaFilter === "all")}
                       onClick={() => setPersonaFilter("all")}
                     >
-                      All coworkers
+                      All CogniWork agents
                     </button>
                     {personasWithItems.map((p) => (
                       <button

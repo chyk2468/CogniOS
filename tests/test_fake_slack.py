@@ -12,11 +12,11 @@ import re
 
 import httpx
 
-from coworker.connectors.adapters import SlackAdapter
-from coworker.connectors.base import InteractionEvent, MessageEvent
-from coworker.connectors.config import ConnectorSettings
-from coworker.connectors.gateway import Gateway
-from coworker.interactions import Button
+from cogniwork.connectors.adapters import SlackAdapter
+from cogniwork.connectors.base import InteractionEvent, MessageEvent
+from cogniwork.connectors.config import ConnectorSettings
+from cogniwork.connectors.gateway import Gateway
+from cogniwork.interactions import Button
 
 
 def _allow_all() -> dict[str, ConnectorSettings]:

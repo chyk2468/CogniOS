@@ -14,6 +14,7 @@ use std::{
         Arc, Mutex,
     },
     thread,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use cpal::{
@@ -24,13 +25,13 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-/// A reasonably fast English model for short OpenWorker prompts (~142 MB).
-pub const DEFAULT_MODEL_FILE: &str = "ggml-base.en.bin";
+/// A fast, high-accuracy quantized Whisper model (~547 MB).
+pub const DEFAULT_MODEL_FILE: &str = "ggml-large-v3-turbo-q5_0.bin";
 pub const DEFAULT_MODEL_URL: &str =
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
-pub const DEFAULT_MODEL_BYTES: u64 = 147_964_211;
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin";
+pub const DEFAULT_MODEL_BYTES: u64 = 574_041_195;
 pub const DEFAULT_MODEL_SHA256: &str =
-    "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002";
+    "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2";
 const WHISPER_SAMPLE_RATE: u32 = 16_000;
 
 #[derive(Debug, Clone, Serialize)]
@@ -42,6 +43,8 @@ pub struct DictationStatus {
     pub download_in_progress: bool,
     pub model_name: &'static str,
     pub model_bytes: u64,
+    pub installed_bytes: u64,
+    pub download_total_bytes: u64,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -72,6 +75,7 @@ pub struct Dictation {
     live: Arc<Mutex<Option<(Arc<Mutex<Vec<f32>>>, u32)>>>,
     download_in_progress: AtomicBool,
     cancel_download: AtomicBool,
+    cached_context: Mutex<Option<Arc<WhisperContext>>>,
 }
 
 enum Command {
@@ -95,16 +99,66 @@ impl Dictation {
         let worker_recording = recording.clone();
         let worker_live = live.clone();
         thread::spawn(move || capture_worker(receiver, worker_recording, worker_live));
-        let model_path = model_dir.into().join(DEFAULT_MODEL_FILE);
+        let model_dir_path = model_dir.into();
+        let model_path = model_dir_path.join(DEFAULT_MODEL_FILE);
+        let verified_marker_path = model_path.with_extension("bin.verified");
+        let ready_marker_path = model_path.with_extension("bin.ready");
+
+        // If not present in user model directory, search candidate paths in priority order:
+        // 1. Explicit environment variable override
+        // 2. Bundled resource paths adjacent to current executable
+        // 3. Crate / repository workspace paths
+        if !model_path.is_file() {
+            let mut candidates = Vec::new();
+            if let Ok(override_path) = std::env::var("COGNIWORK_WHISPER_MODEL_PATH")
+                .or_else(|_| std::env::var("COWORKER_WHISPER_MODEL_PATH"))
+            {
+                candidates.push(PathBuf::from(override_path));
+            }
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(parent) = exe.parent() {
+                    candidates.push(parent.join("models").join(DEFAULT_MODEL_FILE));
+                    candidates.push(parent.join("resources").join("models").join(DEFAULT_MODEL_FILE));
+                    if let Some(grandparent) = parent.parent() {
+                        candidates.push(grandparent.join("Resources").join("models").join(DEFAULT_MODEL_FILE));
+                    }
+                }
+            }
+            let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            candidates.push(manifest_dir.join("whisper.cpp").join("models").join(DEFAULT_MODEL_FILE));
+            candidates.push(manifest_dir.join("../stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
+            candidates.push(PathBuf::from("stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
+            candidates.push(PathBuf::from("openworker/stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
+            candidates.push(PathBuf::from("../../../stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
+            candidates.push(PathBuf::from("../../stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
+            candidates.push(PathBuf::from("../stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
+
+            for candidate in candidates {
+                if candidate.is_file() {
+                    if let Ok(meta) = fs::metadata(&candidate) {
+                        if meta.len() == DEFAULT_MODEL_BYTES {
+                            let _ = fs::create_dir_all(&model_dir_path);
+                            if fs::copy(&candidate, &model_path).is_ok() {
+                                let _ = write_verification_marker(&model_path, &verified_marker_path);
+                                let _ = fs::write(&ready_marker_path, b"ready");
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Self {
-            verified_marker_path: model_path.with_extension("bin.verified"),
-            ready_marker_path: model_path.with_extension("bin.ready"),
+            verified_marker_path,
+            ready_marker_path,
             model_path,
             commands,
             recording,
             live,
             download_in_progress: AtomicBool::new(false),
             cancel_download: AtomicBool::new(false),
+            cached_context: Mutex::new(None),
         }
     }
 
@@ -112,14 +166,21 @@ impl Dictation {
         let model_installed = self.model_path.is_file();
         let model_verified = model_installed
             && model_verification_marker_matches(&self.model_path, &self.verified_marker_path);
+        let installed_bytes = if model_installed {
+            fs::metadata(&self.model_path).map(|m| m.len()).unwrap_or(0)
+        } else {
+            0
+        };
         DictationStatus {
             recording: self.recording.lock().map(|r| *r).unwrap_or(false),
             model_installed,
             model_verified,
             test_passed: model_verified && self.ready_marker_path.is_file(),
             download_in_progress: self.download_in_progress.load(Ordering::SeqCst),
-            model_name: "Whisper Base English (local)",
-            model_bytes: DEFAULT_MODEL_BYTES,
+            model_name: "Whisper Large v3 Turbo (q5_0)",
+            model_bytes: if installed_bytes > 0 { installed_bytes } else { DEFAULT_MODEL_BYTES },
+            installed_bytes,
+            download_total_bytes: DEFAULT_MODEL_BYTES,
         }
     }
 
@@ -254,6 +315,9 @@ impl Dictation {
     pub fn delete_default_model(&self) -> Result<(), String> {
         self.cancel_model_download();
         self.cancel();
+        if let Ok(mut guard) = self.cached_context.lock() {
+            *guard = None;
+        }
         for path in [
             self.model_path.clone(),
             self.model_path.with_extension("bin.part"),
@@ -266,6 +330,29 @@ impl Dictation {
             }
         }
         Ok(())
+    }
+
+    fn get_or_load_context(&self) -> Result<Arc<WhisperContext>, String> {
+        let mut guard = self
+            .cached_context
+            .lock()
+            .map_err(|e| format!("Could not access voice model cache: {e}"))?;
+        if let Some(ctx) = guard.as_ref() {
+            return Ok(ctx.clone());
+        }
+        if !self.model_path.is_file() {
+            return Err("The local voice model is not installed yet.".to_owned());
+        }
+        let context = WhisperContext::new_with_params(
+            self.model_path
+                .to_str()
+                .ok_or_else(|| "The local voice model path is not valid text.".to_owned())?,
+            WhisperContextParameters::default(),
+        )
+        .map_err(|e| format!("Could not load the local voice model: {e}"))?;
+        let arc = Arc::new(context);
+        *guard = Some(arc.clone());
+        Ok(arc)
     }
 
     /// Begins microphone capture. A host must call [`stop_and_transcribe`](Self::stop_and_transcribe)
@@ -299,7 +386,14 @@ impl Dictation {
         if samples.len() < (sample_rate as usize / 4) {
             return Ok(String::new());
         }
-        transcribe(&self.model_path, &resample_mono(&samples, sample_rate))
+        let resampled = resample_mono(&samples, sample_rate);
+        match self.get_or_load_context() {
+            Ok(ctx) => match transcribe_with_context(&ctx, &resampled) {
+                Ok(text) => Ok(text),
+                Err(_) => transcribe_with_cli_fallback(&self.model_path, &resampled),
+            },
+            Err(_) => transcribe_with_cli_fallback(&self.model_path, &resampled),
+        }
     }
 
     /// Instantaneous input loudness of the in-flight recording, 0.0..=1.0 — RMS over the
@@ -323,6 +417,34 @@ impl Dictation {
         }
         let mean_square: f32 = tail.iter().map(|s| s * s).sum::<f32>() / tail.len() as f32;
         (mean_square.sqrt() * 8.0).clamp(0.0, 1.0)
+    }
+
+    /// Returns a best-effort transcript of the in-flight recording without stopping capture.
+    /// This uses the same local model as final dictation and snapshots the current in-memory
+    /// audio so hosts can show live text while keeping the final transcript authoritative.
+    pub fn partial_transcript(&self) -> Result<String, String> {
+        if !self.status().recording {
+            return Ok(String::new());
+        }
+        let (samples, sample_rate) = {
+            let live = self
+                .live
+                .lock()
+                .map_err(|_| "Could not read the active recording.".to_owned())?;
+            let Some((samples, sample_rate)) = live.as_ref() else {
+                return Ok(String::new());
+            };
+            let samples = samples
+                .lock()
+                .map_err(|_| "Could not read the active recording.".to_owned())?
+                .clone();
+            (samples, *sample_rate)
+        };
+        if samples.len() < (sample_rate as usize / 2) {
+            return Ok(String::new());
+        }
+        let ctx = self.get_or_load_context()?;
+        transcribe_with_context(&ctx, &resample_mono(&samples, sample_rate))
     }
 
     /// Discards the current in-memory recording without retaining or transcribing it.
@@ -574,17 +696,7 @@ fn resample_mono(input: &[f32], source_rate: u32) -> Vec<f32> {
         .collect()
 }
 
-fn transcribe(model_path: &Path, samples: &[f32]) -> Result<String, String> {
-    if !model_path.is_file() {
-        return Err("The local voice model is not installed yet.".to_owned());
-    }
-    let context = WhisperContext::new_with_params(
-        model_path
-            .to_str()
-            .ok_or_else(|| "The local voice model path is not valid text.".to_owned())?,
-        WhisperContextParameters::default(),
-    )
-    .map_err(|e| format!("Could not load the local voice model: {e}"))?;
+fn transcribe_with_context(context: &WhisperContext, samples: &[f32]) -> Result<String, String> {
     let mut state = context
         .create_state()
         .map_err(|e| format!("Could not prepare transcription: {e}"))?;
@@ -607,6 +719,91 @@ fn transcribe(model_path: &Path, samples: &[f32]) -> Result<String, String> {
         text.push_str(segment);
     }
     Ok(text.trim().to_owned())
+}
+
+fn write_wav_file(path: &Path, samples: &[f32], sample_rate: u32) -> std::io::Result<()> {
+    let mut file = fs::File::create(path)?;
+    let num_channels: u16 = 1;
+    let bits_per_sample: u16 = 16;
+    let byte_rate = sample_rate * u32::from(num_channels) * u32::from(bits_per_sample) / 8;
+    let block_align = num_channels * bits_per_sample / 8;
+    let data_len = (samples.len() * 2) as u32;
+    let chunk_size = 36 + data_len;
+
+    file.write_all(b"RIFF")?;
+    file.write_all(&chunk_size.to_le_bytes())?;
+    file.write_all(b"WAVE")?;
+    file.write_all(b"fmt ")?;
+    file.write_all(&16u32.to_le_bytes())?;
+    file.write_all(&1u16.to_le_bytes())?;
+    file.write_all(&num_channels.to_le_bytes())?;
+    file.write_all(&sample_rate.to_le_bytes())?;
+    file.write_all(&byte_rate.to_le_bytes())?;
+    file.write_all(&block_align.to_le_bytes())?;
+    file.write_all(&bits_per_sample.to_le_bytes())?;
+    file.write_all(b"data")?;
+    file.write_all(&data_len.to_le_bytes())?;
+
+    for &sample in samples {
+        let clamped = sample.max(-1.0).min(1.0);
+        let val = if clamped < 0.0 {
+            (clamped * 32768.0) as i16
+        } else {
+            (clamped * 32767.0) as i16
+        };
+        file.write_all(&val.to_le_bytes())?;
+    }
+    file.flush()?;
+    Ok(())
+}
+
+fn transcribe_with_cli_fallback(model_path: &Path, samples: &[f32]) -> Result<String, String> {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let temp_wav = std::env::temp_dir().join(format!("ocw-voice-{unique}.wav"));
+    write_wav_file(&temp_wav, samples, 16_000)
+        .map_err(|e| format!("Could not save audio buffer: {e}"))?;
+
+    let cli_candidates = [
+        PathBuf::from("stt/whisper.cpp/build/bin/whisper-cli.exe"),
+        PathBuf::from("stt/whisper.cpp/build/bin/whisper-cli"),
+        PathBuf::from("stt/whisper.cpp/build/bin/main.exe"),
+        PathBuf::from("stt/whisper.cpp/build/bin/main"),
+    ];
+
+    let cli_bin = cli_candidates
+        .into_iter()
+        .find(|p| p.is_file())
+        .ok_or_else(|| "Local whisper-cli executable not found.".to_string())?;
+
+    let output = std::process::Command::new(&cli_bin)
+        .arg("-m")
+        .arg(model_path)
+        .arg("-f")
+        .arg(&temp_wav)
+        .arg("-nt")
+        .arg("-np")
+        .output()
+        .map_err(|e| format!("Failed to run whisper-cli: {e}"))?;
+
+    let _ = fs::remove_file(&temp_wav);
+
+    let raw = String::from_utf8_lossy(&output.stdout);
+    let mut lines = Vec::new();
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if !trimmed.is_empty()
+            && !trimmed.starts_with("read_audio_data:")
+            && !trimmed.starts_with("whisper_")
+            && !trimmed.starts_with("main:")
+            && !trimmed.starts_with("system_info:")
+        {
+            lines.push(trimmed);
+        }
+    }
+    Ok(lines.join(" ").trim().to_string())
 }
 
 #[cfg(test)]
@@ -634,8 +831,8 @@ mod tests {
     }
 
     #[test]
-    fn default_model_size_matches_the_published_base_english_artifact() {
-        assert_eq!(DEFAULT_MODEL_BYTES, 147_964_211);
+    fn default_model_size_matches_the_published_artifact() {
+        assert_eq!(DEFAULT_MODEL_BYTES, 574_041_195);
     }
 
     #[test]
@@ -653,6 +850,7 @@ mod tests {
             .unwrap();
         let dictation = Dictation::new(&dir);
         assert!(!dictation.status().model_verified);
+        assert_eq!(dictation.status().installed_bytes, DEFAULT_MODEL_BYTES);
         write_verification_marker(&model, &dictation.verified_marker_path).unwrap();
         assert!(dictation.status().model_verified);
         assert!(!dictation.status().test_passed);
@@ -660,6 +858,7 @@ mod tests {
         assert!(dictation.status().test_passed);
         dictation.delete_default_model().unwrap();
         assert!(!dictation.status().model_installed);
+        assert_eq!(dictation.status().installed_bytes, 0);
         drop(dictation);
         fs::remove_dir_all(dir).unwrap();
     }

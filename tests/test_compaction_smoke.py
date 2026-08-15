@@ -7,9 +7,9 @@ the live-model smoke (which needs a configured provider key)."""
 import asyncio
 import json
 
-from coworker.providers import AssistantTurn, ModelCapabilities, ProviderClient
-from coworker.providers.base import TokenUsage
-from coworker.server.manager import SessionManager
+from cogniwork.providers import AssistantTurn, ModelCapabilities, ProviderClient
+from cogniwork.providers.base import TokenUsage
+from cogniwork.server.manager import SessionManager
 
 BULK = "analysis paragraph " * 400  # ~7.6k chars (~1.9k tokens) per turn → triggers by turn 2
 
@@ -23,7 +23,7 @@ class LongSessionProvider(ProviderClient):
         self.summary_prompts: list[str] = []
 
     def complete(self, *, model, messages, tools=None, **settings):
-        if messages and "compacting an AI coworker" in str(
+        if messages and "compacting an AI cogniwork" in str(
             messages[0].get("content", "")
         ):
             self.summary_prompts.append(str(messages[1]["content"]))
@@ -61,7 +61,7 @@ def test_long_session_survives_repeated_compaction(tmp_path):
     # primitives bind to the loop they first run on, so a per-turn asyncio.run() would
     # silently drop every stream after the first (found the hard way in the live smoke).
     async def scenario():
-        engine = mgr.get_engine(sid, agent="cowork", workspace=str(tmp_path))
+        engine = mgr.get_engine(sid, agent="cogniwork", workspace=str(tmp_path))
         for i in range(8):
             async for _ in engine.run(f"user step {i}: keep drafting the Q3 report"):
                 pass
@@ -80,7 +80,7 @@ def test_long_session_survives_repeated_compaction(tmp_path):
             mgr.save(sid, engine)
             if i == 4:  # mid-conversation restart: state must survive the rebuild
                 mgr._engines.pop(sid)
-                engine = mgr.get_engine(sid, agent="cowork", workspace=str(tmp_path))
+                engine = mgr.get_engine(sid, agent="cogniwork", workspace=str(tmp_path))
                 assert engine.compaction_state is not None
         return engine
 
