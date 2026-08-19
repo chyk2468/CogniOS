@@ -1,22 +1,141 @@
+# ==============================================================================
+# Python & Environment
+# ==============================================================================
 .venv/
+venv/
+env/
+ENV/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+
+# Python Tools & Caches
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+
+# Python Packaging & Distribution
 *.egg-info/
+*.egg
+.eggs/
 build/
 dist/
-.coverage
+wheels/
+sdist/
 
-# Local secrets (live-smoke BYO keys) — never committed
+# ==============================================================================
+# Secrets & Environment Variables
+# ==============================================================================
 .env
+.env.*
+!.env.example
+!.env.template
+.dev.vars
+*.pem
+*.key
 
-# Local SQLite databases
+# ==============================================================================
+# Databases (SQLite + WAL / Shared Memory / Journal)
+# ==============================================================================
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
 *.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 *.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
 
-# Local artifacts
+# ==============================================================================
+# Local Artifacts & Temp Files
+# ==============================================================================
 Artifacts/
 artifacts/
+scratch/
+tmp/
+temp/
 
+# ==============================================================================
+# Node & Frontend (GUI / Action Flow)
+# ==============================================================================
+node_modules/
+dist-ssr/
+.output/
+.wrangler/
+.lovable/
+.nitro/
+.vinxi/
+.tanstack/**
+*.local
 
+# Playwright & E2E Testing
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+e2e/_dbg.png
+
+# ==============================================================================
+# Rust & Tauri / C++ (GUI & STT)
+# ==============================================================================
+target/
+surfaces/gui/src-tauri/gen/schemas
+surfaces/gui/src-tauri/binaries/
+stt/whisper.cpp/
+
+# ==============================================================================
+# Logs
+# ==============================================================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==============================================================================
+# OS & Editor / IDE Files
+# ==============================================================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+
+# Linux
+*~
+
+# Editors & IDEs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.bak
