@@ -181,7 +181,38 @@ export function ModelsTab() {
         )}
       </div>
 
-      {/* 4. Provider Keys & Connection Grid */}
+      {/* 4. Speech-to-Text / Voice Model Card */}
+      <div className={CARD}>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-[14px] font-semibold text-fg flex items-center gap-2">
+            <Icon name="mic" size={15} className="text-accent" />
+            Speech-to-Text Model
+            <span className="text-[11px] font-normal text-muted ml-1">(Local Offline STT)</span>
+          </h2>
+          <span className="text-[11px] px-2 py-0.5 rounded-md bg-accent/20 text-accent font-medium">
+            ● Active
+          </span>
+        </div>
+        <div className="text-[12px] text-muted mb-3 leading-relaxed">
+          Local, privacy-preserving speech recognition engine for composer dictation and voice commands.
+        </div>
+        <div className="p-3 rounded-md bg-bg border border-border flex items-center justify-between flex-wrap gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-[13px] font-semibold text-fg flex items-center gap-2">
+              <span>Moonshine Tiny (English)</span>
+              <span className="text-[11px] font-normal text-faint">Useful Sensors</span>
+            </div>
+            <div className="text-[11.5px] text-muted mt-0.5">
+              27M Parameters · ~108 MB SafeTensors · 16 kHz Mono · 100% On-Device
+            </div>
+          </div>
+          <span className="text-[11.5px] text-muted font-mono bg-panel px-2.5 py-1 rounded border border-border shrink-0">
+            Local SafeTensors
+          </span>
+        </div>
+      </div>
+
+      {/* 5. Provider Keys & Connection Grid */}
       <div className={CARD}>
         <div className={SEC_H + " mb-2.5"}>Providers &amp; API Keys</div>
         <div className="text-[12px] text-muted mb-3 leading-relaxed">
