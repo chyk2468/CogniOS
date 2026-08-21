@@ -101,7 +101,7 @@ export function VoiceInputSection() {
   };
 
   const remove = async () => {
-    if (!window.confirm("Delete the local Whisper model and disable Voice Input?")) return;
+    if (!window.confirm("Delete the local Moonshine model and disable Voice Input?")) return;
     setError(null);
     try {
       publish(await deleteDictationModel());
@@ -183,9 +183,9 @@ export function VoiceInputSection() {
 
           <div className={CARD}>
             <div className="p-4 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-md bg-accent/20 text-accent grid place-items-center font-semibold">W</div>
+              <div className="w-9 h-9 rounded-md bg-accent/20 text-accent grid place-items-center font-semibold">M</div>
               <div className="min-w-0 flex-1">
-                <div className="text-[13.5px] font-medium text-fg">{status?.model_name || "Whisper Large v3 Turbo (q5_0)"}</div>
+                <div className="text-[13.5px] font-medium text-fg">{status?.model_name || "Moonshine Tiny (English)"}</div>
                 <div className="text-[12px] text-muted mt-0.5">
                   {status?.model_verified
                     ? `Installed and verified · ${installedSize}`

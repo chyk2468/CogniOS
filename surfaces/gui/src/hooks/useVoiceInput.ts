@@ -195,7 +195,7 @@ export function useVoiceInput(
     activeRef.current = false;
     setState("transcribing");
 
-    // In browser environment: finalize recorded audio and transcribe via whisper.cpp backend
+    // In browser environment: finalize recorded audio and transcribe via Moonshine STT backend
     if (!isTauri()) {
       if (meterTimerRef.current) {
         window.clearInterval(meterTimerRef.current);

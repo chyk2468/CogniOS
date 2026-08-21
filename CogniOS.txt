@@ -1,0 +1,795 @@
+====================================================================================================
+CogniOS: A Cognitive Multi-Agent Platform for Intelligent Computer Automation
+====================================================================================================
+
+----------------------------------------------------------------------------------------------------
+TABLE OF CONTENTS
+----------------------------------------------------------------------------------------------------
+1. EXECUTIVE OVERVIEW & PHILOSOPHY
+   1.1 What is CogniOS & CogniWork?
+   1.2 The Local-First AI Operating Environment
+   1.3 Philosophy: Delivering Finished Work vs. Passive Chat
+   1.4 Bring Your Own Model (BYOM) & Privacy Guarantees
+
+2. SYSTEM ARCHITECTURE & HARNESS DESIGN
+   2.1 High-Level Architecture Diagram
+   2.2 Layer Reference & Responsibilities
+       - Frontend Surface (React + Vite + Tauri)
+       - Local Agent Server (FastAPI ASGI)
+       - Session Manager & Turn Engine
+       - Provider Matrix & aisuite Integration
+       - Storage Subsystem (SQLite, JSONL, Encrypted Secrets)
+
+3. HOW IT WORKS: END-TO-END EXECUTION LIFECYCLE
+   3.1 Complete Turn Execution Lifecycle Flow
+   3.2 Concurrency & Atomic Session Turn Locks
+   3.3 Real-Time WebSocket Event Protocol
+
+4. COMPREHENSIVE AGENT WORKFLOWS
+   4.1 Attended Interactive Workflow (Live HITL)
+   4.2 Plan & Propose-Plan Workflow (Read-Only to Execution Transition)
+   4.3 Discuss Mode Workflow (Pure Advisory)
+   4.4 Unattended Runs & Cross-Session Inbox Queue
+   4.5 Scheduled & Event-Driven Automations (Self-Wake Tools)
+   4.6 Inbound Messaging Gateway Workflow (Slack / Telegram Triggers)
+   4.7 Context Compaction & Long-Horizon Session Workflow
+
+5. AUTHENTICATION & ACCESS CONTROL ARCHITECTURE
+   5.1 Multi-Layer Authentication Hierarchy
+   5.2 Sidecar Loopback Token Security (X-CogniOS-Token)
+   5.3 Local User Account & Session Store (Argon2id & Cookies)
+   5.4 Two-Factor Authentication (TOTP RFC 6238)
+   5.5 Password Recovery & Security Verification
+   5.6 Rate Limiting & Auth Bypass Mode
+
+6. SECURITY, SAFETY & HUMAN-IN-THE-LOOP (HITL) MODEL
+   6.1 Intrinsic Risk Classification Engine (READ, WRITE_LOCAL, EXEC, EXTERNAL)
+   6.2 Permission Modes (discuss, plan, interactive, auto, custom)
+   6.3 Approval Pipeline & Execution Gating
+   6.4 Standing Rules & Persistent Security Policies
+   6.5 Shell Execution Sandboxing & Forbidden Operators Blocking
+   6.6 Workspace Root Confinement & Directory Trust
+   6.7 Local Secret Encryption & Audit Logging
+
+7. LOCAL OFFLINE SPEECH-TO-TEXT (STT) ENGINE
+   7.1 Engine Architecture (ocw-stt Rust Sidecar)
+   7.2 Hardware Audio Capture & Whisper.cpp Integration
+   7.3 Zero-Cloud Privacy & Low-Latency Voice Input
+
+8. DUAL-TIER PERSISTENT MEMORY & CONTEXT INJECTION
+   8.1 Memory Philosophy: Durable Knowledge vs. Transient Context
+   8.2 SQLite Memory Storage & Scoping (Global vs. Workspace)
+   8.3 Memory Lifecycle Tools (remember, read, update, forget)
+   8.4 Context Injection Pipeline & Memory Guidance
+   8.5 Automatic Context Compaction Engine
+
+9. SKILLS, PERSONAS & EXTENSIBILITY (MCP & CONNECTORS)
+   9.1 Anthropic SKILL.md Standard & Progressive Disclosure
+   9.2 Dynamic Skill Loading & Creation (load_skill, save_skill)
+   9.3 Persona System & System Prompt Injection
+   9.4 Model Context Protocol (MCP) Integration
+   9.5 34 Shippable External Connectors
+
+10. REPOSITORY COMPONENT & FILE MAP
+    10.1 Directory Layout & Module Index
+    10.2 Summary
+
+
+====================================================================================================
+1. EXECUTIVE OVERVIEW & PHILOSOPHY
+====================================================================================================
+
+1.1 WHAT IS COGNIOS & COGNIWORK?
+CogniOS is a local-first cognitive multi-agent operating environment designed for autonomous,
+intelligent computer automation. Running entirely on the user's local machine, CogniOS acts as an
+orchestration layer between humans, local developer/workstation environments, external tools,
+software connectors, and Large Language Models (LLMs).
+
+Inside CogniOS runs "CogniWork" — the core AI coworker execution engine. While traditional AI
+assistants function as conversational chatbots that only suggest advice or output isolated code
+snippets, CogniWork is an autonomous execution agent built to produce complete, verified, finished
+work: creating multi-file software projects, triaging communication inboxes, generating reports,
+managing calendar items, executing shell operations, and integrating directly with third-party
+cloud platforms.
+
+1.2 THE LOCAL-FIRST AI OPERATING ENVIRONMENT
+CogniOS is built upon a strict "local-first" paradigm:
+- All core agent processes, state stores, configuration, session transcripts, vector/relational
+  memories, and credentials reside entirely on the local filesystem (%APPDATA%\cogniwork on Windows,
+  ~/.config/cogniwork on macOS/Linux).
+- Data never leaves your machine except through the model provider endpoints you configure and the
+  specific external connectors (e.g. GitHub, Slack, Notion) you explicitly authorize.
+- The platform functions completely offline when utilizing local model providers (such as Ollama)
+  and local Speech-to-Text (STT).
+
+1.3 PHILOSOPHY: DELIVERING FINISHED WORK VS. PASSIVE CHAT
+CogniOS departs from conversational chatbots by treating user prompts as tasks to be accomplished
+through a closed-loop iterative process:
+- Active Tool Execution: The agent inspects codebases, edits files, executes shell commands, runs
+  tests, fetches web pages, and queries APIs.
+- Self-Correction: When tools return errors or test failures, the agent parses the failure, revises
+  its hypothesis, and re-executes until the task is complete.
+- Human-in-the-Loop (HITL) Guardrails: Every side-effect (modifying code, executing shell commands,
+  dispatching outbound messages) is gated by risk analysis and permission engines, keeping the human
+  in full control.
+
+1.4 BRING YOUR OWN MODEL (BYOM) & PRIVACY GUARANTEES
+CogniOS is vendor-agnostic. Powered by the open-source "aisuite" multi-provider framework, users can
+wire up any combination of 18+ LLM backends:
+- Commercial Cloud Providers: OpenAI (GPT-4o, o1/o3), Anthropic (Claude 3.5/3.7 Sonnet), Google
+  Gemini, AWS Bedrock, Google Vertex AI, Mistral, xAI (Grok), DeepSeek, Kimi (Moonshot), MiniMax,
+  Qwen (Alibaba DashScope), Together AI, Fireworks AI, OpenRouter.
+- Fully Offline / Local Weights: Ollama, local OpenAI-compatible endpoints (vLLM, LM Studio, llama.cpp).
+- Cryptographic Secret Storage: API keys and access tokens are stored locally on disk using mode
+  0600 filesystem permissions and authenticated encryption.
+
+
+====================================================================================================
+2. SYSTEM ARCHITECTURE & HARNESS DESIGN
+====================================================================================================
+
+2.1 HIGH-LEVEL ARCHITECTURE DIAGRAM
+
++--------------------------------------------------------------------------------------------------+
+|                                    USER INTERACTION SURFACE                                      |
+|                                                                                                  |
+|   +------------------------------------------------------------------------------------------+   |
+|   | CogniOS UI (surfaces/gui/)                                                               |   |
+|   | - React 18 + TypeScript + Vite + Tailwind/Vanilla CSS                                    |   |
+|   | - Composer (Prompt bar, attachments, /skill slash commands)                              |   |
+|   | - Transcript (Streaming bubbles, reasoning panels, tool cards, approval gates)           |   |
+|   | - Cross-Session Inbox (Parked approvals, notifications, questions)                       |   |
+|   | - Tauri Desktop Shell (Rust-based window supervisor, native menus, auto-updates)         |   |
+|   +------------------------------------------------------------------------------------------+   |
++--------------------------------------------------------------------------------------------------+
+                                        |                        |
+                       REST API (HTTP /v1/*)           WebSocket (/ws/session/{id})
+                  Headers: X-CogniOS-Token, Cookie      Protocols: X-CogniOS-Token
+                                        |                        |
++--------------------------------------------------------------------------------------------------+
+|                                  LOCAL AGENT SERVER (cogniwork/server/)                          |
+|                                                                                                  |
+|   +------------------------------------------------------------------------------------------+   |
+|   | FastAPI ASGI Server (app.py, run.py) - Bound to 127.0.0.1:8765                           |   |
+|   | - Security Gate: CORS Origin Regex validation (Tauri/Localhost only)                     |   |
+|   | - Auth Gate: Sidecar Token timing-safe check + Argon2id user session check               |   |
+|   | - Rate Limiter: Windowed rate limiting on auth endpoints & socket messages               |   |
+|   +------------------------------------------------------------------------------------------+   |
+|                                               |                                                  |
+|   +------------------------------------------------------------------------------------------+   |
+|   | SessionManager (manager.py)                                                              |   |
+|   | - Session Lifecycle (create, get, suspend, resume, delete)                               |   |
+|   | - Concurrency Turn Lock (claim_turn / try_mark_running)                                  |   |
+|   | - Inbound Message Routing (Slack / Telegram / Cron triggers)                             |   |
+|   | - Client Broadcaster (multiplexes engine events to all active session sockets)           |   |
+|   +------------------------------------------------------------------------------------------+   |
++--------------------------------------------------------------------------------------------------+
+                                                |
++--------------------------------------------------------------------------------------------------+
+|                                    CORE AGENT HARNESS (cogniwork/)                               |
+|                                                                                                  |
+|   +------------------------------------------------------------------------------------------+   |
+|   | CogniWork TurnEngine (engine.py) & Agent Builder (agent.py)                              |   |
+|   | - Iterative Agent Loop (up to max_iterations)                                            |   |
+|   | - Token & Reasoning Delta Streaming via Threadpool Worker (_astream)                     |   |
+|   | - Context Window Compaction Monitor (_compaction_due, compaction.py)                     |   |
+|   | - Durable Checkpointing (conversations.py JSONL message log)                             |   |
+|   +------------------------------------------------------------------------------------------+   |
+|           |                       |                      |                     |                 |
+|   +---------------+       +---------------+      +---------------+     +---------------+         |
+|   | Permission    |       | Memory Engine |      | Skill Loader  |     | Context       |         |
+|   | Engine        |       | (memory/)     |      | & Personas    |     | Augmentation  |         |
+|   | (permissions) |       | - SQLite facts|      | (skills/)     |     | - AGENTS.md   |         |
+|   | - Risk Filter |       | - Scopes:     |      | - Progressive |     | - Workspace   |         |
+|   | - HITL Gates  |       |   global /    |      |   disclosure  |     |   Roots       |         |
+|   | - Inbox Park  |       |   workspace   |      | - SKILL.md    |     | - System Env  |         |
+|   +---------------+       +---------------+      +---------------+     +---------------+         |
+|           |                                                                    |                 |
+|   +------------------------------------------------------------------------------------------+   |
+|   | Tool & Integration Infrastructure (tools/, mcp/, connectors/)                            |   |
+|   | - Built-in Tools: read_file, write_file, replace_in_file, run_shell, git_*, grep, web_*  |   |
+|   | - Interactive Tools: propose_plan, ask_user, request_directory                           |   |
+|   | - Automations: sleep_for, sleep_until, wake_on                                           |   |
+|   | - Model Context Protocol (MCP): Dynamic STDIO & HTTP tool discovery                      |   |
+|   | - 34 Connectors: Slack, GitHub, Jira, Notion, Linear, HubSpot, Telegram, etc.            |   |
+|   +------------------------------------------------------------------------------------------+   |
++--------------------------------------------------------------------------------------------------+
+                                                |
++--------------------------------------------------------------------------------------------------+
+|                            EXTERNAL PROVIDERS & OFFLINE ENGINES                                  |
+|                                                                                                  |
+|   +---------------------------------------------+  +-----------------------------------------+   |
+|   | aisuite Unified Model Matrix (providers/)   |  | Local Offline STT Engine (stt/)         |   |
+|   | - OpenAI / Anthropic / Gemini / DeepSeek    |  | - ocw-stt Rust Binary Sidecar           |   |
+|   | - AWS Bedrock / Vertex / Mistral / Grok     |  | - cpal audio capture + whisper-rs       |   |
+|   | - Ollama (Local open-weight models)         |  | - 100% offline speech transcription     |   |
+|   +---------------------------------------------+  +-----------------------------------------+   |
++--------------------------------------------------------------------------------------------------+
+
+2.2 LAYER REFERENCE & RESPONSIBILITIES
+
+A. FRONTEND SURFACE (`surfaces/gui/`)
+- Technology: React 18, Vite, TypeScript, Tailwind CSS, Lucide icons.
+- Packaging: Tauri (Rust-based WebView wrapper) producing macOS `.app`/`.dmg` and Windows `.exe`/`.msi`.
+- State Management & API: `api.ts` implements the `Session` abstraction. Maintains active WebSocket
+  connection, local outbox queue during reconnects, streaming text buffers, and approval states.
+- Key Components:
+  * `Composer.tsx`: Prompt composer supporting multi-line text, file/image attachments, drag-and-drop,
+    slash commands (`/skill`, `/plan`), and provider/model selector.
+  * `Transcript.tsx`: Renders conversational turns, tool call badges, unified diff view cards,
+    real-time markdown streams, collapsible reasoning/thinking blocks, and HITL approval dialogs.
+  * `Inbox.tsx`: Unified, cross-session dashboard displaying parked approval requests, pending user
+    clarification questions, and background notifications.
+
+B. LOCAL AGENT SERVER (`cogniwork/server/`)
+- Technology: Python 3.10+ ASGI service using FastAPI, Uvicorn, and Starlette WebSockets.
+- Security Perimeter: Binds exclusively to loopback interface `127.0.0.1:8765`. Rejects any non-local
+  or unauthorized cross-origin requests.
+- Supervision: The Tauri desktop shell supervises the Python backend as a child sidecar process,
+  passing parent PID (`COGNIWORK_PARENT_PID`) and watchdog signals (`COGNIWORK_EXIT_WITH_PARENT`) to
+  ensure zero orphaned background processes.
+
+C. SESSION MANAGER & TURN ENGINE (`cogniwork/server/manager.py` & `cogniwork/engine.py`)
+- `SessionManager`:
+  * Holds in-memory catalog of active `AgentEngine` instances.
+  * Manages atomic turn claiming (`claim_turn`), preventing race conditions or overlapping model
+    invocations on the same conversation state.
+  * Facilitates live message broadcasting across multiple UI windows or external messaging mirrors.
+- `TurnEngine`:
+  * Implements the core agent loop: Turn Initialization -> Context Gathering -> LLM Call ->
+    Tool Call Resolution -> Risk & Permission Evaluation -> Tool Execution -> History Appending ->
+    Compaction Check -> Repeat until completion.
+
+D. STORAGE SUBSYSTEM
+- State Directory: Resolved via `cogniwork/secrets.py` to `%APPDATA%\cogniwork` (Windows) or
+  `~/.config/cogniwork` (macOS/Linux). Can be overridden via `COGNIWORK_STATE_DIR`.
+- SQLite Database (`cogniwork.db`): Stores relational tables for users, passwords, TOTP secrets,
+  session metadata, workspace mappings, and long-term memories.
+- JSONL Session Transcripts (`conversations/{session_id}.jsonl`): Append-only message logs storing
+  exact chat history, tool calls, results, token usage metrics, and timestamps.
+- Secret Store (`secrets.json`): Encrypted key-value store for LLM provider API keys, OAuth tokens,
+  and connector credentials, restricted to OS user permissions (0600).
+
+
+====================================================================================================
+3. HOW IT WORKS: END-TO-END EXECUTION LIFECYCLE
+====================================================================================================
+
+3.1 COMPLETE TURN EXECUTION LIFECYCLE FLOW
+
+When a user submits a prompt, the system executes through the following rigorous lifecycle:
+
+1. PROMPT SUBMISSION & WEBSOCKET DISPATCH
+   - The user enters a message in the GUI Composer (optionally attaching files, images, or picking
+     a specific model).
+   - The UI wraps this into a `user_message` payload and sends it over the active WebSocket connection
+     (`ws://127.0.0.1:8765/ws/session/{session_id}`).
+
+2. SERVER VALIDATION & ATOMIC TURN LOCK
+   - The FastAPI WebSocket handler validates authentication (sidecar token & user session).
+   - Payload size is verified (max 200,000 characters for prompt text; max 15MB total attachments).
+   - Rate limiting checks ensure socket message limits are respected.
+   - `manager.try_mark_running(session_id)` acquires the atomic turn lock for this session. If the
+     session is already processing, the request is rejected with a 409 conflict.
+
+3. CONTEXT GATHERING & PROMPT SYNTHESIS (`agent.py`)
+   - The engine gathers all active contextual layers before invoking the model:
+     a. System Persona: Instructions defined by the active persona (e.g. Code, Ops, Chat).
+     b. Workspace Trust & Roots: Path definitions and directory trees granted to the session.
+     c. Environment Block: Operating system, shell type, current working directory, datetime.
+     d. AGENTS.md / Project Instructions: Local repo rules discovered in the workspace.
+     e. Memory Block: High-relevance durable facts loaded from SQLite for global and workspace scopes.
+     f. Skill Catalog: Lightweight summary listing of all available skills (progressive disclosure).
+     g. Mode Prompt: Specific rules for `plan`, `discuss`, or `interactive` modes.
+
+4. LLM STREAMING & REASONING DISPATCH
+   - The engine calls the configured model provider via `aisuite` in an asynchronous worker thread.
+   - Live Token Streaming: As the model generates text, raw chunks are emitted as `assistant_delta`
+     events over the WebSocket, updating the GUI in real time.
+   - Reasoning Streaming: If the model uses extended thinking (e.g. Claude 3.7 Sonnet thinking mode,
+     o1/o3), `reasoning_delta` events stream directly into a collapsible reasoning panel in the UI.
+
+5. TOOL CALL EVALUATION & PERMISSION PIPELINE
+   - When the LLM outputs one or more structured tool calls:
+     a. The engine passes each tool request to `PermissionEngine.evaluate()`.
+     b. Intrinsic Risk is classified (`READ`, `WRITE_LOCAL`, `EXEC`, `EXTERNAL`).
+     c. Mode Evaluation:
+        - In `discuss` or `plan` mode: Mutation/shell tools are blocked or routed to plan proposal.
+        - In `auto` mode: Approved automatically.
+        - In `interactive` mode: `READ` tools are auto-approved; `WRITE_LOCAL` and `EXEC` trigger HITL.
+     d. Standing Rules: If the user previously set an "Always allow" rule for this command/path,
+        it bypasses the approval card and logs an audit record.
+     e. HITL Approval Gate: If approval is needed, the engine pauses, emits `permission_required`,
+        and either presents an interactive Approval Card in the chat or parks the request in the Inbox.
+
+6. TOOL EXECUTION
+   - Low-Risk Tools (e.g. `read_file`, `git_status`, `grep`): Executed concurrently via `asyncio.gather()`.
+   - High-Risk Tools (e.g. `write_file`, `run_shell`, `send_message`): Executed serially in strict order.
+   - Output Capturing: Tool stdout, stderr, or returned payloads are formatted into standard `role: "tool"`
+     messages and appended to the session message history.
+   - Emits `tool_started` and `tool_finished` events to update the UI timeline.
+
+7. ITERATION & CONTEXT COMPACTION
+   - The tool results are fed back to the LLM for the next iteration of the loop.
+   - The agent repeats the cycle until the model delivers a final answer without requesting further
+     tools or reaches `max_iterations`.
+   - `_compaction_due()` checks whether total estimated tokens exceed the context window threshold.
+     If triggered, the background compaction summarizer condenses older turns while preserving recent
+     context and system instructions.
+
+8. TURN COMPLETION & CHECKPOINT PERSISTENCE
+   - The engine saves the complete turn state to the SQLite session index and append-only JSONL log.
+   - Emits `turn_done` event over WebSocket.
+   - Releases the session lock (`mark_idle`), readying the engine for subsequent input.
+
+3.2 CONCURRENCY & ATOMIC SESSION TURN LOCKS
+To eliminate race conditions, corrupted transcripts, or double-invocations:
+- Each session has an atomic state lock managed by `SessionManager`.
+- When a turn begins (`claim_turn`), the session enters the `RUNNING` state.
+- Inbound messages from WebSockets, automated cron triggers, or Slack connectors targeting a running
+  session are either queued or rejected cleanly.
+- Cancellation: Users can send an `interrupt` WebSocket signal, which sets an internal cancellation
+  flag, aborts the LLM worker thread, and returns the session safely to `IDLE`.
+
+3.3 REAL-TIME WEBSOCKET EVENT PROTOCOL
+
+| Event Type | Source | Description |
+|---|---|---|
+| `ready` | Server -> Client | Session initialized with metadata (agent, model, mode, roots). |
+| `turn_start` | Server -> Client | Acknowledges user input and begins turn execution. |
+| `assistant_delta` | Server -> Client | Incremental text token chunk from LLM stream. |
+| `reasoning_delta` | Server -> Client | Incremental chain-of-thought / reasoning token chunk. |
+| `assistant_message` | Server -> Client | Complete assistant message turn finalized with token usage. |
+| `tool_proposed` | Server -> Client | Agent requests a specific tool call with arguments. |
+| `permission_required` | Server -> Client | Execution suspended; prompts user for Allow/Deny/Always. |
+| `tool_started` | Server -> Client | Notifies UI that tool execution has started. |
+| `tool_finished` | Server -> Client | Notifies UI of tool completion, exit status, and preview. |
+| `compacting` | Server -> Client | Compaction summarization initiated. |
+| `compacted` | Server -> Client | Compaction complete; historical turns summarized. |
+| `turn_done` | Server -> Client | Full turn completed; session returned to IDLE state. |
+| `error` | Server -> Client | Operational or LLM provider error message. |
+| `interrupted` | Server -> Client | Turn cancelled early by user intervention. |
+| `user_message` | Client -> Server | User prompt submission with attachments and parameters. |
+| `approval` | Client -> Server | User decision on tool execution (allow once, allow always, deny). |
+| `interrupt` | Client -> Server | Immediate cancellation signal for active turn. |
+
+
+====================================================================================================
+4. COMPREHENSIVE AGENT WORKFLOWS
+====================================================================================================
+
+4.1 ATTENDED INTERACTIVE WORKFLOW (LIVE HITL)
+- Primary developer mode (`mode = "interactive"`).
+- Read operations (inspecting directories, reading code, searching files, viewing git status) run
+  instantly and concurrently without interruption.
+- When the agent prepares to execute a shell command (`run_shell`) or modify a file (`write_file`,
+  `replace_in_file`), an Approval Card is rendered in the active transcript.
+- The user can inspect the exact command, target file path, and unified diff preview before clicking:
+  * "Allow Once": Executes the single action.
+  * "Always Allow": Adds a standing rule for this command/target pattern and executes.
+  * "Deny": Rejects the action; the rejection reason is returned to the agent as a tool error,
+    allowing it to suggest an alternative approach.
+
+4.2 PLAN & PROPOSE-PLAN WORKFLOW
+- Designed for complex, multi-step refactoring, architecture changes, or high-risk tasks (`mode = "plan"`).
+- In this mode, all mutation and shell tools are locked. The agent is forced into an investigative,
+  read-only exploration phase.
+- Once the agent formulates a complete technical strategy, it invokes the interactive tool `propose_plan`:
+  * The plan specifies: Goals, Files to modify/create, Implementation details, and Verification plan.
+  * In the UI, a dedicated Plan Review Card is displayed.
+- If the user clicks "Approve Plan", the session automatically transitions from `plan` mode to
+  `interactive` execution mode within the same conversation context, and the agent immediately begins
+  implementing the agreed plan.
+- If rejected, user feedback is provided and the agent refines its plan.
+
+4.3 DISCUSS MODE WORKFLOW
+- Pure advisory and conversational mode (`mode = "discuss"`).
+- All tool execution side-effects (writes, shell, external dispatch) are disabled.
+- The agent explores the workspace using read tools and answers questions, explains architecture, or
+  reviews logic without attempting any workspace modifications.
+
+4.4 UNATTENDED RUNS & CROSS-SESSION INBOX QUEUE
+- Designed for background jobs, overnight refactors, test suite runners, or automated triage (`unattended = true`).
+- Anti-Block Architecture: When an unattended agent encounters a high-risk tool call or an `ask_user`
+  question, it does not block the desktop interface.
+- Cross-Session Inbox (`cogniwork/inbox.py`):
+  * The approval prompt is encapsulated as a persistent `InboxItem` in the SQLite database.
+  * The item appears in the global UI Inbox dashboard.
+  * First-Responder-Wins Contract: The user can resolve the item from any interface (the main app
+    Inbox, a mirrored Slack channel, or a Telegram bot).
+  * Resolving the item unblocks the background engine, which resumes execution seamlessly.
+
+4.5 SCHEDULED & EVENT-DRIVEN AUTOMATIONS (SELF-WAKE TOOLS)
+- CogniOS allows agents to orchestrate their own timeline and automated triggers via `selfwake_tools`:
+  * `sleep_for(seconds)`: Suspends agent execution for a specified duration before self-waking.
+  * `sleep_until(timestamp)`: Schedules execution to resume at an exact ISO datetime.
+  * `wake_on(event_trigger)`: Registers an event listener that wakes the agent when an external event
+    occurs (e.g. an incoming webhook, file change, or GitHub notification).
+- Enables automated monitoring loops, scheduled daily summaries, and proactive inbox sweeps.
+
+4.6 INBOUND MESSAGING GATEWAY WORKFLOW
+- CogniOS includes a bidirectional messaging gateway supporting Slack (Socket Mode + Cloud Relay)
+  and Telegram bot integrations.
+- Inbound Message Routing:
+  * When a user sends a direct message or @mentions the bot in Slack/Telegram, the gateway receives
+    the event.
+  * The gateway can either route the message to an existing session or spawn a new background desktop
+    session.
+  * Approval cards and questions are mirrored into the chat channel.
+  * Responses given in Slack or Telegram resolve the pending Inbox item on the local machine and resume
+    the agent loop.
+
+4.7 CONTEXT COMPACTION & LONG-HORIZON SESSION WORKFLOW
+- To support massive sessions spanning hundreds of turns without hitting token window limits:
+  * `_compaction_due()` continuously monitors token consumption against model limits.
+  * When consumption exceeds threshold limits, the Compactor invokes a fast summarizer model.
+  * The summarizer creates an information-dense structured summary of historical turns.
+  * The active message list is replaced with: System Instructions + Compacted Summary Notice +
+    Recent Turn History (preserving recent context and all critical tool outputs).
+
+
+====================================================================================================
+5. AUTHENTICATION & ACCESS CONTROL ARCHITECTURE
+====================================================================================================
+
+5.1 MULTI-LAYER AUTHENTICATION HIERARCHY
+CogniOS enforces a defense-in-depth security model across two distinct boundary layers:
+
++--------------------------------------------------------------------------------------------------+
+|                                     AUTHENTICATION LAYERS                                        |
+|                                                                                                  |
+|   LAYER 1: SIDECAR LOOPBACK TOKEN (Machine-to-Machine Isolation)                                 |
+|   - Generated dynamically on server start: {state_dir}/sidecar-{port}.token                      |
+|   - Passed via HTTP Header: X-CogniOS-Token (or legacy x-openworker-token)                       |
+|   - Passed via WebSocket Header: Sec-WebSocket-Protocol                                          |
+|   - Validated via constant-time comparison (secrets.compare_digest)                              |
+|                                                                                                  |
+|   LAYER 2: USER ACCOUNT & SESSION COOKIE (Human Authentication)                                  |
+|   - Single-owner local account registered on first launch                                        |
+|   - Passwords hashed with Argon2id                                                               |
+|   - Authenticated session cookie: ow_session (HTTPOnly, SameSite=Strict)                         |
+|   - Optional Two-Factor Authentication (TOTP RFC 6238)                                           |
++--------------------------------------------------------------------------------------------------+
+
+5.2 SIDECAR LOOPBACK TOKEN SECURITY
+- Prevents other local applications or malicious scripts running on the same machine from probing or
+  sending commands to the local CogniOS server.
+- The server generates a cryptographically secure random token upon launch and writes it to a restricted
+  file readable only by the local OS user.
+- The Tauri desktop client or dev Vite proxy reads this file and attaches the token to all REST and
+  WebSocket requests.
+- All token comparisons use `secrets.compare_digest()` to prevent timing side-channel attacks.
+
+5.3 LOCAL USER ACCOUNT & SESSION STORE
+- Local Single-Owner Model: Designed for personal workstation privacy. On first launch, the user
+  creates an owner profile (`/v1/auth/signup`).
+- Password Hashing (`cogniwork/auth/passwords.py`):
+  * Utilizes Argon2id (memory-hard, GPU/ASIC resistant hashing algorithm).
+  * Automatic salt generation per user.
+- Session Management (`cogniwork/auth/store.py`):
+  * Issues 64-character cryptographically random session tokens stored in SQLite.
+  * Delivered via secure `ow_session` cookies.
+
+5.4 TWO-FACTOR AUTHENTICATION (TOTP RFC 6238)
+- Built-in TOTP support (`cogniwork/auth/totp.py`):
+  * Supports standard authenticator apps (Google Authenticator, 1Password, Authy).
+  * Setup endpoint (`/v1/auth/totp/setup`) returns a standard `otpauth://` URI and QR code data.
+  * Verification requires a valid 6-digit time-based code before activation.
+  * TOTP secrets stored in the SQLite database are encrypted at rest using AES-GCM (`crypto.py`).
+  * When enabled, sign-in requires a two-step challenge: password verification followed by TOTP code.
+
+5.5 PASSWORD RECOVERY & SECURITY VERIFICATION
+- Because CogniOS is 100% local-first and does not rely on external cloud email services, password
+  reset is handled through a local zero-knowledge security answer mechanism (`cogniwork/auth/reset.py`):
+  1. During signup, the user defines a security answer (e.g. favorite pet name).
+  2. The security answer is normalized and hashed with Argon2id.
+  3. Reset Flow: The user supplies their username and security answer. If TOTP is enabled on the
+     account, a valid TOTP code is also required.
+  4. Upon verification, the user can set a new master password.
+
+5.6 RATE LIMITING & AUTH BYPASS MODE
+- Brute-Force Rate Limiting (`cogniwork/auth/rate_limit.py`):
+  * In-memory sliding window rate limiter protects all authentication routes (`/v1/auth/signin`,
+    `/v1/auth/forgot-password/*`).
+  * Limits failed attempts to 5 per minute per IP address, mitigating automated local brute-force.
+- Headless / Dev Bypass:
+  * Setting `COGNIWORK_AUTH_DISABLED=1` bypasses human user account authentication, ideal for automated
+    CI/CD test suites or dedicated headless agent containers.
+
+
+====================================================================================================
+6. SECURITY, SAFETY & HUMAN-IN-THE-LOOP (HITL) MODEL
+====================================================================================================
+
+6.1 INTRINSIC RISK CLASSIFICATION ENGINE (`cogniwork/risk.py`)
+Every tool available to the agent is categorized into one of four intrinsic risk classes:
+
+| Risk Class | Definition | Tools Included | Default Policy |
+|---|---|---|---|
+| `READ` | Read-only inspection; no machine or workspace mutations. | `read_file`, `grep`, `git_status`, `git_diff`, `web_search`, `load_skill` | Auto-allowed; concurrent execution |
+| `WRITE_LOCAL` | Mutates local workspace files or directory structure. | `write_file`, `replace_in_file`, `apply_patch`, `save_skill` | Gated by mode; requires approval in interactive |
+| `EXEC` | Executes arbitrary code or command-line binaries. | `run_shell`, background processes | High risk; requires explicit user approval |
+| `EXTERNAL` | Side-effects outside the local machine (APIs, messages). | `send_message`, `send_file`, external MCP tools | Gated; routes to Inbox in unattended mode |
+
+6.2 PERMISSION MODES
+CogniOS enforces 5 discrete operational permission modes:
+1. `discuss`: Complete read-only mode. Write tools and shell execution are entirely disabled.
+2. `plan`: Read-only exploration combined with the `propose_plan` interactive workflow.
+3. `interactive` (Default): Read tools are auto-allowed; all write, shell, and external tools require
+   explicit HITL approval.
+4. `auto`: Autonomous execution mode for trusted tasks; all tools run without manual prompting.
+5. `custom`: Interactive baseline with custom user-configured `auto_allow` whitelists.
+
+6.3 APPROVAL PIPELINE & EXECUTION GATING
+When a tool call is intercepted by the Permission Engine:
+- If classified as `READ` -> Cleared immediately for execution via `asyncio.gather()`.
+- If classified as `WRITE_LOCAL` or `EXEC` -> The engine checks for standing whitelist rules.
+  * If a matching rule exists -> Cleared for serial execution; audit log entry recorded.
+  * If no rule exists -> Execution suspends; `permission_required` event emitted; Approval Card
+    rendered in UI.
+
+6.4 STANDING RULES & PERSISTENT SECURITY POLICIES
+Users can establish persistent "Always Allow" rules directly from approval prompts (e.g. "Always allow
+`cargo test` in this workspace" or "Always allow writes to `src/components/*`").
+- Rules are stored in the local SQLite database scoped to the specific workspace.
+- The Permission Engine matches inbound tool arguments against these rules before prompting the user.
+
+6.5 SHELL EXECUTION SANDBOXING & FORBIDDEN OPERATORS
+The `run_shell` executor (`cogniwork/tools/shell.py`) includes command parsing safeguards:
+- Blocks chained sub-shells and un-audited command injection attempts.
+- Enforces strict working directory confinement.
+- Captures separate stdout/stderr streams and termination exit codes.
+- Supports background process management with active PID tracking and manual termination controls.
+
+6.6 WORKSPACE ROOT CONFINEMENT & DIRECTORY TRUST
+- Agent file operations (`read_file`, `write_file`, `grep`) are strictly confined to authorized
+  workspace roots (`cogniwork/roots.py`).
+- Directory traversal attacks (`../../`) attempting to escape authorized roots are detected and rejected.
+- If an agent needs access to an external folder, it must call `request_directory`, which triggers a
+  native OS folder picker dialog for the user to grant access.
+
+6.7 LOCAL SECRET ENCRYPTION & AUDIT LOGGING
+- Secrets Storage (`secrets.json`): Provider API keys and connector tokens are stored with 0600 POSIX
+  file permissions and encrypted using authenticated cryptography.
+- Comprehensive Audit Log (`cogniwork/audit.py`):
+  * Every executed tool call, shell command, file modification, and granted permission is recorded
+    with a timestamp, session ID, tool name, argument summary, and outcome.
+  * Searchable via REST API (`GET /v1/audit`).
+
+
+====================================================================================================
+7. LOCAL OFFLINE SPEECH-TO-TEXT (STT) ENGINE
+====================================================================================================
+
+7.1 ENGINE ARCHITECTURE (`stt/` - `ocw-stt`)
+CogniOS includes an embedded, high-performance, native Speech-to-Text sidecar binary written in Rust:
+- Zero Cloud Dependency: Audio never leaves the user's computer. Transcription occurs 100% on the
+  local CPU/GPU.
+- Native Rust Implementation: Located in `stt/Cargo.toml` and `stt/src/lib.rs` under the crate name
+  `ocw-stt`.
+
+7.2 HARDWARE AUDIO CAPTURE & WHISPER.CPP INTEGRATION
+- Audio Stream Ingestion: Uses `cpal` (Cross-Platform Audio Library) to interface directly with
+  system microphones on Windows, macOS, and Linux.
+- Neural Transcription Engine: Uses `whisper-rs` — high-efficiency Rust bindings to Georgi Gerganov's
+  `whisper.cpp` C/C++ engine.
+- Features:
+  * Support for quantized Whisper models (Tiny, Base, Small, Medium) optimized for real-time inference.
+  * Voice Activity Detection (VAD) to trim silence and capture distinct utterances.
+  * Audio normalization and 16kHz resampling.
+
+7.3 ZERO-CLOUD PRIVACY & LOW-LATENCY VOICE INPUT
+- Voice commands recorded via the UI Composer microphone button stream audio directly into the local
+  `ocw-stt` sidecar.
+- Transcriptions are returned in milliseconds and inserted directly into the chat prompt bar,
+  providing seamless, hands-free agent steering with complete privacy.
+
+
+====================================================================================================
+8. DUAL-TIER PERSISTENT MEMORY & CONTEXT INJECTION
+====================================================================================================
+
+8.1 MEMORY PHILOSOPHY: DURABLE KNOWLEDGE VS. TRANSIENT CONTEXT
+CogniOS implements a principled dual-tier memory architecture:
+- Conservative Durable Retention: The agent only remembers enduring facts, user preferences, and
+  project constraints that cannot be re-derived from the code itself.
+- Ephemeral Workspace Context: Transient details (scratch variables, temporary logs) are left in
+  session logs and not persisted to permanent memory.
+
+8.2 SQLITE MEMORY STORAGE & SCOPING
+Memories are stored in `cogniwork.db` in the `memories` table:
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | TEXT PRIMARY KEY | Unique UUID for the memory item. |
+| `scope` | TEXT | `global` (user-wide) or `workspace` (project-specific). |
+| `workspace_id` | TEXT | Identifier of the workspace (NULL for global memories). |
+| `summary` | TEXT | 15-word concise summary for quick catalog indexing. |
+| `content` | TEXT | Full detailed memory text and context. |
+| `created_at` | TIMESTAMP | ISO timestamp when the memory was stored. |
+| `updated_at` | TIMESTAMP | ISO timestamp of the last revision. |
+
+Scopes:
+1. `global`: Applies to all sessions and workspaces (e.g. "User prefers concise explanations without
+   fluff", "User's timezone is UTC+5:30").
+2. `workspace`: Scoped exclusively to the current project (e.g. "This repository uses pnpm instead
+   of npm", "Database migrations must be run through alembic").
+
+8.3 MEMORY LIFECYCLE TOOLS (`cogniwork/memory/tools.py`)
+Agents interact with persistent memory using four specialized tools:
+- `remember(content, summary, scope)`: Persists a new durable fact.
+- `memory_read(query, scope)`: Searches and retrieves stored memory items.
+- `memory_update(memory_id, content, summary)`: Updates or refines an existing memory when facts change.
+- `memory_forget(memory_id)`: Deletes an obsolete or invalidated memory.
+
+8.4 CONTEXT INJECTION PIPELINE & MEMORY GUIDANCE
+At the beginning of every turn, `agent.py` synthesizes active memories and injects them into the
+model's context window:
+- System Instructions: Injects `_MEMORY_GUIDANCE`, instructing the model on when to save (explicit user
+  commands, durable rules), when to avoid saving (transient code details), and how to handle sensitive
+  topics (health, finance require explicit confirmation).
+- Active Memories Table: Formatted block of relevant global and workspace memories injected into the
+  prompt so the agent automatically behaves according to remembered preferences.
+- User Rules: Injects custom user rules defined in `memory-settings.json`.
+
+8.5 AUTOMATIC CONTEXT COMPACTION ENGINE (`cogniwork/compaction.py`)
+- Problem: Long agent sessions accumulate large histories of tool outputs, causing context window
+  overflow and high API costs.
+- Solution: Automated sliding-window summarization:
+  * Triggers when estimated message tokens exceed the configured context window threshold (e.g. 75%).
+  * Emits `compacting` WebSocket event.
+  * A lightweight background model summarizes historical turns into a structured synopsis.
+  * Replaces summarized messages with a single `role: "notice"` compacted summary message while
+    retaining the most recent turn fraction (`KEEP_RECENT_FRACTION = 0.25`) and system rules intact.
+
+
+====================================================================================================
+9. SKILLS, PERSONAS & EXTENSIBILITY (MCP & CONNECTORS)
+====================================================================================================
+
+9.1 ANTHROPIC SKILL.MD STANDARD & PROGRESSIVE DISCLOSURE
+CogniOS implements the Anthropic `SKILL.md` skill specification with a "Progressive Disclosure"
+architecture (`cogniwork/skills/base.py`):
+- Directory Structure: A skill is a self-contained directory containing a `SKILL.md` file along with
+  optional helper scripts, reference manuals, or templates.
+- YAML Frontmatter: Defines metadata including `name`, `description`, and `allowed-tools`.
+- Progressive Disclosure:
+  * At session start, the agent is NOT burdened with the full text of every skill.
+  * Instead, only a lightweight catalog of skill names and descriptions is injected into the context.
+  * When a specific skill is needed, the agent invokes `load_skill(name)` to dynamically fetch the full
+    instructions and file paths on demand.
+
+9.2 DYNAMIC SKILL LOADING & CREATION
+- `load_skill(name)`: Dynamically retrieves the full markdown instructions and resource path for a skill.
+- `save_skill(name, description, instructions)`: Allows the agent (or user) to author and persist new
+  reusable skills directly to disk during a session.
+
+9.3 PERSONA SYSTEM & SYSTEM PROMPT INJECTION
+Personas (`cogniwork/personas/`) define specialized operational presets:
+- Built-in Personas:
+  * `code`: Optimized for software development, test-driven refactoring, and code review.
+  * `chat`: Lightweight conversational companion without heavy developer tool prompts.
+  * `cogniwork`: The flagship autonomous AI coworker persona equipped with full toolsets.
+  * `ops`: System operations, CLI workflows, and environment diagnostics.
+- Personas are defined in simple markdown files and can be customized or augmented per workspace.
+
+9.4 MODEL CONTEXT PROTOCOL (MCP) INTEGRATION (`cogniwork/mcp/`)
+CogniOS includes full native support for Anthropic's Model Context Protocol:
+- Transports: Supports both `stdio` (subprocess standard I/O) and `streamable-http` / `sse` remote transports.
+- Dynamic Namespacing: Tools exposed by MCP servers are dynamically registered in the agent's tool
+  catalog under the namespace `mcp__{server_name}__{tool_name}`.
+- Local OAuth Bridge: Features a local OAuth callback listener (`/mcp/oauth/callback`) to handle
+  authenticated MCP server connections seamlessly.
+
+9.5 34 SHIPPABLE EXTERNAL CONNECTORS (`cogniwork/connectors/descriptors.py`)
+CogniOS ships with 34 built-in connector descriptors providing seamless integration across modern
+productivity and developer tools:
+
+1. Communication & Collaboration: Slack, Telegram, Discord, WhatsApp, Email (SMTP/IMAP).
+2. Code & DevOps: GitHub, GitLab, Jira, Linear.
+3. Documentation & Productivity: Notion, Confluence, Asana, Monday.com, ClickUp, Todoist.
+4. Cloud Storage: Google Drive, Dropbox, Box, OneDrive.
+5. Workspace & Calendar: Google Calendar, Outlook Calendar, Gmail, Outlook Mail.
+6. CRM & Sales: HubSpot, Salesforce, Close, Attio, Apollo, Hunter.
+7. Design & Media: Figma, Canva.
+8. Product & Analytics: PostHog, Mixpanel, Amplitude, Segment.
+9. Finance & Legal: Stripe, QuickBooks, DocuSign.
+
+
+====================================================================================================
+10. REPOSITORY COMPONENT & FILE MAP
+====================================================================================================
+
+10.1 DIRECTORY LAYOUT & MODULE INDEX
+
+cognios/                                  # Repository Root
+├── cogniwork/                            # Python Backend & CogniWork Agent Runtime
+│   ├── server/                           # FastAPI ASGI Service & Session Management
+│   │   ├── app.py                        # FastAPI routes, WebSocket endpoints, CORS, security gates
+│   │   ├── manager.py                    # SessionManager: concurrency turn locks, event multiplexing
+│   │   └── run.py                        # Server launcher and lifecycle supervisor
+│   ├── auth/                             # User Authentication & Security Layer
+│   │   ├── passwords.py                  # Argon2id password hashing and verification
+│   │   ├── totp.py                       # RFC 6238 TOTP 2FA engine (pyotp)
+│   │   ├── crypto.py                     # AES-GCM secret encryption at rest
+│   │   ├── reset.py                      # Local password reset verification
+│   │   ├── rate_limit.py                 # Sliding-window brute force rate limiter
+│   │   ├── routes.py                     # REST endpoints (/v1/auth/*)
+│   │   └── store.py                      # SQLite user and session storage
+│   ├── engine.py                         # TurnEngine: Core iterative agent loop
+│   ├── agent.py                          # build_engine(): Context injection and tool assembly
+│   ├── permissions.py                    # PermissionEngine: Operational mode enforcement
+│   ├── risk.py                           # RiskClass definitions and tool risk classifier
+│   ├── inbox.py                          # Cross-session human-attention queue and approval parking
+│   ├── compaction.py                     # Automated context window summarization engine
+│   ├── memory/                           # Dual-tier persistent memory
+│   │   ├── sqlite_store.py               # SQLite memory tables and indexing
+│   │   ├── tools.py                      # remember, memory_read, memory_update, memory_forget
+│   │   └── settings.py                   # User rules and memory configuration
+│   ├── skills/                           # SKILL.md progressive disclosure engine
+│   │   ├── base.py                       # SkillLoader, parser, load_skill tool
+│   │   └── store.py                      # Skill persistence and file management
+│   ├── personas/                         # Markdown persona presets (code, chat, cogniwork, ops)
+│   ├── providers/                        # LLM provider routing and aisuite integration
+│   │   ├── registry.py                   # 18+ LLM provider client registry
+│   │   └── matrix.py                     # Curated model definitions and token specs
+│   ├── connectors/                       # 34 external platform integrations
+│   │   ├── descriptors.py                # Connector definitions, auth methods, setup fields
+│   │   └── integration_tools.py          # send_message, send_file
+│   ├── mcp/                              # Model Context Protocol (MCP) client implementation
+│   │   ├── client.py                     # Stdio and HTTP MCP transports
+│   │   └── tools.py                      # Dynamic MCP tool wrapper
+│   ├── tools/                            # Built-in agent tools
+│   │   ├── files.py                      # read_file, write_file, replace_in_file, apply_patch
+│   │   ├── search.py                     # grep and file search
+│   │   ├── shell.py                      # run_shell and background task manager
+│   │   ├── git.py                        # git_status, git_diff, git_log
+│   │   ├── plan.py                       # propose_plan interactive tool
+│   │   ├── ask.py                        # ask_user interactive question tool
+│   │   ├── directories.py                # request_directory folder grant tool
+│   │   └── todo.py                       # todo_write task management tool
+│   ├── web/                              # Web search and fetching tools
+│   │   ├── tool.py                       # web_search tool
+│   │   ├── fetch.py                      # web_fetch URL reader
+│   │   └── providers.py                  # DuckDuckGo, Tavily, Brave search adapters
+│   ├── selfwake.py                       # sleep_for, sleep_until, wake_on automation tools
+│   ├── secrets.py                        # Encrypted secret store and state directory resolution
+│   ├── conversations.py                  # JSONL conversation history checkpointing
+│   ├── roots.py                          # Workspace root boundary enforcement
+│   └── cli.py                            # Headless Terminal UI entrypoint (cognios)
+├── surfaces/gui/                         # Frontend Desktop & Web Surface
+│   ├── src/                              # React 18 + TypeScript Application
+│   │   ├── api.ts                        # Session WebSocket client & REST SDK
+│   │   ├── App.tsx                       # Main application shell and routing
+│   │   ├── components/                   # UI Components
+│   │   │   ├── Composer.tsx              # Input prompt bar, attachments, slash commands
+│   │   │   ├── Transcript.tsx            # Chat timeline, tool cards, diff views
+│   │   │   ├── ApprovalCard.tsx          # HITL tool permission dialog
+│   │   │   ├── Inbox.tsx                 # Cross-session parked approval queue
+│   │   │   └── SettingsModal.tsx         # Providers, connectors, memory, auth settings
+│   │   └── auth/                         # Login, signup, TOTP, password reset pages
+│   └── src-tauri/                        # Tauri Rust Desktop Shell
+│       ├── src/main.rs                   # Tauri window setup, sidecar process supervisor
+│       └── tauri.conf.json               # Desktop app configuration (com.cognios.desktop)
+├── stt/                                  # Native Offline Speech-to-Text Engine
+│   ├── Cargo.toml                        # ocw-stt Rust package definition
+│   └── src/lib.rs                        # cpal audio capture & whisper-rs integration
+├── packaging/                            # Distribution & installer build scripts
+│   ├── cognios-server.spec               # PyInstaller standalone backend spec
+│   ├── build_dmg.sh                      # macOS DMG build script
+│   └── build_windows.ps1                 # Windows NSIS / MSI installer script
+├── tests/                                # Comprehensive pytest test suite (~87 test files)
+├── docs/                                 # Architecture specs and example configurations
+├── start_cognios.bat                     # Windows one-click development launcher
+└── pyproject.toml                        # Python package metadata (cogniwork)
+
+10.2 SUMMARY
+CogniOS unites a reactive desktop interface, an asynchronous FastAPI orchestration server, a
+safe iterative agent execution loop (`TurnEngine`), offline Rust-based speech recognition (`ocw-stt`),
+and multi-provider LLM support (`aisuite`) into a coherent, secure, local-first AI operating
+environment.
+
+By balancing autonomous multi-step execution with a strict Human-in-the-Loop permission engine and
+durable memory persistence, CogniOS delivers a platform where AI coworkers can safely automate
+complex computer tasks and produce finished, verified work directly on your machine.
+====================================================================================================

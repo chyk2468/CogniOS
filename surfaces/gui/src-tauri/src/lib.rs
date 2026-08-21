@@ -713,7 +713,7 @@ pub fn run() {
             };
             app.manage(KeepAwake(Mutex::new(ka)));
             app.manage(PendingUpdate(Mutex::new(None)));
-            // Voice recordings are transient; only the explicitly installed local Whisper model
+            // Voice recordings are transient; only the explicitly installed local Moonshine model
             // lives in the existing application state directory.
             app.manage(Arc::new(Dictation::new(state_dir().join("models"))));
 

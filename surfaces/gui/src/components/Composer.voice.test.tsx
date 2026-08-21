@@ -8,10 +8,10 @@ const READY = {
   model_verified: true,
   test_passed: true,
   download_in_progress: false,
-  model_name: "Whisper Large v3 Turbo (q5_0)",
-  model_bytes: 574041195,
-  installed_bytes: 574041195,
-  download_total_bytes: 574041195,
+  model_name: "Moonshine Tiny (English)",
+  model_bytes: 108389192,
+  installed_bytes: 108389192,
+  download_total_bytes: 108389192,
   supported: true,
   device_summary: "Windows 11 / x64",
   compatibility_reason: null,
@@ -38,7 +38,7 @@ beforeEach(() => {
   invoke = vi.fn(async (cmd: string) => {
     if (cmd === "get_dictation_status") return READY;
     if (cmd === "start_dictation") return RECORDING;
-    if (cmd === "stop_dictation") return "hello from local whisper";
+    if (cmd === "stop_dictation") return "hello from local moonshine";
     if (cmd === "cancel_dictation") return null;
     if (cmd === "dictation_level") return 0.6;
     return null;
@@ -51,7 +51,7 @@ afterEach(() => {
   delete (globalThis as any).__TAURI__;
 });
 
-describe("Composer voice input (whisper.cpp + CPAL)", () => {
+describe("Composer voice input (Moonshine Tiny + CPAL)", () => {
   it("not ready mic button opens Settings voice section", async () => {
     invoke.mockImplementation(async (cmd: string) =>
       cmd === "get_dictation_status" ? NOT_READY : null,
@@ -91,7 +91,7 @@ describe("Composer voice input (whisper.cpp + CPAL)", () => {
 
     await waitFor(() => {
       const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
-      expect(textarea.value).toBe("hello from local whisper");
+      expect(textarea.value).toBe("hello from local moonshine");
     });
 
     // Transcript is in prompt draft box, sending does not happen automatically
@@ -100,7 +100,7 @@ describe("Composer voice input (whisper.cpp + CPAL)", () => {
     // User can edit or click Send button
     const sendBtn = screen.getByLabelText("Send");
     fireEvent.click(sendBtn);
-    expect(onSend).toHaveBeenCalledWith("hello from local whisper", [], undefined);
+    expect(onSend).toHaveBeenCalledWith("hello from local moonshine", [], undefined);
   });
 
   it("preserves pre-existing text in composer and appends transcript", async () => {
@@ -118,7 +118,7 @@ describe("Composer voice input (whisper.cpp + CPAL)", () => {
 
     await waitFor(() => {
       const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
-      expect(textarea.value).toBe("Review this code: hello from local whisper");
+      expect(textarea.value).toBe("Review this code: hello from local moonshine");
     });
   });
 
@@ -164,13 +164,13 @@ describe("Composer voice input (whisper.cpp + CPAL)", () => {
 
     await waitFor(() => {
       const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
-      expect(textarea.value).toBe("hello from local whisper");
+      expect(textarea.value).toBe("hello from local moonshine");
     });
 
     const activeTextarea = screen.getByRole("textbox") as HTMLTextAreaElement;
     // Pressing Enter in READY state sends draft
     fireEvent.keyDown(activeTextarea, { key: "Enter", shiftKey: false });
-    expect(onSend).toHaveBeenCalledWith("hello from local whisper", [], undefined);
+    expect(onSend).toHaveBeenCalledWith("hello from local moonshine", [], undefined);
   });
 
   it("preserves conversation LLM model selector and does not create voice model picker", async () => {

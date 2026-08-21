@@ -294,9 +294,15 @@ def create_app(manager: SessionManager) -> FastAPI:
             "model": manager.model,
         }
 
+    @app.get("/v1/voice/status")
+    def voice_status() -> dict[str, Any]:
+        """Returns local speech-to-text model status."""
+        from cogniwork.stt import get_model_status
+        return get_model_status()
+
     @app.post("/v1/voice/transcribe")
     async def transcribe_voice(request: Request) -> dict[str, Any]:
-        """Transcribes recorded audio using local whisper.cpp with ggml-large-v3-turbo-q5_0."""
+        """Transcribes recorded audio using local Useful Sensors Moonshine Tiny."""
         content_type = request.headers.get("content-type", "")
         audio_bytes = b""
         if "application/json" in content_type:
@@ -323,89 +329,20 @@ def create_app(manager: SessionManager) -> FastAPI:
         if not audio_bytes:
             return {"ok": False, "error": "No audio data received.", "text": ""}
 
-        root_dir = Path(__file__).resolve().parent.parent.parent
-        possible_bins = [
-            root_dir / "stt" / "whisper.cpp" / "build" / "bin" / "whisper-cli.exe",
-            root_dir / "stt" / "whisper.cpp" / "build" / "bin" / "whisper-cli",
-            root_dir / "stt" / "whisper.cpp" / "build" / "bin" / "main.exe",
-            root_dir / "stt" / "whisper.cpp" / "build" / "bin" / "main",
-        ]
-        possible_models = [
-            Path(os.environ.get("COGNIWORK_WHISPER_MODEL_PATH", "")),
-            root_dir / "stt" / "whisper.cpp" / "models" / "ggml-large-v3-turbo-q5_0.bin",
-            _state_dir() / "models" / "ggml-large-v3-turbo-q5_0.bin",
-        ]
+        from cogniwork.stt import is_model_available, transcribe_audio
 
-        cli_path = next((p for p in possible_bins if p.is_file()), None)
-        model_path = next((p for p in possible_models if p.is_file()), None)
-
-        if not cli_path or not model_path:
-            return {"ok": False, "error": "Local whisper model or executable not found.", "text": ""}
-
-        import tempfile
-        import subprocess
-
-        ext = ".wav"
-        if audio_bytes.startswith(b"\x1aE\xdf\xa3"):
-            ext = ".webm"
-        elif audio_bytes.startswith(b"OggS"):
-            ext = ".ogg"
-
-        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp_audio:
-            tmp_audio.write(audio_bytes)
-            tmp_audio_path = tmp_audio.name
-
-        wav_path = tmp_audio_path + ".converted.wav"
-        input_file = tmp_audio_path
-        try:
-            conv = await asyncio.to_thread(
-                subprocess.run,
-                ["ffmpeg", "-y", "-i", tmp_audio_path, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", wav_path],
-                capture_output=True,
-                timeout=15,
-            )
-            if conv.returncode == 0 and os.path.exists(wav_path):
-                input_file = wav_path
-        except Exception:
-            input_file = tmp_audio_path
+        if not is_model_available():
+            return {
+                "ok": False,
+                "error": "Local Moonshine Tiny model not found in 'stt/moonshine-tiny'.",
+                "text": "",
+            }
 
         try:
-            cmd = [
-                str(cli_path),
-                "-m", str(model_path),
-                "-f", input_file,
-                "-nt",
-                "-np",
-            ]
-            proc = await asyncio.to_thread(
-                subprocess.run,
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=90,
-            )
-            raw_output = proc.stdout.strip()
-            lines = [
-                line.strip()
-                for line in raw_output.splitlines()
-                if line.strip()
-                and not line.startswith("read_audio_data:")
-                and not line.startswith("whisper_")
-                and not line.startswith("main:")
-                and not line.startswith("system_info:")
-            ]
-            transcript = " ".join(lines).strip()
-            transcript = re.sub(r"\[\d{2}:\d{2}:\d{2}\.\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}\.\d{3}\]\s*", "", transcript).strip()
+            transcript = await asyncio.to_thread(transcribe_audio, audio_bytes)
             return {"ok": True, "text": transcript}
         except Exception as exc:
             return {"ok": False, "error": str(exc), "text": ""}
-        finally:
-            for p in [tmp_audio_path, wav_path]:
-                try:
-                    if os.path.exists(p):
-                        os.remove(p)
-                except Exception:
-                    pass
 
     @app.get("/v1/agents")
     def agents() -> dict[str, Any]:

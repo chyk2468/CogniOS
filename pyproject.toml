@@ -40,6 +40,10 @@ dependencies = [
     "pyotp>=2.9",
     "qrcode[pil]>=7.4",
     "cryptography>=42",
+    # Offline speech-to-text with Moonshine Tiny
+    "transformers>=4.48.0",
+    "torch",
+    "soundfile",
 ]
 
 [project.optional-dependencies]

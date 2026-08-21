@@ -1,13 +1,14 @@
-//! A local, offline speech-to-text engine.
+//! A local, offline speech-to-text engine for CogniOS.
 //!
 //! This crate deliberately has no Tauri, UI, clipboard, or global-shortcut dependency. Hosts
 //! own their own UX and permission flows; they use [`Dictation`] for microphone capture,
-//! model provisioning, and final transcription.
+//! model provisioning, and final transcription with Useful Sensors Moonshine Tiny.
 
 use std::{
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
+    process::Command as ProcessCommand,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, Sender},
@@ -23,16 +24,16 @@ use cpal::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-/// A fast, high-accuracy quantized Whisper model (~547 MB).
-pub const DEFAULT_MODEL_FILE: &str = "ggml-large-v3-turbo-q5_0.bin";
+/// Useful Sensors Moonshine Tiny PyTorch weights (~108 MB).
+pub const DEFAULT_MODEL_FILE: &str = "model.safetensors";
 pub const DEFAULT_MODEL_URL: &str =
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin";
-pub const DEFAULT_MODEL_BYTES: u64 = 574_041_195;
+    "https://huggingface.co/UsefulSensors/moonshine-tiny/resolve/main/model.safetensors";
+pub const DEFAULT_MODEL_BYTES: u64 = 108_389_192;
 pub const DEFAULT_MODEL_SHA256: &str =
-    "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2";
-const WHISPER_SAMPLE_RATE: u32 = 16_000;
+    "867cd2215804859c55aa972d740bd5002be149b4e7526328c895d2408848c736";
+pub const DEFAULT_MODEL_NAME: &str = "Moonshine Tiny (English)";
+const SAMPLE_RATE: u32 = 16_000;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DictationStatus {
@@ -62,8 +63,7 @@ struct Recording {
 /// A reusable single-microphone dictation session manager.
 ///
 /// It records only while a host has explicitly started a session; audio is held in memory for
-/// that session and is never persisted. The downloaded recognition model is the only data kept
-/// under `model_dir`.
+/// that session and is never persisted.
 pub struct Dictation {
     model_path: PathBuf,
     verified_marker_path: PathBuf,
@@ -75,7 +75,6 @@ pub struct Dictation {
     live: Arc<Mutex<Option<(Arc<Mutex<Vec<f32>>>, u32)>>>,
     download_in_progress: AtomicBool,
     cancel_download: AtomicBool,
-    cached_context: Mutex<Option<Arc<WhisperContext>>>,
 }
 
 enum Command {
@@ -101,8 +100,8 @@ impl Dictation {
         thread::spawn(move || capture_worker(receiver, worker_recording, worker_live));
         let model_dir_path = model_dir.into();
         let model_path = model_dir_path.join(DEFAULT_MODEL_FILE);
-        let verified_marker_path = model_path.with_extension("bin.verified");
-        let ready_marker_path = model_path.with_extension("bin.ready");
+        let verified_marker_path = model_path.with_extension("safetensors.verified");
+        let ready_marker_path = model_path.with_extension("safetensors.ready");
 
         // If not present in user model directory, search candidate paths in priority order:
         // 1. Explicit environment variable override
@@ -110,28 +109,36 @@ impl Dictation {
         // 3. Crate / repository workspace paths
         if !model_path.is_file() {
             let mut candidates = Vec::new();
-            if let Ok(override_path) = std::env::var("COGNIWORK_WHISPER_MODEL_PATH")
-                .or_else(|_| std::env::var("COWORKER_WHISPER_MODEL_PATH"))
+            if let Ok(override_path) = std::env::var("COGNIWORK_MOONSHINE_MODEL_PATH")
+                .or_else(|_| std::env::var("COWORKER_MOONSHINE_MODEL_PATH"))
             {
-                candidates.push(PathBuf::from(override_path));
+                let p = PathBuf::from(override_path);
+                if p.is_dir() {
+                    candidates.push(p.join(DEFAULT_MODEL_FILE));
+                } else {
+                    candidates.push(p);
+                }
             }
             if let Ok(exe) = std::env::current_exe() {
                 if let Some(parent) = exe.parent() {
+                    candidates.push(parent.join("models").join("moonshine-tiny").join(DEFAULT_MODEL_FILE));
                     candidates.push(parent.join("models").join(DEFAULT_MODEL_FILE));
-                    candidates.push(parent.join("resources").join("models").join(DEFAULT_MODEL_FILE));
+                    candidates.push(parent.join("stt").join("moonshine-tiny").join(DEFAULT_MODEL_FILE));
+                    candidates.push(parent.join("resources").join("models").join("moonshine-tiny").join(DEFAULT_MODEL_FILE));
                     if let Some(grandparent) = parent.parent() {
-                        candidates.push(grandparent.join("Resources").join("models").join(DEFAULT_MODEL_FILE));
+                        candidates.push(grandparent.join("Resources").join("models").join("moonshine-tiny").join(DEFAULT_MODEL_FILE));
                     }
                 }
             }
             let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            candidates.push(manifest_dir.join("whisper.cpp").join("models").join(DEFAULT_MODEL_FILE));
-            candidates.push(manifest_dir.join("../stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
-            candidates.push(PathBuf::from("stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
-            candidates.push(PathBuf::from("openworker/stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
-            candidates.push(PathBuf::from("../../../stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
-            candidates.push(PathBuf::from("../../stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
-            candidates.push(PathBuf::from("../stt/whisper.cpp/models").join(DEFAULT_MODEL_FILE));
+            candidates.push(manifest_dir.join("moonshine-tiny").join(DEFAULT_MODEL_FILE));
+            candidates.push(manifest_dir.join("../stt/moonshine-tiny").join(DEFAULT_MODEL_FILE));
+            candidates.push(manifest_dir.join("../../stt/moonshine-tiny").join(DEFAULT_MODEL_FILE));
+            candidates.push(PathBuf::from("stt/moonshine-tiny").join(DEFAULT_MODEL_FILE));
+            candidates.push(PathBuf::from("moonshine-tiny").join(DEFAULT_MODEL_FILE));
+            candidates.push(PathBuf::from("../stt/moonshine-tiny").join(DEFAULT_MODEL_FILE));
+            candidates.push(PathBuf::from("../../stt/moonshine-tiny").join(DEFAULT_MODEL_FILE));
+            candidates.push(PathBuf::from("../../../stt/moonshine-tiny").join(DEFAULT_MODEL_FILE));
 
             for candidate in candidates {
                 if candidate.is_file() {
@@ -158,7 +165,6 @@ impl Dictation {
             live,
             download_in_progress: AtomicBool::new(false),
             cancel_download: AtomicBool::new(false),
-            cached_context: Mutex::new(None),
         }
     }
 
@@ -177,7 +183,7 @@ impl Dictation {
             model_verified,
             test_passed: model_verified && self.ready_marker_path.is_file(),
             download_in_progress: self.download_in_progress.load(Ordering::SeqCst),
-            model_name: "Whisper Large v3 Turbo (q5_0)",
+            model_name: DEFAULT_MODEL_NAME,
             model_bytes: if installed_bytes > 0 { installed_bytes } else { DEFAULT_MODEL_BYTES },
             installed_bytes,
             download_total_bytes: DEFAULT_MODEL_BYTES,
@@ -220,10 +226,7 @@ impl Dictation {
             fs::create_dir_all(parent)
                 .map_err(|e| format!("Could not create model directory: {e}"))?;
 
-            let partial = self.model_path.with_extension("bin.part");
-            // Per-read timeout, not overall: a 142 MB transfer legitimately takes minutes, but
-            // a stalled connection must surface as an error — the cancel flag is only observed
-            // between reads, so an indefinitely blocked read would also make Cancel unresponsive.
+            let partial = self.model_path.with_extension("safetensors.part");
             let agent = ureq::AgentBuilder::new()
                 .timeout_connect(std::time::Duration::from_secs(30))
                 .timeout_read(std::time::Duration::from_secs(30))
@@ -315,12 +318,9 @@ impl Dictation {
     pub fn delete_default_model(&self) -> Result<(), String> {
         self.cancel_model_download();
         self.cancel();
-        if let Ok(mut guard) = self.cached_context.lock() {
-            *guard = None;
-        }
         for path in [
             self.model_path.clone(),
-            self.model_path.with_extension("bin.part"),
+            self.model_path.with_extension("safetensors.part"),
             self.verified_marker_path.clone(),
             self.ready_marker_path.clone(),
         ] {
@@ -330,29 +330,6 @@ impl Dictation {
             }
         }
         Ok(())
-    }
-
-    fn get_or_load_context(&self) -> Result<Arc<WhisperContext>, String> {
-        let mut guard = self
-            .cached_context
-            .lock()
-            .map_err(|e| format!("Could not access voice model cache: {e}"))?;
-        if let Some(ctx) = guard.as_ref() {
-            return Ok(ctx.clone());
-        }
-        if !self.model_path.is_file() {
-            return Err("The local voice model is not installed yet.".to_owned());
-        }
-        let context = WhisperContext::new_with_params(
-            self.model_path
-                .to_str()
-                .ok_or_else(|| "The local voice model path is not valid text.".to_owned())?,
-            WhisperContextParameters::default(),
-        )
-        .map_err(|e| format!("Could not load the local voice model: {e}"))?;
-        let arc = Arc::new(context);
-        *guard = Some(arc.clone());
-        Ok(arc)
     }
 
     /// Begins microphone capture. A host must call [`stop_and_transcribe`](Self::stop_and_transcribe)
@@ -370,8 +347,7 @@ impl Dictation {
             .map_err(|_| "Dictation is unavailable because its audio worker stopped.".to_owned())?
     }
 
-    /// Stops capture and returns a final local transcript. This is intentionally synchronous so
-    /// hosts can run it off their UI thread and decide how to present completion/error states.
+    /// Stops capture and returns a final local transcript using Moonshine Tiny.
     pub fn stop_and_transcribe(&self) -> Result<String, String> {
         let (reply, result) = mpsc::channel();
         self.commands
@@ -387,18 +363,11 @@ impl Dictation {
             return Ok(String::new());
         }
         let resampled = resample_mono(&samples, sample_rate);
-        match self.get_or_load_context() {
-            Ok(ctx) => match transcribe_with_context(&ctx, &resampled) {
-                Ok(text) => Ok(text),
-                Err(_) => transcribe_with_cli_fallback(&self.model_path, &resampled),
-            },
-            Err(_) => transcribe_with_cli_fallback(&self.model_path, &resampled),
-        }
+        transcribe_samples(&resampled)
     }
 
     /// Instantaneous input loudness of the in-flight recording, 0.0..=1.0 — RMS over the
-    /// most recent ~100ms, scaled so conversational speech spans most of the range. 0.0
-    /// while not recording. Cheap enough to poll at UI frame-ish rates.
+    /// most recent ~100ms, scaled so conversational speech spans most of the range.
     pub fn input_level(&self) -> f32 {
         let live = match self.live.lock() {
             Ok(guard) => guard,
@@ -420,8 +389,6 @@ impl Dictation {
     }
 
     /// Returns a best-effort transcript of the in-flight recording without stopping capture.
-    /// This uses the same local model as final dictation and snapshots the current in-memory
-    /// audio so hosts can show live text while keeping the final transcript authoritative.
     pub fn partial_transcript(&self) -> Result<String, String> {
         if !self.status().recording {
             return Ok(String::new());
@@ -443,8 +410,7 @@ impl Dictation {
         if samples.len() < (sample_rate as usize / 2) {
             return Ok(String::new());
         }
-        let ctx = self.get_or_load_context()?;
-        transcribe_with_context(&ctx, &resample_mono(&samples, sample_rate))
+        transcribe_samples(&resample_mono(&samples, sample_rate))
     }
 
     /// Discards the current in-memory recording without retaining or transcribing it.
@@ -581,7 +547,7 @@ fn start_recording() -> Result<Recording, String> {
     let host = cpal::default_host();
     let device = host
         .default_input_device()
-        .ok_or_else(|| "No microphone is available. Check your Mac sound settings.".to_owned())?;
+        .ok_or_else(|| "No microphone is available. Check sound settings.".to_owned())?;
     let supported = device
         .default_input_config()
         .map_err(|e| format!("Could not open the microphone: {e}"))?;
@@ -679,12 +645,12 @@ fn append_frames<T>(
 }
 
 fn resample_mono(input: &[f32], source_rate: u32) -> Vec<f32> {
-    if source_rate == WHISPER_SAMPLE_RATE {
+    if source_rate == SAMPLE_RATE {
         return input.to_vec();
     }
     let output_len =
-        (input.len() as u64 * WHISPER_SAMPLE_RATE as u64 / source_rate as u64) as usize;
-    let ratio = source_rate as f64 / WHISPER_SAMPLE_RATE as f64;
+        (input.len() as u64 * SAMPLE_RATE as u64 / source_rate as u64) as usize;
+    let ratio = source_rate as f64 / SAMPLE_RATE as f64;
     (0..output_len)
         .map(|i| {
             let position = i as f64 * ratio;
@@ -694,31 +660,6 @@ fn resample_mono(input: &[f32], source_rate: u32) -> Vec<f32> {
             input[left] * (1.0 - fraction) + input[right] * fraction
         })
         .collect()
-}
-
-fn transcribe_with_context(context: &WhisperContext, samples: &[f32]) -> Result<String, String> {
-    let mut state = context
-        .create_state()
-        .map_err(|e| format!("Could not prepare transcription: {e}"))?;
-    let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-    params.set_language(Some("en"));
-    params.set_translate(false);
-    params.set_print_progress(false);
-    params.set_print_special(false);
-    params.set_print_realtime(false);
-    params.set_suppress_blank(true);
-    state
-        .full(params, samples)
-        .map_err(|e| format!("Could not transcribe the recording: {e}"))?;
-
-    let mut text = String::new();
-    for segment in state.as_iter() {
-        let segment = segment
-            .to_str()
-            .map_err(|e| format!("Could not read the transcript: {e}"))?;
-        text.push_str(segment);
-    }
-    Ok(text.trim().to_owned())
 }
 
 fn write_wav_file(path: &Path, samples: &[f32], sample_rate: u32) -> std::io::Result<()> {
@@ -757,53 +698,69 @@ fn write_wav_file(path: &Path, samples: &[f32], sample_rate: u32) -> std::io::Re
     Ok(())
 }
 
-fn transcribe_with_cli_fallback(model_path: &Path, samples: &[f32]) -> Result<String, String> {
+fn find_python_executable() -> Option<PathBuf> {
+    let candidates = [
+        PathBuf::from(".venv/Scripts/python.exe"),
+        PathBuf::from("../.venv/Scripts/python.exe"),
+        PathBuf::from("../../.venv/Scripts/python.exe"),
+        PathBuf::from("../../../.venv/Scripts/python.exe"),
+        PathBuf::from(".venv/bin/python"),
+        PathBuf::from("../.venv/bin/python"),
+        PathBuf::from("../../.venv/bin/python"),
+        PathBuf::from("../../../.venv/bin/python"),
+    ];
+    for candidate in candidates {
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    // Fall back to python on PATH
+    Some(PathBuf::from("python"))
+}
+
+fn transcribe_samples(samples: &[f32]) -> Result<String, String> {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    let temp_wav = std::env::temp_dir().join(format!("ocw-voice-{unique}.wav"));
+    let temp_wav = std::env::temp_dir().join(format!("cognios-stt-{unique}.wav"));
     write_wav_file(&temp_wav, samples, 16_000)
         .map_err(|e| format!("Could not save audio buffer: {e}"))?;
 
-    let cli_candidates = [
-        PathBuf::from("stt/whisper.cpp/build/bin/whisper-cli.exe"),
-        PathBuf::from("stt/whisper.cpp/build/bin/whisper-cli"),
-        PathBuf::from("stt/whisper.cpp/build/bin/main.exe"),
-        PathBuf::from("stt/whisper.cpp/build/bin/main"),
-    ];
+    // Try HTTP endpoint first if COGNIWORK_HTTP is set
+    if let Ok(http_base) = std::env::var("COGNIWORK_HTTP") {
+        if let Ok(wav_data) = fs::read(&temp_wav) {
+            let url = format!("{http_base}/v1/voice/transcribe");
+            let req = ureq::post(&url).set("Content-Type", "audio/wav");
+            if let Ok(resp) = req.send_bytes(&wav_data) {
+                if let Ok(json) = resp.into_json::<serde_json::Value>() {
+                    if let Some(text) = json.get("text").and_then(|t| t.as_str()) {
+                        let _ = fs::remove_file(&temp_wav);
+                        return Ok(text.trim().to_string());
+                    }
+                }
+            }
+        }
+    }
 
-    let cli_bin = cli_candidates
-        .into_iter()
-        .find(|p| p.is_file())
-        .ok_or_else(|| "Local whisper-cli executable not found.".to_string())?;
+    // CLI runner fallback using python -m cogniwork.stt.transcribe
+    let py_bin = find_python_executable()
+        .ok_or_else(|| "Python executable not found for STT transcription.".to_string())?;
 
-    let output = std::process::Command::new(&cli_bin)
-        .arg("-m")
-        .arg(model_path)
-        .arg("-f")
-        .arg(&temp_wav)
-        .arg("-nt")
-        .arg("-np")
+    let output = ProcessCommand::new(&py_bin)
+        .args(["-m", "cogniwork.stt.transcribe", temp_wav.to_str().unwrap_or_default()])
         .output()
-        .map_err(|e| format!("Failed to run whisper-cli: {e}"))?;
+        .map_err(|e| format!("Failed to run Moonshine STT transcription: {e}"))?;
 
     let _ = fs::remove_file(&temp_wav);
 
-    let raw = String::from_utf8_lossy(&output.stdout);
-    let mut lines = Vec::new();
-    for line in raw.lines() {
-        let trimmed = line.trim();
-        if !trimmed.is_empty()
-            && !trimmed.starts_with("read_audio_data:")
-            && !trimmed.starts_with("whisper_")
-            && !trimmed.starts_with("main:")
-            && !trimmed.starts_with("system_info:")
-        {
-            lines.push(trimmed);
-        }
+    if !output.status.success() {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Moonshine transcription error: {err_msg}"));
     }
-    Ok(lines.join(" ").trim().to_string())
+
+    let transcript = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    Ok(transcript)
 }
 
 #[cfg(test)]
@@ -831,8 +788,8 @@ mod tests {
     }
 
     #[test]
-    fn default_model_size_matches_the_published_artifact() {
-        assert_eq!(DEFAULT_MODEL_BYTES, 574_041_195);
+    fn default_model_size_matches_moonshine_tiny_artifact() {
+        assert_eq!(DEFAULT_MODEL_BYTES, 108_389_192);
     }
 
     #[test]

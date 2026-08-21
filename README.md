@@ -131,7 +131,7 @@ graph TD
 | **Connectors** | External app integrations | `cogniwork/connectors/` |
 | **MCP** | Model Context Protocol clients | `cogniwork/mcp/` |
 | **Storage** | SQLite + JSONL under state dir | `cogniwork/secrets.py`, `conversations.py`, `auth/store.py` |
-| **STT sidecar** | Offline speech-to-text (Rust) | `stt/` |
+| **STT engine** | Offline speech-to-text (Moonshine Tiny + Rust sidecar) | `stt/`, `cogniwork/stt/` |
 
 See also: [`docs/chat_system_architecture.md`](docs/chat_system_architecture.md) for the chat data flow in detail.
 
@@ -193,7 +193,7 @@ cognios/                          # repository root (this checkout may be named 
 │   ├── src-tauri/                  # Tauri shell, sidecar binary
 │   ├── e2e/                        # Playwright hermetic tests
 │   └── e2e-live/                   # Playwright live-server tests
-├── stt/                            # Rust speech-to-text sidecar (ocw-stt)
+├── stt/                            # Speech-to-text engine (Useful Sensors Moonshine Tiny, ocw-stt)
 ├── packaging/                      # PyInstaller + Tauri build scripts
 ├── tests/                          # Python pytest suite (~87 files)
 ├── docs/                           # config.example.toml, architecture doc
