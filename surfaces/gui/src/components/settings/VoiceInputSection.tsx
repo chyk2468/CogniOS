@@ -436,28 +436,7 @@ export function VoiceInputSection() {
         </div>
       </div>
 
-      {/* 3. Device & Hardware Compatibility Card */}
-      <div className={CARD}>
-        <div className="p-4 flex items-start gap-3">
-          <Icon name="code" size={18} className="text-accent mt-0.5 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <div className="text-[13.5px] font-medium text-fg">Hardware &amp; System Compatibility</div>
-            <div className="text-[12px] text-muted mt-0.5">{status?.device_summary || "Checking hardware compatibility…"}</div>
-            {status?.compatibility_reason && <div className="text-[12px] text-danger mt-1.5">{status.compatibility_reason}</div>}
-          </div>
-          <span className="text-[11.5px] px-2.5 py-1 rounded-md bg-accent/20 text-accent font-medium shrink-0">
-            ● Compatible
-          </span>
-        </div>
-        <div className="border-t border-border bg-bg/50 px-4 py-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[12px] text-muted">
-          <div><span className="block text-fg font-medium">Windows</span>Windows 10 22H2 / 11 · x64</div>
-          <div><span className="block text-fg font-medium">macOS</span>macOS 12+ · Apple Silicon / Intel</div>
-          <div><span className="block text-fg font-medium">Linux</span>Kernel 5.4+ · x86_64 / arm64</div>
-          <div><span className="block text-fg font-medium">Memory / CPU</span>4+ Cores · 8 GB RAM</div>
-        </div>
-      </div>
-
-      {/* 4. Live Microphone & Model Transcription Test */}
+      {/* 3. Live Microphone & Model Transcription Test */}
       <div className={CARD}>
         <div className="p-4 flex items-center gap-3">
           <div className={"w-8 h-8 rounded-full grid place-items-center shrink-0 " + (isRecordingNow ? "bg-accent text-white animate-pulse" : ready ? "bg-accent/20 text-accent" : "bg-bg text-muted")}>
