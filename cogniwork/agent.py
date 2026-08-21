@@ -313,9 +313,8 @@ def build_engine(
     if wake_store is not None and session_id and agent.family == "knowledge":
         registry.register_all(selfwake_tools(wake_store, session_id))
 
-    instructions = f"{agent.system_prompt}\n\n{_NARRATION_GUIDANCE}"
+    instructions = f"{agent.system_prompt}\n\n{_NARRATION_GUIDANCE}\n\n{environment_context(ws)}"
     if ws is not None:
-        instructions = f"{instructions}\n\n{environment_context(ws)}"
         conventions = load_agents_md(ws)
         if conventions:
             instructions = f"{instructions}\n\n{conventions}"

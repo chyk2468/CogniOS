@@ -28,11 +28,20 @@ def test_context_includes_workspace_platform_and_date(tmp_path):
     assert str(tmp_path.resolve()) in block
     assert sys.platform in block
     assert "Today's date:" in block
+    assert "Day of the week:" in block
+    assert "Current date & time:" in block
     assert "<environment>" in block and "</environment>" in block
 
 
 def test_context_outside_git_repo(tmp_path):
     assert "not a git repository" in environment_context(tmp_path)
+
+
+def test_context_none_workspace():
+    block = environment_context(None)
+    assert "Workspace: (no workspace bound)" in block
+    assert "Day of the week:" in block
+    assert "Today's date:" in block
 
 
 def test_context_with_git_repo(tmp_path):

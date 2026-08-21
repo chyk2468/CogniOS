@@ -10,7 +10,7 @@ from __future__ import annotations
 import platform as _platform
 import subprocess
 import sys
-from datetime import date
+from datetime import datetime
 from pathlib import Path
 
 
@@ -53,17 +53,31 @@ def _git_snapshot(workspace: Path) -> list[str]:
     return lines
 
 
-def environment_context(workspace: str | Path) -> str:
-    """A system-prompt block describing the session's environment and git state."""
-    ws = Path(workspace).expanduser().resolve()
+def environment_context(workspace: str | Path | None = None) -> str:
+    """A system-prompt block describing the session's environment, temporal context, and git state."""
     mac = _platform.mac_ver()[0]
     os_name = f"macOS {mac}" if mac else f"{_platform.system()} {_platform.release()}"
+
+    now = datetime.now().astimezone()
+    day_name = now.strftime("%A")
+    formatted_date = now.strftime("%A, %B %d, %Y")
+    time_str = now.strftime("%I:%M:%S %p %Z").strip()
+    iso_date = now.strftime("%Y-%m-%d")
+
     lines = [
-        f"Workspace: {ws}",
         f"Platform: {sys.platform} ({os_name})",
-        f"Today's date: {date.today().isoformat()}",
-        *_git_snapshot(ws),
+        f"Today's date: {iso_date} ({day_name})",
+        f"Current date & time: {formatted_date}, {time_str}",
+        f"Day of the week: {day_name}",
     ]
+
+    if workspace is not None:
+        ws = Path(workspace).expanduser().resolve()
+        lines.insert(0, f"Workspace: {ws}")
+        lines.extend(_git_snapshot(ws))
+    else:
+        lines.insert(0, "Workspace: (no workspace bound)")
+
     body = "\n".join(lines)
     return (
         "Environment (snapshot from session start — verify before relying on git "
