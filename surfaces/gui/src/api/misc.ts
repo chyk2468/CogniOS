@@ -1,5 +1,5 @@
 import { fetch, httpBase, openWebSocket, wsBase } from "./client";
-import type { GmailFilters } from "./connectors";
+import type { GmailAccount, GmailFilters } from "./connectors";
 import type { GroupedQuestion, QuestionOption, WsEvent } from "../types";
 
 export interface AuditEvent {
@@ -538,6 +538,40 @@ export async function disconnectSlackWorkspace(teamId: string): Promise<{ ok: bo
     `${httpBase()}/v1/connectors/slack/workspaces/${encodeURIComponent(teamId)}/disconnect`,
     { method: "POST" },
   );
+  return res.json();
+}
+
+export async function startGmailOAuth(
+  credentials: Record<string, unknown>,
+  accountHint?: string,
+): Promise<{ ok: boolean; error?: string; status?: number; detail?: string; auth_url?: string; state?: string }> {
+  try {
+    const res = await fetch(`${httpBase()}/v1/connectors/gmail/oauth/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credentials, account_hint: accountHint }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) {
+      const errorMsg = data.error || data.detail || `Server returned HTTP ${res.status}`;
+      return {
+        ok: false,
+        status: res.status,
+        error: typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg),
+        detail: data.detail ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : undefined,
+      };
+    }
+    return { ...data, ok: true, status: res.status };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Failed to connect to CogniOS server.",
+    };
+  }
+}
+
+export async function getGmailAccounts(): Promise<{ accounts: GmailAccount[]; error?: string }> {
+  const res = await fetch(`${httpBase()}/v1/connectors/gmail/accounts`);
   return res.json();
 }
 

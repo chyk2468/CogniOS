@@ -80,6 +80,12 @@ export interface SessionInfo {
   // "From Slack" group and the row's platform icon.
   origin?: string;
   origin_label?: string;
+  // Channel namespace: "web" | "telegram"
+  source?: "web" | "telegram";
+  telegram_chat_id?: string;
+  telegram_username?: string;
+  last_message?: string;
+  unread_count?: number;
 }
 
 // Attachments (images, PDFs, text files) sent with a user message.
@@ -164,3 +170,6 @@ export interface GroupedQuestion {
   allow_text?: boolean;
   multi?: boolean;
 }
+
+export type ToolItem = Extract<Item, { kind: "tool" }>;
+

@@ -8,12 +8,13 @@ import {
   type ArtifactContent,
   type ArtifactInfo,
 } from "../api";
-import type { TodoItem } from "../types";
+import { humanizeTool } from "../humanize";
+import type { TodoItem, ToolItem } from "../types";
 import { AccessSection } from "./AccessSection";
 import { Icon } from "./Icon";
 import { Markdown, OPEN_ARTIFACT_EVENT } from "./Markdown";
 
-type Panel = "progress" | "artifacts";
+type RailTab = "progress" | "artifacts" | "access";
 
 // Quiet file-type icons for the artifact list (the colored kind pills read as noisy).
 function kindIcon(kind: string): "file" | "fileCode" | "image" | "table" {
@@ -40,7 +41,8 @@ interface Props {
   active: boolean;
   sessionId: string;
   refreshKey: number;
-  toolNames: string[];
+  tools?: ToolItem[];
+  toolNames?: string[];
   todo: TodoItem[];
   running: boolean;
   // Fires when a full artifact preview opens/closes, so the app can auto-collapse the left nav
@@ -63,7 +65,8 @@ export function RightRail({
   active,
   sessionId,
   refreshKey,
-  toolNames,
+  tools = [],
+  toolNames = [],
   todo,
   running,
   onPreviewChange,
@@ -76,10 +79,7 @@ export function RightRail({
   openAccessKey = 0,
   onOpenIntegrations,
 }: Props) {
-  const [open, setOpen] = useState<Record<Panel, boolean>>({
-    progress: true,
-    artifacts: true,
-  });
+  const [activeTab, setActiveTab] = useState<RailTab>("progress");
   const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
   const [selected, setSelected] = useState<ArtifactInfo | null>(null);
   const [content, setContent] = useState<ArtifactContent | null>(null);
@@ -90,6 +90,21 @@ export function RightRail({
     if (!active) return;
     if (showArtifacts) refreshArtifacts();
   }, [active, sessionId, refreshKey, showArtifacts]);
+
+  // Deep links into Access switch to the access tab
+  const seenAccessKey = useRef(openAccessKey);
+  useEffect(() => {
+    if (openAccessKey && openAccessKey !== seenAccessKey.current) {
+      seenAccessKey.current = openAccessKey;
+      setActiveTab("access");
+    }
+  }, [openAccessKey]);
+
+  useEffect(() => {
+    if (!showArtifacts && activeTab === "artifacts") {
+      setActiveTab("progress");
+    }
+  }, [showArtifacts, activeTab]);
 
   // Switching conversations closes any open artifact — it belongs to the previous session's
   // workspace, which the new session can't (and shouldn't) read.
@@ -158,7 +173,10 @@ export function RightRail({
           artifact={selected}
           content={content}
           onReload={reloadSelected}
-          onBack={() => setSelected(null)}
+          onBack={() => {
+            setSelected(null);
+            setActiveTab("artifacts");
+          }}
           onOpenEntry={(path) =>
             setSelected({
               path,
@@ -171,103 +189,266 @@ export function RightRail({
         />
       ) : (
         <>
-          <RailSection title="Progress" open={open.progress} onToggle={() => setOpen({ ...open, progress: !open.progress })}>
-            <ProgressSummary running={running} toolNames={toolNames} todo={todo} />
-          </RailSection>
+          {/* Permanent Top Icon Navigation Bar */}
+          <div className="rail-nav-tabs" role="tablist" aria-label="Session panel tabs">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "progress"}
+              className={"rail-nav-tab" + (activeTab === "progress" ? " active" : "")}
+              onClick={() => setActiveTab("progress")}
+              title="Progress & Activity"
+              data-testid="rail-tab-progress"
+            >
+              <Icon name="clock" size={14} />
+              <span className="rail-tab-label">Progress</span>
+              {running && <span className="rail-tab-dot-running" title="Running" />}
+            </button>
 
-          {showArtifacts && (
-          <RailSection
-            title={`Artifacts${artifacts.length ? ` (${artifacts.length})` : ""}`}
-            open={open.artifacts}
-            onToggle={() => setOpen({ ...open, artifacts: !open.artifacts })}
-            action={
-              <>
+            {showArtifacts && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "artifacts"}
+                className={"rail-nav-tab" + (activeTab === "artifacts" ? " active" : "")}
+                onClick={() => setActiveTab("artifacts")}
+                title="Artifacts & Files"
+                data-testid="rail-tab-artifacts"
+              >
+                <Icon name="file" size={14} />
+                <span className="rail-tab-label">Artifacts</span>
                 {artifacts.length > 0 && (
-                  <button
-                    className="rail-mini-btn"
-                    onClick={(e) => { e.stopPropagation(); revealArtifact(sessionId, artifacts[0].path, "reveal"); }}
-                    title="Show the folder where these files are saved"
-                  >
-                    <Icon name="folder" size={13} />
-                  </button>
+                  <span className="rail-tab-badge">{artifacts.length}</span>
                 )}
-                <button className="rail-mini-btn" onClick={(e) => { e.stopPropagation(); refreshArtifacts(); }} title="Refresh artifacts"><Icon name="refresh" size={13} /></button>
-              </>
-            }
-          >
-            {artifacts.length === 0 ? (
-              <div className="rail-muted">No previewable files yet.</div>
-            ) : (
-              <div className="artifact-list">
-                {artifacts.slice(0, 16).map((a) => (
-                  <button className="artifact-row" key={a.path} onClick={() => setSelected(a)}>
-                    <span className="artifact-ico" title={a.kind}>
-                      <Icon name={kindIcon(a.kind)} size={17} />
-                    </span>
-                    <span className="artifact-name">
-                      {a.name}
-                      <span className="artifact-row-meta">{formatBytes(a.size)} · {formatTime(a.modified_at)}</span>
-                    </span>
-                    <span className="artifact-open">Open</span>
-                  </button>
-                ))}
+              </button>
+            )}
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "access"}
+              className={"rail-nav-tab" + (activeTab === "access" ? " active" : "")}
+              onClick={() => setActiveTab("access")}
+              title="Access & Permissions"
+              data-testid="rail-tab-access"
+            >
+              <Icon name="shield" size={14} />
+              <span className="rail-tab-label">Access</span>
+            </button>
+          </div>
+
+          <div className="rail-tab-content">
+            {/* Progress Pane */}
+            <div
+              className={"rail-tab-pane" + (activeTab === "progress" ? " active" : " hidden")}
+              role="tabpanel"
+              aria-label="Progress"
+            >
+              <div className="rail-pane-header">
+                <span className="rail-pane-title">Progress</span>
+                {running && <span className="rail-pill-running">Running</span>}
+              </div>
+              <div className="rail-pane-body">
+                <ProgressSummary running={running} tools={tools} toolNames={toolNames} todo={todo} />
+              </div>
+            </div>
+
+            {/* Artifacts Pane */}
+            {showArtifacts && (
+              <div
+                className={"rail-tab-pane" + (activeTab === "artifacts" ? " active" : " hidden")}
+                role="tabpanel"
+                aria-label="Artifacts"
+              >
+                <div className="rail-pane-header">
+                  <span className="rail-pane-title">
+                    Artifacts{artifacts.length ? ` (${artifacts.length})` : ""}
+                  </span>
+                  <div className="rail-pane-actions">
+                    {artifacts.length > 0 && (
+                      <button
+                        className="rail-mini-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          revealArtifact(sessionId, artifacts[0].path, "reveal");
+                        }}
+                        title="Show the folder where these files are saved"
+                      >
+                        <Icon name="folder" size={13} />
+                      </button>
+                    )}
+                    <button
+                      className="rail-mini-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        refreshArtifacts();
+                      }}
+                      title="Refresh artifacts"
+                    >
+                      <Icon name="refresh" size={13} />
+                    </button>
+                  </div>
+                </div>
+                <div className="rail-pane-body">
+                  {artifacts.length === 0 ? (
+                    <div className="rail-muted">No previewable files yet.</div>
+                  ) : (
+                    <div className="artifact-list">
+                      {artifacts.slice(0, 16).map((a) => (
+                        <button className="artifact-row" key={a.path} onClick={() => setSelected(a)}>
+                          <span className="artifact-ico" title={a.kind}>
+                            <Icon name={kindIcon(a.kind)} size={17} />
+                          </span>
+                          <span className="artifact-name">
+                            {a.name}
+                            <span className="artifact-row-meta">{formatBytes(a.size)} · {formatTime(a.modified_at)}</span>
+                          </span>
+                          <span className="artifact-open">Open</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
-          </RailSection>
-          )}
 
-          {/* §32: Access — the former Session-settings drawer, one section among peers.
-              key: its data ownership resets with the conversation, like the old row did. */}
-          <AccessSection
-            key={sessionId}
-            sessionId={sessionId}
-            personaId={personaId}
-            projectScoped={projectScoped}
-            workspace={workspace}
-            branch={branch}
-            scratchPrimary={scratchPrimary}
-            openKey={openAccessKey}
-            onOpenIntegrations={onOpenIntegrations}
-          />
+            {/* Access Pane */}
+            <div
+              className={"rail-tab-pane" + (activeTab === "access" ? " active" : " hidden")}
+              role="tabpanel"
+              aria-label="Access"
+            >
+              <AccessSection
+                key={sessionId}
+                personaId={personaId}
+                sessionId={sessionId}
+                projectScoped={projectScoped}
+                workspace={workspace}
+                branch={branch}
+                scratchPrimary={scratchPrimary}
+                openKey={openAccessKey}
+                onOpenIntegrations={onOpenIntegrations}
+              />
+            </div>
+          </div>
         </>
       )}
     </aside>
   );
 }
 
-function ProgressSummary({ running, toolNames, todo }: { running: boolean; toolNames: string[]; todo: TodoItem[] }) {
-  if (todo.length) {
-    return (
-      <div className="rail-todo-list">
-        {todo.map((item, index) => (
-          <div className={"rail-todo " + item.status} key={index}>
+function toolIconName(name: string): "file" | "fileCode" | "search" | "code" | "wrench" | "chat" | "book" {
+  if (name.includes("file") || name === "replace_in_file" || name === "apply_patch") return "fileCode";
+  if (name.includes("search") || name === "grep") return "search";
+  if (name.includes("shell") || name.includes("bash") || name.includes("terminal")) return "code";
+  if (name.includes("message") || name.includes("slack")) return "chat";
+  if (name.includes("skill")) return "book";
+  return "wrench";
+}
+
+function ProgressSummary({
+  running,
+  tools = [],
+  toolNames = [],
+  todo = [],
+}: {
+  running: boolean;
+  tools?: ToolItem[];
+  toolNames?: string[];
+  todo?: TodoItem[];
+}) {
+  // If tools array was not passed, fallback to toolNames
+  const resolvedTools: ToolItem[] =
+    tools.length > 0
+      ? tools
+      : toolNames.map((name, idx) => ({
+          kind: "tool" as const,
+          id: `tool-${idx}`,
+          name,
+          args: {},
+          status: "done",
+        }));
+
+  const hasTodo = todo.length > 0;
+  const hasTools = resolvedTools.length > 0;
+
+  if (!hasTodo && !hasTools) {
+    if (running) {
+      return (
+        <div className="rail-running-state">
+          <div className="rail-todo in_progress">
             <span className="rail-todo-mark" />
-            <span>{item.content}</span>
+            <span className="text-[12.5px] font-medium text-ink">Working on task…</span>
           </div>
-        ))}
-        {running && (
-          <div className="rail-muted">
-            {toolNames.length ? `${toolNames.length} tool call${toolNames.length === 1 ? "" : "s"} so far.` : "Working..."}
-          </div>
-        )}
-      </div>
-    );
-  }
-  if (running) {
+          <div className="rail-muted mt-2">Preparing plan and calling tools…</div>
+        </div>
+      );
+    }
     return (
       <div className="rail-muted">
-        Working on this task{toolNames.length ? ` with ${toolNames.length} tool call${toolNames.length === 1 ? "" : "s"} so far.` : "."}
+        For longer multi-step tasks, progress, plan items, and tool executions will appear here in real-time.
       </div>
     );
   }
+
   return (
-    <div className="rail-muted">
-      For longer multi-step tasks, progress will appear here while CogniOS plans, uses tools, waits for approval, and produces artifacts.
+    <div className="rail-progress-content">
+      {hasTodo && (
+        <div className="rail-todo-section">
+          <div className="rail-subhead">Plan Checklist</div>
+          <div className="rail-todo-list">
+            {todo.map((item, index) => (
+              <div className={"rail-todo " + item.status} key={index}>
+                <span className="rail-todo-mark" />
+                <span className="rail-todo-text">{item.content}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {hasTools && (
+        <div className={"rail-tools-section" + (hasTodo ? " mt-3 pt-3 border-t border-line" : "")}>
+          <div className="rail-subhead flex items-center justify-between">
+            <span>Tools Used ({resolvedTools.length})</span>
+            {running && <span className="rail-pill-running text-[9.5px]">Running</span>}
+          </div>
+          <div className="rail-tool-list">
+            {resolvedTools.map((tool, index) => {
+              const line = humanizeTool(tool.name, tool.args);
+              const isRunning = tool.status === "…";
+              const isError = tool.status === "error" || tool.status === "failed";
+              return (
+                <div
+                  className={"rail-tool-item" + (isRunning ? " running" : isError ? " error" : " done")}
+                  key={tool.id || index}
+                >
+                  <span className="rail-tool-ico" title={tool.name}>
+                    <Icon name={toolIconName(tool.name)} size={13} />
+                  </span>
+                  <div className="rail-tool-details">
+                    <div className="rail-tool-line">
+                      <span className="rail-tool-pre">{line.pre}</span>
+                      {line.obj && <strong className="rail-tool-obj">{line.obj}</strong>}
+                      {line.post && <span className="rail-tool-post">{line.post}</span>}
+                    </div>
+                  </div>
+                  {isRunning ? (
+                    <span className="rail-tab-dot-running" title="Running" />
+                  ) : (
+                    <span className="rail-tool-status-tag">{tool.status || "done"}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function RailSection({
+export function RailSection({
   title,
   open,
   onToggle,

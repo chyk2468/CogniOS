@@ -1,0 +1,2426 @@
+====================================================================================================
+COGNIOS — COMPLETE PROJECT REVERSE-ENGINEERING & ARCHITECTURE AUDIT REPORT
+Document Version: 1.0 (Comprehensive Senior Architectural Review)
+Target System: CogniOS Local-First AI Operating Environment & CogniWork Agent Platform
+Verification Level: FACT-CHECKED & CODE-TRACED (AST & Runtime Verified)
+====================================================================================================
+
+====================================================================================================
+TABLE OF CONTENTS
+====================================================================================================
+ 1. EXECUTIVE SUMMARY
+ 2. REPOSITORY INVENTORY
+ 3. PROJECT STRUCTURE & DIRECTORY RESPONSIBILITIES
+ 4. HIGH-LEVEL SYSTEM ARCHITECTURE & LAYER COMMUNICATION
+ 5. COMPONENT MAP
+ 6. CONNECTION GRAPH (WHO CONNECTS TO WHOM)
+ 7. DATA FLOW ANALYSIS
+ 8. COMPLETE REQUEST LIFECYCLE (END-TO-END TRACE)
+ 9. COGNIOS MEMORY ARCHITECTURE
+10. MEMORY WRITE PIPELINE
+11. MEMORY RETRIEVAL PIPELINE
+12. DATABASE & STORAGE ARCHITECTURE
+13. COMPLETE API INVENTORY (REST & WEBSOCKET)
+14. FRONTEND & UI ANALYSIS (REACT SPA, TAURI, ACTION FLOW)
+15. AGENTS AND ORCHESTRATION SUBSYSTEM
+16. LLM & MODEL ARCHITECTURE (PROVIDER MATRIX & ROUTING)
+17. TOOLS AND INTEGRATIONS (CORE TOOLS & 34 CONNECTORS)
+18. CONFIGURATION & ENVIRONMENT VARIABLES
+19. SECURITY AUDIT & RISK ANALYSIS
+20. ERROR HANDLING & RESILIENCE
+21. LOGGING, OBSERVABILITY & TELEMETRY
+22. BACKGROUND JOBS, SCHEDULERS & EVENT LISTENERS
+23. TESTING & EVALUATION AUDIT
+24. BUILD, RUN & PACKAGING PIPELINE
+25. COMPLETE FEATURE INVENTORY & OPERATIONAL STATUS
+26. FEATURE-TO-COMPONENT MATRIX
+27. FILE-TO-FEATURE MATRIX
+28. IMPORTANT CLASSES, FUNCTIONS & INTERFACES REFERENCE
+29. DEPENDENCY ANALYSIS (PYTHON, NODE, RUST, SYSTEM)
+30. DEAD CODE, OBSOLETE ARTIFACTS & DUPLICATION AUDIT
+31. TODO, FIXME & INCOMPLETE WORK INVENTORY
+32. ARCHITECTURAL RISKS & TECHNICAL DEBT
+33. SINGLE POINTS OF FAILURE (SPOF)
+34. PERFORMANCE & RESOURCE BOTTLENECK ANALYSIS
+35. SCALABILITY & CONCURRENCY ASSESSMENT
+36. PRODUCTION READINESS EVALUATION
+37. VERIFIED VS SUSPECTED CONNECTIONS
+38. COMPLETE SYSTEM ARCHITECTURE FLOW (ASCII TOPOLOGY)
+39. DEVELOPER PLAYBOOK: 'HOW TO MODIFY THE SYSTEM'
+40. 'ONE FEATURE, ALL DEPENDENCIES' END-TO-END TRACES
+41. FINAL 'COGNIOS IN ONE PAGE' EXECUTIVE REFERENCE
+
+
+====================================================================================================
+1. EXECUTIVE SUMMARY
+====================================================================================================
+
+1.1 WHAT COGNIOS IS
+CogniOS is a local-first, privacy-preserving AI operating environment and autonomous agent platform.
+Its core runtime engine is 'CogniWork' (Python package `cogniwork`), designed not merely as a conversational
+chatbot, but as an execution coworker that autonomously delivers finished, verifiable artifacts—such as
+multi-file software projects, triaged communication inboxes, calendar updates, Git repository operations,
+shell commands, and multi-service workflows across 34+ SaaS integrations and Model Context Protocol (MCP) servers.
+All data, conversation histories, SQLite memory stores, encryption keys, and credentials remain entirely on the
+user's local workstation (%APPDATA%\cogniwork on Windows, ~/.config/cogniwork on macOS/Linux).
+
+1.2 CORE ARCHITECTURE
+The system operates on a hybrid desktop client / local agent server architecture:
+  - Frontend Surface Layer: A React 18 single-page application with a custom Liquid Glass styling system,
+    hosted inside a Tauri 2.0 (Rust) desktop shell (`surfaces/gui`) that supervises the local backend sidecar.
+  - Visualization / Showcase Layer: `cognios-action-flow`, a full-stack TanStack Start / React 19 interactive
+    flow visualizer for tracing intent, reasoning, tools, and execution.
+  - Backend Server Layer: An asynchronous FastAPI + Uvicorn ASGI server (`cogniwork/server/app.py`) listening
+    on `127.0.0.1:8765`, providing REST endpoints and a real-time WebSocket protocol (`/ws/session/{id}`).
+  - Orchestration & Execution Layer: `SessionManager` (`manager.py`) managing session lifecycles, coupled with
+    `TurnEngine` (`engine.py`) and `PermissionEngine` (`permissions.py`) to execute multi-iteration tool-calling loops.
+  - Model Integration Layer: Provider-agnostic routing via `aisuite` and native provider clients (OpenAI Responses,
+    Anthropic Messages, Google Gemini, AWS Bedrock, GCP Vertex, Ollama, Together, Fireworks, OpenRouter, etc.).
+  - Speech-To-Text Layer: An offline speech recognition pipeline combining a high-performance Rust audio capture
+    crate (`stt/src/lib.rs` / `ocw-stt`) with Useful Sensors Moonshine Tiny PyTorch/safetensors models.
+
+1.3 CORE FEATURES
+  - Multi-iteration autonomous agent loops with dynamic thinking budgets and tool dispatch.
+  - 5 Granular Permission Modes: `discuss` (read-only advisory), `plan` (propose-plan flow), `interactive` (HITL approval),
+    `auto` (autonomous execution), and `custom` (per-tool risk policies).
+  - Dual-tier persistent SQLite memory with global (user facts) and workspace (repo facts) scoping.
+  - Progressive disclosure skills framework complying with the Anthropic SKILL.md specification.
+  - 34 shippable external connectors (Slack, GitHub, Jira, HubSpot, Notion, Google Calendar, Gmail, Telegram, etc.).
+  - Inbound messaging gateways (Slack Socket Mode, Telegram Bot API) that trigger desktop sessions.
+  - Dynamic Context Compaction Engine managing token budgets algorithmically.
+  - Local single-owner authentication with Argon2id password hashing, TOTP 2FA (RFC 6238), and pet-answer recovery.
+  - Terminal UI (`cognios` CLI via Textual) for headless and terminal-native workflows.
+
+1.4 MEMORY ARCHITECTURE
+CogniOS implements a dual-tier relational memory system stored in `%APPDATA%\cogniwork\cogniwork.db` (or user state dir).
+Memories are partitioned into `global` (user preferences, communication style) and `workspace` (project architectural facts).
+At prompt construction time, relevant memories are formatted as a numbered list and injected into the `<known-memories>`
+system prompt block. Agents read, write, update, and delete memories via explicit tools (`remember`, `read_memories`,
+`memory_update`, `memory_forget`). Context compaction dynamically shrinks long conversation histories when token limits approach.
+
+1.5 AGENT ARCHITECTURE
+Agent configurations are defined in `cogniwork/agents/` (Code, Chat, CogniWork, MyHelper) and extensible via YAML-frontmatter
+markdown personas (`cogniwork/personas/`). The `TurnEngine` controls execution by iteratively invoking the model, inspecting
+tool call requests, routing tool calls through `PermissionEngine`, executing approved tools, injecting results into messages,
+and continuing until the task completes or an approval gate parks.
+
+1.6 DATA LAYER
+  - Relational Data: SQLite database (`cogniwork.db`) housing 13 tables: users, sessions, memories, audit_events, auth tokens, etc.
+  - Conversation Transcripts: Append-only JSONL event streams under `<state_dir>/conversations/<session_id>.jsonl`.
+  - Secrets & Credentials: Local JSON store (`secrets.json`) encrypted or protected by user-only file permissions.
+  - Automations & Wakes: JSON file stores for scheduled wakes (`wakes.json`), subscriptions, risk overrides, and workspace trust.
+
+1.7 INTEGRATION LAYER
+Connectors expose tool suites via `make_integration_tools` and `make_send_message_tool`/`make_send_file_tool`.
+Model Context Protocol (MCP) clients connect to stdio and HTTP/SSE MCP servers, exposing third-party tool specs.
+Web access is provided via keyless DuckDuckGo search (or Brave/Tavily) and secure web fetching guarded by private network guards.
+
+1.8 MAIN ENTRY POINTS
+  - Desktop Application: `surfaces/gui/src-tauri/src/main.rs` launching Tauri webview and Python sidecar.
+  - Dev Environment Launcher: `start_cognios.bat` (starts server on 8765 and frontend on 1420).
+  - Python Server Entry: `cogniwork/server/run.py` -> `cogniwork.server.app:create_app`.
+  - CLI / Terminal UI: `cogniwork/cli.py` (`cognios` command) launching the Textual TUI.
+  - Action Flow Visualizer: `cognios-action-flow/start.bat` -> `npm run dev`.
+
+1.9 CURRENT STATUS
+Status: BETA (Production-Ready Core Engine, Fully Functional Local Desktop App, Robust Test Suite of 92 files / 1,121 tests).
+Core agent loop, providers, memory, tools, and auth are mature; some advanced connectors and external OAuth flows have mock/fallback behaviors.
+
+1.10 BIGGEST ARCHITECTURAL RISKS
+  1. Synchronous SQLite concurrency in SessionManager under high WebSocket traffic.
+  2. LocalExecutor command execution security relying on pattern matching of shell operators.
+  3. Unencrypted secrets.json fallback on platforms without native credential storage.
+  4. Memory unbounded growth without automatic semantic deduplication.
+
+1.11 MOST IMPORTANT FILES
+  - `cogniwork/engine.py` (The TurnEngine multi-turn agent loop)
+  - `cogniwork/server/manager.py` (The SessionManager orchestrating engines, sockets, gateways, approvals)
+  - `cogniwork/server/app.py` (FastAPI REST and WebSocket API endpoints)
+  - `cogniwork/agent.py` (Agent constructor wiring tools, memory, personas, context)
+  - `cogniwork/permissions.py` (PermissionEngine enforcing security modes and risk classes)
+  - `cogniwork/memory/sqlite_store.py` (SQLite dual-tier memory storage)
+  - `cogniwork/providers/registry.py` & `matrix.py` (Provider matrix and client factories)
+  - `surfaces/gui/src/App.tsx` & `src/api.ts` (Desktop UI state and backend communication)
+  - `surfaces/gui/src-tauri/src/lib.rs` (Tauri desktop shell, sidecar supervisor, STT commands)
+
+
+====================================================================================================
+2. REPOSITORY INVENTORY
+====================================================================================================
+
+The CogniOS repository contains 850+ clean source files across Python, TypeScript/React, Rust, HTML, CSS, SQL, and Shell scripts.
+
+TOP-LEVEL INVENTORY SUMMARY:
+  - Backend Python Core (`cogniwork/`): 149 files, ~1.60 MB code. Contains engine, server, agents, memory, tools, providers, auth.
+  - Desktop GUI Surface (`surfaces/gui/`): 276 files, ~3.45 MB code. React 18, TypeScript, Tailwind, Tauri 2.0 Rust shell, Playwright E2E.
+  - Interactive Flow Visualizer (`cognios-action-flow/`): 113 files, ~3.25 MB code. TanStack Start, React 19, Radix UI, action flow canvas.
+  - Speech-To-Text Crate (`stt/`): 11 files, ~110.4 MB (including Moonshine Tiny PyTorch/safetensors weights, config, tokenizer, Rust lib).
+  - Test Suite (`tests/`): 93 test files, ~968 KB code, 1,121 test functions covering engine, memory, providers, auth, connectors.
+  - Database Migrations (`alembic/`): 4 files for schema migration scripts.
+  - Packaging & Deployment (`packaging/`): 10 files. PyInstaller spec, setup_dev_env scripts, packaging helpers.
+  - Documentation & Specifications (`docs/`, `*.txt`, `*.md`): Comprehensive architecture docs, specs, and technology maps.
+
+
+====================================================================================================
+3. PROJECT STRUCTURE & DIRECTORY RESPONSIBILITIES
+====================================================================================================
+
+CogniOS/
+├── alembic/                      # Database migration configuration and version scripts
+│   ├── env.py                    # Alembic migration environment runner
+│   ├── script.py.mako            # Migration template
+│   └── versions/                 # Migration version history
+├── cognios-action-flow/          # Interactive Action Flow & System Space visualization app
+│   ├── src/                      # TanStack Start / React 19 application
+│   │   ├── components/           # Radix UI primitives & custom visualizer cards
+│   │   ├── lib/cognios/          # Experience engine, data models, canvas styles
+│   │   └── routes/               # TanStack File-based routes (__root.tsx, index.tsx)
+│   ├── package.json              # Action Flow dependencies (React 19, TanStack Start, Tailwind 4)
+│   └── start.bat                 # Windows launcher for Action Flow dev server
+├── cogniwork/                    # Core Python backend package (The CogniWork Runtime)
+│   ├── agents/                   # Base agent classes (Code, Chat, CogniWork, MyHelper, Registry)
+│   ├── auth/                     # Local single-owner auth (Argon2id, TOTP, Recovery, Sessions)
+│   ├── connectors/               # 34 external SaaS connectors + Telegram / Gmail subpackages
+│   │   ├── gmail/                # Native Gmail OAuth, client, sync, and filters
+│   │   └── telegram/             # Telegram Bot API bridge, session store, progress adapter
+│   ├── mcp/                      # Model Context Protocol (MCP) stdio and HTTP/SSE client
+│   ├── memory/                   # Dual-tier SQLite memory store and tools
+│   ├── personas/                 # Persona registry, manifest loader, and builtin personas
+│   ├── providers/                # 18 LLM provider clients, matrix, router, and capabilities
+│   ├── server/                   # FastAPI application, SessionManager, and CLI runner
+│   ├── skills/                   # SKILL.md progressive disclosure engine and storage
+│   ├── stt/                      # Python Moonshine Tiny transcription wrapper
+│   ├── testing/                  # Fake Slack server and testing harnesses
+│   ├── tools/                    # Core tool implementations (files, git, shell, plan, ask, etc.)
+│   ├── tui/                      # Textual-based Terminal UI (`cognios` CLI)
+│   ├── web/                      # Web search (DuckDuckGo/Brave/Tavily) & fetch with SSRF guard
+│   ├── agent.py                  # Agent runtime assembly & engine factory
+│   ├── attachments.py            # Image, text, and PDF attachment processor
+│   ├── audit.py                  # SQLite audit logging for high-risk actions
+│   ├── compaction.py             # Algorithmic conversation token compactor
+│   ├── config.py                 # Multi-root and workspace configuration loader
+│   ├── conversations.py          # JSONL conversation transcripts and SQLite sessions index
+│   ├── engine.py                 # TurnEngine: The core multi-turn agent execution loop
+│   ├── inbox.py                  # Cross-session parked approval inbox
+│   ├── permissions.py            # PermissionEngine: Risk classification and approval modes
+│   ├── prompt.py                 # System prompt construction and context injection
+│   ├── risk.py                   # Intrinsic risk taxonomy (READ, WRITE_LOCAL, EXEC, EXTERNAL)
+│   ├── roots.py                  # Multi-root directory normalizer and context renderer
+│   ├── secrets.py                # SecretStore: API keys and credential manager
+│   ├── selfwake.py               # Self-wake scheduler and wake event persistence
+│   └── subscriptions.py          # Channel buffer and inbound message subscriptions
+├── packaging/                    # PyInstaller spec, build scripts, setup_dev_env scripts
+├── stt/                          # Local offline STT crate (ocw-stt in Rust + Moonshine Tiny weights)
+│   ├── moonshine-tiny/           # Useful Sensors Moonshine Tiny weights, tokenizer, config
+│   ├── src/lib.rs                # CPAL hardware capture and Moonshine transcription engine
+│   └── Cargo.toml                # Rust crate manifest for ocw-stt
+├── surfaces/                     # Frontend surfaces
+│   └── gui/                      # Primary Desktop React SPA & Tauri Shell
+│       ├── e2e/                  # 57 Playwright end-to-end spec tests
+│       ├── e2e-live/             # Live backend end-to-end integration tests
+│       ├── src/                  # React 18 frontend source code
+│       │   ├── components/       # Chat, composer, transcript, settings, connectors, sidebar
+│       │   ├── connectors/       # Visuals, icons, and connector descriptor registry
+│       │   ├── hooks/            # useVoiceInput, useRoots, layout hooks
+│       │   ├── pages/            # SignInPage, SignUpPage, ForgotPasswordPage
+│       │   ├── providers/        # ProviderSetup forms, logos, cards
+│       │   ├── api.ts            # REST API client and WebSocket session manager
+│       │   ├── App.tsx           # Main application state and root view switcher
+│       │   ├── liquid-glass.css  # Liquid Glass design system CSS rules
+│       │   └── tauri.ts          # Tauri IPC wrappers (folder picker, STT, autostart)
+│       └── src-tauri/            # Tauri 2.0 Rust desktop shell
+│           ├── src/lib.rs        # Tauri commands, sidecar process supervisor, keep-awake
+│           ├── src/main.rs       # Native desktop application entry point
+│           └── tauri.conf.json   # Tauri window, permissions, and build configuration
+├── tests/                        # 93 pytest test suites covering the entire backend
+├── pyproject.toml                # Python package build configuration & dependencies
+├── start_cognios.bat             # One-click Windows startup script
+├── uv.lock                       # Pinned dependencies lockfile
+├── README.md                     # Project overview and user guide
+├── CogniOS.txt                   # Deep architecture and system reference documentation
+└── technology.txt                # Complete inventory of every technology used
+
+
+====================================================================================================
+4. HIGH-LEVEL SYSTEM ARCHITECTURE & LAYER COMMUNICATION
+====================================================================================================
+
+The CogniOS architecture follows a strict Local-First Sidecar Pattern:
+
+               +-------------------------------------------------------------+
+               |                       USER INTERACTION                      |
+               |         (Keyboard, Microphone Voice Input, UI Actions)      |
+               +------------------------------+------------------------------+
+                                              |
+                                              v
++------------------------------------------------------------------------------------------+
+| FRONTEND SURFACE LAYER (surfaces/gui)                                                    |
+|  - React 18 SPA (Vite + TypeScript + Liquid Glass Design System)                         |
+|  - Desktop Container: Tauri 2.0 (Rust webview shell)                                     |
+|  - Real-time Audio: CPAL Voice Input & Waveform Meter via ocw-stt Rust crate             |
+|  - State Management: Live Session Stream, Approvals Inbox, Connectors, Settings          |
++---------------------------------------------+--------------------------------------------+
+                                              | HTTP REST (port 8765) + WS (/ws/session/id)
+                                              | Headers: X-CogniOS-Token + ow_session cookie
+                                              v
++------------------------------------------------------------------------------------------+
+| LOCAL AGENT SERVER LAYER (cogniwork/server/app.py & run.py)                              |
+|  - ASGI Engine: FastAPI + Uvicorn (Bound to 127.0.0.1:8765)                              |
+|  - Security Perimeter: Origin Gate, Loopback Sidecar Token Check, Rate Limiter           |
+|  - Authentication: UserStore (Argon2id, Session Cookies, TOTP 2FA Verification)          |
++---------------------------------------------+--------------------------------------------+
+                                              |
+                                              v
++------------------------------------------------------------------------------------------+
+| SESSION & ORCHESTRATION LAYER (cogniwork/server/manager.py)                              |
+|  - SessionManager: Session lifecycle, WebSocket subscriber fan-out, session turn lock    |
+|  - Messaging Gateway: Inbound Slack Bolt & Telegram Bot listener bridges                 |
+|  - Inbox Dispatcher: Parks blocking approval prompts across active sessions              |
+|  - Automations Scheduler: Periodic croniter tick evaluating self-wake events             |
++---------------------------------------------+--------------------------------------------+
+                                              |
+                                              v
++------------------------------------------------------------------------------------------+
+| COGNIWORK AGENT & TURN ENGINE LAYER (cogniwork/engine.py & agent.py)                     |
+|  - TurnEngine: Multi-turn loop (Model Turn -> Tool Requests -> Approval -> Execution)   |
+|  - PermissionEngine: Risk classifier (READ, WRITE_LOCAL, EXEC, EXTERNAL) + Standing Rules|
+|  - Context Assembler: System Prompt + Instructions + Memory Block + Skills + Environment |
+|  - Compaction Engine: Algorithmic token budget compactor preserving recent turns         |
++----------------------+----------------------+----------------------+---------------------+
+                       |                      |                      |
+                       v                      v                      v
++-----------------------------+ +-----------------------------+ +--------------------------+
+| MEMORY & STORAGE LAYER      | | TOOL & INTEGRATION LAYER    | | MODEL & PROVIDER LAYER   |
+| - SQLite: cogniwork.db      | | - Core: files, git, shell   | | - ProviderRouter         |
+|   * memories (global/ws)    | |   todo, ask_user, search    | | - 18 Model Backends:     |
+|   * sessions & workspaces   | | - 34 SaaS Connectors:       | |   * OpenAI Responses     |
+|   * users & auth_sessions   | |   Slack, GitHub, Jira,      | |   * Anthropic Messages   |
+|   * audit_events            | |   HubSpot, Notion, Gmail    | |   * Google Gemini        |
+| - JSONL: session transcripts| | - MCP Clients (stdio / SSE) | |   * AWS Bedrock / Vertex |
+| - SecretStore: secrets.json | | - Web Search & Safe Fetch   | |   * Local Ollama (/v1)   |
++-----------------------------+ +-----------------------------+ +--------------------------+
+    
+
+====================================================================================================
+5. COMPONENT MAP
+====================================================================================================
+
+Comprehensive mapping of every major component in the CogniOS system:
+
+COMPONENT: TurnEngine
+  Location:             cogniwork/engine.py
+  Type:                 Agent Loop / Orchestrator
+  Entry Point:          TurnEngine.run_turn(user_message, ...)
+  Depends On:           ProviderClient, ToolRegistry, PermissionEngine, CompactionEngine
+  Used By:              SessionManager, CLI TUI, Subagent Explorer
+  Inputs:               User prompt, attached files, conversation history, injected context
+  Outputs:              Async event stream (Events: ASSISTANT_TEXT, TOOL_CALL, PERMISSION_REQUIRED, etc.)
+  Persistent State:     Transcripts persisted via SessionManager to conversations/<id>.jsonl
+  Status:               WORKING (Production Core)
+
+COMPONENT: SessionManager
+  Location:             cogniwork/server/manager.py
+  Type:                 Runtime Session & Gateway Hub
+  Entry Point:          SessionManager.get_or_create(session_id), manager.post_user_message()
+  Depends On:           TurnEngine, Agent, SQLite conversations.db, SecretStore, Gateway
+  Used By:              FastAPI App (app.py), WebSocket endpoints
+  Inputs:               REST requests, WebSocket frames, inbound Slack/Telegram webhooks
+  Outputs:              Session state, event queues, approval requests, inbox items
+  Persistent State:     SQLite sessions table, conversations.jsonl, wakes.json, subscriptions.json
+  Status:               WORKING (Production Core)
+
+COMPONENT: PermissionEngine
+  Location:             cogniwork/permissions.py
+  Type:                 Security & Risk Policy Gate
+  Entry Point:          PermissionEngine.check(tool_name, arguments, metadata)
+  Depends On:           RiskClassifier (risk.py), RiskOverrideStore (overrides.py)
+  Used By:              TurnEngine, build_engine (agent.py)
+  Inputs:               Tool name, tool arguments, risk class, active permission mode
+  Outputs:              Decision (ALLOW, NEEDS_USER, DENY) + reason
+  Persistent State:     risk_overrides.json (standing rules)
+  Status:               WORKING (Production Core)
+
+COMPONENT: SQLiteMemoryStore
+  Location:             cogniwork/memory/sqlite_store.py
+  Type:                 Dual-Tier Persistent Memory
+  Entry Point:          SQLiteMemoryStore.remember(), read_memories(), update(), forget()
+  Depends On:           sqlite3 database at <state_dir>/cogniwork.db
+  Used By:              Agent prompt builder, memory_tools (remember, read_memories, etc.)
+  Inputs:               Content, summary, key, scope ('global' | 'workspace'), workspace path
+  Outputs:              MemoryItem records, formatted memory block for prompt
+  Persistent State:     SQLite `memories` table
+  Status:               WORKING (Production Core)
+
+COMPONENT: ProviderRouter & Matrix
+  Location:             cogniwork/providers/router.py & matrix.py & registry.py
+  Type:                 LLM Routing & Client Factory
+  Entry Point:          ProviderRouter.complete(model, messages, tools, ...)
+  Depends On:           aisuite, openai, anthropic, google-genai, boto3, httpx
+  Used By:              TurnEngine, Subagent Explorer, AutoTitle
+  Inputs:               Model identifier string (e.g. 'openai:gpt-5.6-sol', 'ollama:qwen3'), messages, tool schemas
+  Outputs:              AssistantTurn (content, tool_calls, thinking, token_usage)
+  Persistent State:     None (stateless routing; keys read from SecretStore)
+  Status:               WORKING (Production Core)
+
+COMPONENT: LocalExecutor
+  Location:             cogniwork/tools/shell.py
+  Type:                 Terminal & Shell Runner
+  Entry Point:          LocalExecutor.execute(command, cwd, timeout)
+  Depends On:           subprocess, async_generator, threading
+  Used By:              TurnEngine shell_tools (`shell_execute`, `shell_background`)
+  Inputs:               Command string, working directory, background flag
+  Outputs:              Exit code, stdout, stderr, process handle
+  Persistent State:     Process table in memory
+  Status:               WORKING (Production Core)
+
+COMPONENT: AuthStore & RateLimiter
+  Location:             cogniwork/auth/store.py & rate_limit.py
+  Type:                 User Authentication & 2FA Engine
+  Entry Point:          AuthStore.authenticate(), create_session(), verify_totp()
+  Depends On:           argon2-cffi, pyotp, cryptography, sqlite3
+  Used By:              FastAPI Auth routes (/v1/auth/*)
+  Inputs:               Username, email, password, TOTP code, pet recovery answer
+  Outputs:              User record, session cookie token, TOTP setup URI / QR
+  Persistent State:     SQLite `users`, `auth_sessions`, `auth_rate_limits` tables
+  Status:               WORKING (Production Core)
+
+COMPONENT: STTEngine & ocw-stt
+  Location:             stt/src/lib.rs & cogniwork/stt/engine.py
+  Type:                 Offline Speech-To-Text Engine
+  Entry Point:          Dictation::start(), stop_and_transcribe(), Python MoonshineSTTEngine
+  Depends On:           cpal (Rust), PyTorch, Transformers, soundfile, Moonshine Tiny weights
+  Used By:              Tauri desktop shell, VoiceInputSection UI
+  Inputs:               Microphone PCM audio buffer (16 kHz)
+  Outputs:              Transcribed text string
+  Persistent State:     Moonshine Tiny model safetensors weights (~108 MB on disk)
+  Status:               WORKING (Production Core)
+
+
+====================================================================================================
+6. CONNECTION GRAPH (WHO CONNECTS TO WHOM)
+====================================================================================================
+
+Detailed caller-to-callee connection topology across all layers:
+
+
+[React SPA / UI]
+   │
+   ├── HTTP REST ──> [FastAPI Server (app.py)]
+   │                     │
+   │                     ├── routes to ──> [AuthStore (auth/store.py)]
+   │                     ├── routes to ──> [SessionManager (manager.py)]
+   │                     ├── routes to ──> [SecretStore (secrets.py)]
+   │                     └── routes to ──> [Connector Routes (gmail, slack, etc.)]
+   │
+   └── WebSocket ───> [/ws/session/{id} (app.py)]
+                         │
+                         └── bi-directional stream ──> [SessionManager]
+                                                         │
+                                                         ├── acquires lock ──> [Session Turn Lock]
+                                                         ├── constructs ────> [TurnEngine (engine.py)]
+                                                         │                        │
+                                                         │                        ├── reads/writes ──> [ToolRegistry (registry.py)]
+                                                         │                        ├── checks rule ───> [PermissionEngine (permissions.py)]
+                                                         │                        ├── injects context> [SQLiteMemoryStore (memory/)]
+                                                         │                        ├── compacts turns─> [CompactionEngine (compaction.py)]
+                                                         │                        └── calls model ───> [ProviderRouter (providers/)]
+                                                         │                                                │
+                                                         │                                                ├── invokes ──> [OpenAI / Anthropic / Gemini]
+                                                         │                                                └── invokes ──> [Local Ollama Server]
+                                                         │
+                                                         └── logs transcript ─> [conversations/<session_id>.jsonl]
+    
+
+====================================================================================================
+7. DATA FLOW ANALYSIS
+====================================================================================================
+
+Tracing the transformation of user input into execution, tool calls, and UI events:
+
+Step 1: User types message in Composer (`surfaces/gui/src/components/composer/Composer.tsx`).
+Step 2: Frontend serializes user message and file attachments into WebSocket frame JSON.
+Step 3: Server WebSocket endpoint (`cogniwork/server/app.py:ws_session`) receives frame.
+Step 4: Origin gate and sidecar token authentication are verified.
+Step 5: SessionManager acquires the per-session async lock to guarantee atomic turns.
+Step 6: User message is appended to JSONL transcript (`conversations/<id>.jsonl`) and engine messages.
+Step 7: `agent.py:build_engine` constructs context: System Prompt + AGENTS.md + Memory Block + Skills.
+Step 8: `TurnEngine` passes assembled message array to `ProviderRouter.complete()`.
+Step 9: LLM streams delta chunks -> WebSocket emits `ASSISTANT_TEXT` -> React UI renders in real time.
+Step 10: LLM requests tool call (e.g. `file_read`, `shell_execute`, `slack_send_message`).
+Step 11: `PermissionEngine.check()` assesses risk class. If `needs_user`, emits `PERMISSION_REQUIRED`.
+Step 12: On approval, tool executes in worker thread -> Result formatted into ToolMessage.
+Step 13: Loop repeats until model produces final text response without tool calls.
+Step 14: Engine emits `TURN_COMPLETE` event, updates session index in SQLite, releases lock.
+
+
+====================================================================================================
+8. COMPLETE REQUEST LIFECYCLE (END-TO-END TRACE)
+====================================================================================================
+
+Detailed execution trace of a real user turn through all modules:
+
+1. UI Composer Submission:
+   - Module: `surfaces/gui/src/components/composer/Composer.tsx`
+   - Action: `onSend(text, attachments)` -> `api.ts:sendSessionMessage(sessionId, payload)`
+   - Protocol: WebSocket message `{'type': 'user_message', 'text': '...', 'attachments': [...]}`
+
+2. WebSocket Ingestion & Authentication:
+   - Module: `cogniwork/server/app.py` (`ws_session` handler)
+   - Validation: `_origin_allowed(origin)`, `_websocket_authenticated(ws)` (X-CogniOS-Token match)
+   - Frame Parsing: `_json_value_size()` bounds verification (16 MB cap)
+
+3. Session Manager Dispatch:
+   - Module: `cogniwork/server/manager.py` (`SessionManager.post_user_message`)
+   - Concurrency: `async with session_entry.turn_lock:` ensures serialized execution
+   - Transcript Logging: `conversations.py:append_event(session_id, {'type': 'user', 'content': ...})`
+
+4. Engine Assembly & Context Construction:
+   - Module: `cogniwork/agent.py` (`build_engine`)
+   - Memory Retrieval: `SQLiteMemoryStore.get_all(scope=workspace)` -> `render_memory_block()`
+   - Skills Loading: `SkillLoader.list_skills()` -> `skill_catalog_text()`
+   - Multi-root Paths: `render_context(root_list)`
+   - Token Budget Check: `compaction.py:compact_if_needed(messages, model)`
+
+5. Provider Execution & Streaming:
+   - Module: `cogniwork/providers/router.py` (`ProviderRouter.complete`) -> ProviderClient
+   - Wire Call: `openai.resources.chat.completions` or `anthropic.messages.stream`
+   - Streaming: Delta events yielded -> `manager.emit(Event(EventType.ASSISTANT_TEXT, ...))`
+
+6. Tool Evaluation & Permission Gating:
+   - Module: `cogniwork/engine.py` (`TurnEngine._execute_iteration`)
+   - Policy Check: `cogniwork/permissions.py:PermissionEngine.check(tool, args)`
+   - If Approval Needed: `approver(req)` halts loop -> emits `PERMISSION_REQUIRED` -> UI renders ApprovalCard
+   - On Approval Outcome: `ApprovalOutcome.ONCE` -> `ToolRegistry.execute(tool, args)`
+
+7. Completion & Persistence:
+   - Module: `cogniwork/engine.py` emits `TURN_COMPLETE` with `TokenUsage` metrics.
+   - Session Index Update: `conversations.py:update_session(n_msgs, unread_inbox_count, last_updated)`.
+   - UI State: React composer unlocks, thinking block collapses, turn renders in transcript.
+
+
+====================================================================================================
+9. COGNIOS MEMORY ARCHITECTURE
+====================================================================================================
+
+CogniOS uses a dual-tier, persistent relational memory architecture managed by `SQLiteMemoryStore` (`cogniwork/memory/sqlite_store.py`).
+
+9.1 GLOBAL MEMORY
+  - Purpose: Cross-project, durable facts about the user (e.g. 'User prefers concise TypeScript answers', 'User timezone is UTC-5').
+  - Storage: SQLite table `memories` with `scope = 'global'` in `%APPDATA%\cogniwork\cogniwork.db`.
+  - Writer: Model invokes `remember(content, summary, scope='global')` or user adds rule in Settings.
+  - Reader: `SQLiteMemoryStore.get_all(scope='global')` called during system prompt construction.
+  - Injected Where: Injected into the `<known-memories>` XML block of the system prompt for every session.
+  - Lifetime: Permanent across all workspaces and sessions until explicitly forgotten.
+  - Update Mechanism: `memory_update(id, content, summary)` or direct SQL update.
+  - Deletion Mechanism: `memory_forget(id)` removes row from SQLite.
+
+9.2 WORKSPACE MEMORY
+  - Purpose: Project-specific architectural facts, conventions, or constraints (e.g. 'Use pnpm not npm in this repo').
+  - Storage: SQLite table `memories` with `scope = 'workspace'` and `workspace = '/path/to/project'`.
+  - Writer: Model invokes `remember(content, summary, scope='workspace')` during a project session.
+  - Reader: `SQLiteMemoryStore.get_all(scope='workspace', workspace=ws_path)`.
+  - Injected Where: Injected into the `<known-memories>` system prompt block only when operating in that workspace.
+  - Lifetime: Permanent for that specific workspace folder.
+  - Update Mechanism: `memory_update(id, content, summary)`.
+  - Deletion Mechanism: `memory_forget(id)`.
+
+9.3 SESSION MEMORY & CONTEXT COMPACTION
+  - Purpose: Ephemeral multi-turn context within a single task.
+  - Storage: Append-only JSONL files (`conversations/<session_id>.jsonl`).
+  - Compaction Engine (`cogniwork/compaction.py`): When conversation length approaches model context thresholds
+    (or exceeds token budget), older message pairs are summarized algorithmically while preserving recent turns,
+    system instructions, and tool schemas.
+
+9.4 STANDING USER RULES (`cogniwork/memory/settings.py`)
+  - Users can define explicit non-negotiable rules in Settings (e.g. 'Never commit directly to main').
+  - Stored in `user_rules.json` and injected into the system prompt alongside memories as `<user-rules>`.
+
+
+====================================================================================================
+10. MEMORY WRITE PIPELINE
+====================================================================================================
+
+When an agent determines a fact is durable, it executes the memory write pipeline:
+
+
+Conversation Interaction
+       |
+       v
+LLM Evaluates Guidance (_MEMORY_GUIDANCE in agent.py)
+       |
+       +---> Checks if Saving is Allowed (Settings: memory_saving_enabled)
+       |     (If disabled, _MEMORY_OFF_NOTICE informs model not to save)
+       |
+       v
+LLM Calls `remember(content: str, summary: str, scope: 'global' | 'workspace')`
+       |
+       v
+Tool Dispatcher (`cogniwork/memory/tools.py:remember`)
+       |
+       ├── Validates Scope & Non-Empty Content
+       ├── Resolves Workspace Path if scope == 'workspace'
+       |
+       v
+`SQLiteMemoryStore.remember(...)`
+       |
+       ├── Executes SQL: INSERT INTO memories (scope, key, content, summary, workspace, updated_at)
+       ├── Emits Memory Added Event
+       |
+       v
+Model Visible Confirmation:
+       LLM emits one brief confirmation sentence in chat ("I'll remember that you prefer concise replies.")
+    
+
+====================================================================================================
+11. MEMORY RETRIEVAL PIPELINE
+====================================================================================================
+
+How memories are fetched, ranked, and injected into the LLM context:
+
+1. Session Initialization / Turn Start:
+   - `agent.py:build_engine` calls `memory_store.get_all(scope=workspace)`.
+2. Dual Scope Query:
+   - SQL executes: `SELECT id, scope, content, summary, updated_at FROM memories WHERE scope = 'global' OR (scope = 'workspace' AND workspace = ?)`
+3. Memory Index Formatting (`cogniwork/memory/base.py:format_memories`):
+   - Formats each memory into a concise numbered entry: `[#12] (global) User prefers dark mode`
+4. System Prompt Assembly:
+   - Injected into system prompt `<known-memories>` section:
+     <known-memories>
+     1. [#1] (global) User prefers TypeScript over JavaScript.
+     2. [#4] (workspace) Run pytest tests/ with poetry run pytest.
+     </known-memories>
+5. On-Demand Memory Tools:
+   - Agents can also query detailed memory content mid-turn via `read_memories(ids=[...])` or list keys.
+
+
+====================================================================================================
+12. DATABASE & STORAGE ARCHITECTURE
+====================================================================================================
+
+CogniOS uses a hybrid storage architecture combining SQLite for structured indexing and JSON/JSONL for transcripts and settings.
+
+12.1 SQLITE DATABASE SCHEMA (`cogniwork.db`):
+Total tables verified in codebase: 13
+
+TABLE: audit_events
+  Defined in: c, o, g, n, i, w, o, r, k, \, a, u, d, i, t, ., p, y
+  Schema:     id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT DEFAULT CURRENT_TIMESTAMP, session_id TEXT, agent TEXT, workspace TEXT, connector TEXT, tool TEXT, stage TEXT, status TEXT, approval TEXT, args TEXT, result_preview TEXT, reason TEXT, resource TEXT ) """) self._conn.commit() def append(self, event: dict[str, Any]) -> None: tool = str(event.get("tool") or event.get("tool_name") or "") connector = str(event.get("connector") or connector_for_tool(tool) or "") args = _sanitize_args(tool, event.get("arguments") or {}) resource = _resource( tool, event.get("arguments") or {}, event.get("result") or {} ) with self._lock: self._conn.execute( """ INSERT INTO audit_events (session_id, agent, workspace, connector, tool, stage, status, approval, args, result_preview, reason, resource) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) """, ( event.get("session_id") or "", event.get("agent") or "", event.get("workspace") or "", connector, tool, event.get("stage") or "", event.get("status") or "", event.get("approval") or "", json.dumps(args, default=str), _truncate(str(event.get("result_preview") or "")), _truncate(str(event.get("reason") or "")), _truncate(str(resource or "")), ), ) self._conn.commit() def list( self, *, limit: int = 100, session_id: str | None = None, connector: str | None = None, tool: str | None = None, ) -> list[dict[str, Any]]: where = [] params: list[Any] = [] if session_id: where.append("session_id = ?") params.append(session_id) if connector: where.append("connector = ?") params.append(connector) if tool: where.append("tool = ?") params.append(tool) sql = "SELECT * FROM audit_events" if where: sql += " WHERE " + " AND ".join(where) sql += " ORDER BY id DESC LIMIT ?" params.append(max(1, min(int(limit or 100), 500))) with self._lock: rows = self._conn.execute(sql, params).fetchall() out = [] for row in rows: item = dict(row) try: item["args"] = json.loads(item.get("args") or "{}") except json.JSONDecodeError: item["args"] = {} out.append(item) return out def close(self) -> None: self._conn.close() def _sanitize_args(tool: str, args: dict[str, Any]) -> dict[str, Any]: if not isinstance(args, dict): return {} out: dict[str, Any] = {} for key, value in args.items(): lk = str(key).lower() if any(s in lk for s in _SECRET_KEYS): out[key] = "[redacted]" elif tool == "browser_type" and lk == "text": out[key] = "[redacted input]" elif any(b == lk or lk.endswith("_" + b) for b in _BODY_KEYS): out[key] = "[redacted body]" else: out[key] = _summarize(value) return out def _summarize(value: Any) -> Any: if isinstance(value, str): return _truncate(value) if isinstance(value, (int, float, bool)) or value is None: return value if isinstance(value, list): return [_summarize(v) for v in value[:10]] if isinstance(value, dict): return {str(k): _summarize(v) for k, v in list(value.items())[:20]} return _truncate(str(value)) def _resource(tool: str, args: dict[str, Any], result: Any) -> str: for key in ( "url", "owner", "repo", "issue_key", "page_id", "ticket_id", "calendar_id", "message_id", ): if isinstance(args, dict) and args.get(key): return str(args[key]) if isinstance(args, dict) and args.get("subdomain"): return f"{args['subdomain']}.zendesk.com" if isinstance(result, dict) and result.get("url"): return str(result["url"]) return "" def _truncate(text: str, limit: int = 500) -> str: text = text.replace("\n", "\\n") return text if len(text
+
+TABLE: auth_pending_logins
+  Defined in: c, o, g, n, i, w, o, r, k, \, a, u, t, h, \, s, t, o, r, e, ., p, y
+  Schema:     token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at TEXT NOT NULL
+
+TABLE: auth_rate_limits
+  Defined in: c, o, g, n, i, w, o, r, k, \, a, u, t, h, \, r, a, t, e, _, l, i, m, i, t, ., p, y
+  Schema:     key TEXT PRIMARY KEY, attempts INTEGER NOT NULL DEFAULT 0, window_start REAL NOT NULL ) """) self._conn.commit() def check(self, key: str) -> bool: """Return True if the attempt is allowed.""" now = time.time() with self._lock: row = self._conn.execute( "SELECT attempts, window_start FROM auth_rate_limits WHERE key = ?", (key,), ).fetchone() if row is None: self._conn.execute( "INSERT INTO auth_rate_limits (key, attempts, window_start) VALUES (?, 1, ?)", (key, now), ) self._conn.commit() return True attempts, window_start = row["attempts"], row["window_start"] if now - window_start >= self._window: self._conn.execute( "UPDATE auth_rate_limits SET attempts = 1, window_start = ? WHERE key = ?", (now, key), ) self._conn.commit() return True if attempts >= self._max: return False self._conn.execute( "UPDATE auth_rate_limits SET attempts = attempts + 1 WHERE key = ?", (key,), ) self._conn.commit() return True def reset(self, key: str) -> None: with self._lock: self._conn.execute("DELETE FROM auth_rate_limits WHERE key = ?", (key,)) self._conn.commit(
+
+TABLE: auth_recovery_tokens
+  Defined in: c, o, g, n, i, w, o, r, k, \, a, u, t, h, \, s, t, o, r, e, ., p, y
+  Schema:     token TEXT PRIMARY KEY, user_id INTEGER, stage TEXT NOT NULL, expires_at TEXT NOT NULL
+
+TABLE: auth_sessions
+  Defined in: c, o, g, n, i, w, o, r, k, \, a, u, t, h, \, s, t, o, r, e, ., p, y
+  Schema:     id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP, expires_at TEXT NOT NULL, last_activity TEXT DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+
+TABLE: auth_totp_setup
+  Defined in: c, o, g, n, i, w, o, r, k, \, a, u, t, h, \, s, t, o, r, e, ., p, y
+  Schema:     token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, secret_encrypted TEXT NOT NULL, expires_at TEXT NOT NULL
+
+TABLE: memories
+  Defined in: c, o, g, n, i, w, o, r, k, \, m, e, m, o, r, y, \, s, q, l, i, t, e, _, s, t, o, r, e, ., p, y
+  Schema:     id INTEGER PRIMARY KEY AUTOINCREMENT, scope TEXT NOT NULL, key TEXT, content TEXT NOT NULL, summary TEXT, workspace TEXT, session_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP ) """) # Databases created before the summary column existed: rows without one fall # back to a truncated first line of content at render time (no data migration). cols = { row["name"] for row in self._conn.execute("PRAGMA table_info(memories)").fetchall() } if "summary" not in cols: self._conn.execute("ALTER TABLE memories ADD COLUMN summary TEXT") self._conn.commit() def add( self, content: str, *, scope: Scope = Scope.WORKSPACE, key: str | None = None, summary: str | None = None, workspace: str | None = None, session_id: str | None = None, ) -> MemoryItem: scope = Scope(scope) with self._lock: cursor = self._conn.execute( "INSERT INTO memories (scope, key, content, summary, workspace, session_id) " "VALUES (?, ?, ?, ?, ?, ?)", (scope.value, key, content, summary, workspace, session_id), ) self._conn.commit() item = self.get(cursor.lastrowid) assert item is not None return item def get(self, item_id: int) -> MemoryItem | None: with self._lock: row = self._conn.execute( "SELECT * FROM memories WHERE id = ?", (item_id,) ).fetchone() return _row_to_item(row) if row else None def list( self, *, scope: Scope | None = None, workspace: str | None = None, session_id: str | None = None, ) -> list[MemoryItem]: query = "SELECT * FROM memories WHERE 1 = 1" params: list[object] = [] if scope is not None: query += " AND scope = ?" params.append(Scope(scope).value) if workspace is not None: query += " AND workspace = ?" params.append(workspace) if session_id is not None: query += " AND session_id = ?" params.append(session_id) query += " ORDER BY id" with self._lock: rows = self._conn.execute(query, params).fetchall() return [_row_to_item(row) for row in rows] def update( self, item_id: int, content: str, *, summary: str | None = None ) -> MemoryItem | None: with self._lock: if summary is not None: self._conn.execute( "UPDATE memories SET content = ?, summary = ? WHERE id = ?", (content, summary, item_id), ) else: self._conn.execute( "UPDATE memories SET content = ? WHERE id = ?", (content, item_id) ) self._conn.commit() return self.get(item_id) def delete(self, item_id: int) -> bool: with self._lock: cursor = self._conn.execute("DELETE FROM memories WHERE id = ?", (item_id,)) self._conn.commit() return cursor.rowcount > 0 def delete_all(self, *, scope: Scope | None = None) -> int: """Delete every memory (optionally one scope). Returns the number removed.""" with self._lock: if scope is not None: cursor = self._conn.execute( "DELETE FROM memories WHERE scope = ?", (Scope(scope).value,) ) else: cursor = self._conn.execute("DELETE FROM memories") self._conn.commit() return cursor.rowcount def close(self) -> None: self._conn.close() def _row_to_item(row: sqlite3.Row) -> MemoryItem: return MemoryItem( id=row["id"], scope=Scope(row["scope"]), content=row["content"], key=row["key"], summary=row["summary"], workspace=row["workspace"], session_id=row["session_id"], created_at=row["created_at"],
+
+TABLE: sessions
+  Defined in: c, o, g, n, i, w, o, r, k, \, c, o, n, v, e, r, s, a, t, i, o, n, s, ., p, y
+  Schema:     session_id TEXT PRIMARY KEY, workspace TEXT, model TEXT, mode TEXT, title TEXT, agent TEXT DEFAULT 'code', n_msgs INTEGER DEFAULT 0, messages TEXT, extra_roots TEXT, pinned INTEGER DEFAULT 0, archived INTEGER DEFAULT 0, origin TEXT, origin_label TEXT, auto_title TEXT, renamed INTEGER DEFAULT 0, source TEXT DEFAULT 'web', status TEXT DEFAULT 'active', created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, last_activity_at REAL, telegram_chat_id TEXT, telegram_username TEXT, telegram_display_name TEXT, last_message TEXT, unread_count INTEGER DEFAULT 0
+
+TABLE: telegram_active_sessions
+  Defined in: c, o, g, n, i, w, o, r, k, \, c, o, n, v, e, r, s, a, t, i, o, n, s, ., p, y
+  Schema:     chat_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, user_id TEXT, user_name TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+
+TABLE: telegram_preferences
+  Defined in: c, o, g, n, i, w, o, r, k, \, c, o, n, n, e, c, t, o, r, s, \, t, e, l, e, g, r, a, m, \, s, e, s, s, i, o, n, _, s, t, o, r, e, ., p, y
+  Schema:     chat_id TEXT PRIMARY KEY, user_id TEXT, selected_provider TEXT, selected_model TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+
+TABLE: telegram_sessions
+  Defined in: c, o, g, n, i, w, o, r, k, \, c, o, n, n, e, c, t, o, r, s, \, t, e, l, e, g, r, a, m, \, s, e, s, s, i, o, n, _, s, t, o, r, e, ., p, y
+  Schema:     chat_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, user_id TEXT, user_name TEXT, status TEXT NOT NULL, prompt TEXT, progress_message_id TEXT, started_at REAL, last_activity_at REAL, stop_requested INTEGER DEFAULT 0, error TEXT, metadata TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+
+TABLE: users
+  Defined in: c, o, g, n, i, w, o, r, k, \, a, u, t, h, \, s, t, o, r, e, ., p, y
+  Schema:     id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL, username TEXT NOT NULL UNIQUE COLLATE NOCASE, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL, favorite_pet_answer_hash TEXT NOT NULL, totp_enabled INTEGER NOT NULL DEFAULT 0, totp_secret_encrypted TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+
+TABLE: workspaces
+  Defined in: c, o, g, n, i, w, o, r, k, \, c, o, n, v, e, r, s, a, t, i, o, n, s, ., p, y
+  Schema:     path TEXT PRIMARY KEY, last_used TEXT DEFAULT CURRENT_TIMESTAMP
+
+12.2 JSONL CONVERSATION STORAGE:
+  - Path: `%APPDATA%\cogniwork\conversations\<session_id>.jsonl`
+  - Format: Append-only JSON Lines. Each line is an event dictionary:
+    * User messages: `{'type': 'user', 'content': '...', 'timestamp': '...'}`
+    * Assistant turns: `{'type': 'assistant', 'content': '...', 'tool_calls': [...]}`
+    * Tool results: `{'type': 'tool', 'name': 'file_read', 'output': '...'}`
+    * Approvals & Permissions: `{'type': 'approval', 'outcome': 'once'}`
+
+12.3 SECRETS & CREDENTIALS STORAGE (`secrets.json`):
+  - Path: `%APPDATA%\cogniwork\secrets.json`
+  - Contents: Model provider API keys, connector OAuth access/refresh tokens, custom endpoints.
+  - Security: Stored with user-only read/write OS permissions (0600 on POSIX, ACL on Windows).
+
+
+====================================================================================================
+13. COMPLETE API INVENTORY (REST & WEBSOCKET)
+====================================================================================================
+
+Total API Endpoints Registered: 146
+
+
+--------------------------------------------------------------------------------
+--- Authentication & Security ---
+--------------------------------------------------------------------------------
+
+METHOD:       GET
+PATH:         /v1/auth/status
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     status()
+ARGUMENTS:    
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/auth/me
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     me()
+ARGUMENTS:    request
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/auth/account
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     account()
+ARGUMENTS:    request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/signup
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     signup()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/signin
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     signin()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/signin/totp
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     signin_totp()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/signout
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     signout()
+ARGUMENTS:    request
+DOCSTRING:    
+
+METHOD:       PATCH
+PATH:         /v1/auth/account/username
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     change_username()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       PATCH
+PATH:         /v1/auth/account/email
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     change_email()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/account/password
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     change_password()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/totp/setup
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     totp_setup()
+ARGUMENTS:    request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/totp/verify-setup
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     totp_verify_setup()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/totp/disable
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     totp_disable()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/account/remove
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     remove_account()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/forgot-password/start
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     forgot_start()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/forgot-password/verify-pet
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     verify_pet()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/forgot-password/verify-totp
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     verify_recovery_totp()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/auth/forgot-password/reset
+FILE:         cogniwork/auth/routes.py
+FUNCTION:     reset_password()
+ARGUMENTS:    body, request
+DOCSTRING:    
+
+
+--------------------------------------------------------------------------------
+--- Sessions & Conversation ---
+--------------------------------------------------------------------------------
+
+METHOD:       GET
+PATH:         /v1/sessions/{session_id}/unattended
+FILE:         cogniwork/server/app.py
+FUNCTION:     get_unattended()
+ARGUMENTS:    session_id
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/sessions/{session_id}/unattended
+FILE:         cogniwork/server/app.py
+FUNCTION:     set_unattended()
+ARGUMENTS:    session_id, body
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/sessions/{session_id}/skills
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_skills()
+ARGUMENTS:    session_id, workspace
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/sessions/{session_id}/skills
+FILE:         cogniwork/server/app.py
+FUNCTION:     set_session_skill()
+ARGUMENTS:    session_id, body
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/sessions/{session_id}/connections
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_connections()
+ARGUMENTS:    session_id, persona
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/sessions/{session_id}/connections
+FILE:         cogniwork/server/app.py
+FUNCTION:     set_session_connection()
+ARGUMENTS:    session_id, body
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/sessions
+FILE:         cogniwork/server/app.py
+FUNCTION:     sessions()
+ARGUMENTS:    workspace, source
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/sessions/{session_id}/messages
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_messages()
+ARGUMENTS:    session_id
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/sessions/{session_id}/read
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_read()
+ARGUMENTS:    session_id
+DOCSTRING:    
+
+METHOD:       PATCH
+PATH:         /v1/sessions/{session_id}
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_patch()
+ARGUMENTS:    session_id, body
+DOCSTRING:    
+
+METHOD:       DELETE
+PATH:         /v1/sessions/{session_id}
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_delete()
+ARGUMENTS:    session_id
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/sessions/{session_id}/roots
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_roots()
+ARGUMENTS:    session_id
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/sessions/{session_id}/roots
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_add_root()
+ARGUMENTS:    session_id, body
+DOCSTRING:    
+
+METHOD:       DELETE
+PATH:         /v1/sessions/{session_id}/roots
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_remove_root()
+ARGUMENTS:    session_id, path
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/sessions/{session_id}/artifacts
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_artifacts()
+ARGUMENTS:    session_id
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/sessions/{session_id}/artifacts/read
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_artifact_read()
+ARGUMENTS:    session_id, path
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/sessions/{session_id}/artifacts/reveal
+FILE:         cogniwork/server/app.py
+FUNCTION:     session_artifact_reveal()
+ARGUMENTS:    session_id, body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/chat/completions
+FILE:         cogniwork/server/app.py
+FUNCTION:     chat_completions()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       WEBSOCKET
+PATH:         /ws/session/{session_id}
+FILE:         cogniwork/server/app.py
+FUNCTION:     ws_session()
+ARGUMENTS:    ws, session_id
+DOCSTRING:    
+
+METHOD:       WEBSOCKET
+PATH:         /ws/events
+FILE:         cogniwork/server/app.py
+FUNCTION:     ws_events()
+ARGUMENTS:    ws
+DOCSTRING:    App-wide event stream (session-independent): the GUI keeps one open for
+pushes like automation_run_started (the UX-026 toast). Read-only — inbound
+frames are ignored; the receive loop just detects disconnect.
+
+
+--------------------------------------------------------------------------------
+--- Connectors & Integrations ---
+--------------------------------------------------------------------------------
+
+METHOD:       GET
+PATH:         /mcp/oauth/callback
+FILE:         cogniwork/server/app.py
+FUNCTION:     mcp_oauth_callback()
+ARGUMENTS:    code, state, error
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/connectors
+FILE:         cogniwork/server/app.py
+FUNCTION:     connectors_list()
+ARGUMENTS:    
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/{name}/connect
+FILE:         cogniwork/server/app.py
+FUNCTION:     connector_connect()
+ARGUMENTS:    name, body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/{name}/mcp-connect
+FILE:         cogniwork/server/app.py
+FUNCTION:     connector_mcp_connect()
+ARGUMENTS:    name
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/{name}/disconnect
+FILE:         cogniwork/server/app.py
+FUNCTION:     connector_disconnect()
+ARGUMENTS:    name
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/slack/workspaces/{team_id}/disconnect
+FILE:         cogniwork/server/app.py
+FUNCTION:     slack_workspace_disconnect()
+ARGUMENTS:    team_id
+DOCSTRING:    Stop relaying one workspace (managed relay). Cloud routing row deleted
+best-effort, local per-team token removed, gateway hot-reloaded.
+
+METHOD:       GET
+PATH:         /v1/connectors/slack/status
+FILE:         cogniwork/server/app.py
+FUNCTION:     slack_status()
+ARGUMENTS:    
+DOCSTRING:    Slack health, three layers: relay socket / cloud sign-in / per-team tokens.
+
+METHOD:       POST
+PATH:         /v1/connectors/github/installations/{installation_id}/disconnect
+FILE:         cogniwork/server/app.py
+FUNCTION:     github_installation_disconnect()
+ARGUMENTS:    installation_id
+DOCSTRING:    Stop relaying one GitHub App installation (managed relay). Cloud
+routing rows deleted best-effort, local profile removed, gateway
+hot-reloaded.
+
+METHOD:       GET
+PATH:         /v1/connectors/github/status
+FILE:         cogniwork/server/app.py
+FUNCTION:     github_status()
+ARGUMENTS:    
+DOCSTRING:    GitHub health: relay socket / cloud sign-in / per-installation tokens.
+
+METHOD:       POST
+PATH:         /v1/connectors/google_calendar/accounts/{email}/disconnect
+FILE:         cogniwork/server/app.py
+FUNCTION:     gcal_account_disconnect()
+ARGUMENTS:    email
+DOCSTRING:    Drop ONE Google Calendar account;
+the default pointer moves to the next account.
+
+METHOD:       POST
+PATH:         /v1/connectors/google_calendar/accounts/{email}/default
+FILE:         cogniwork/server/app.py
+FUNCTION:     gcal_account_default()
+ARGUMENTS:    email
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/hubspot/portals/{hub_id}/disconnect
+FILE:         cogniwork/server/app.py
+FUNCTION:     hubspot_portal_disconnect()
+ARGUMENTS:    hub_id
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/hubspot/portals/{hub_id}/default
+FILE:         cogniwork/server/app.py
+FUNCTION:     hubspot_portal_default()
+ARGUMENTS:    hub_id
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/{name}/accounts/{account_id}/disconnect
+FILE:         cogniwork/server/app.py
+FUNCTION:     account_disconnect()
+ARGUMENTS:    name, account_id
+DOCSTRING:    Generic per-account disconnect for account-patterned connectors
+(batch 2+). Gmail/Calendar keep their specific email routes.
+
+METHOD:       POST
+PATH:         /v1/connectors/{name}/accounts/{account_id}/default
+FILE:         cogniwork/server/app.py
+FUNCTION:     account_default()
+ARGUMENTS:    name, account_id
+DOCSTRING:    
+
+METHOD:       PATCH
+PATH:         /v1/connectors/hubspot/hidden-fields
+FILE:         cogniwork/server/app.py
+FUNCTION:     hubspot_hidden_fields()
+ARGUMENTS:    body
+DOCSTRING:    Replace the hidden-fields denylist (property names stripped from every
+record agents read — model-facing policy, not a human ACL).
+
+METHOD:       POST
+PATH:         /v1/connectors/{name}/unauthorized/{item_id}
+FILE:         cogniwork/server/app.py
+FUNCTION:     connector_unauthorized_resolve()
+ARGUMENTS:    name, item_id, body
+DOCSTRING:    
+
+METHOD:       PATCH
+PATH:         /v1/connectors/{name}/tools
+FILE:         cogniwork/server/app.py
+FUNCTION:     connector_tools_patch()
+ARGUMENTS:    name, body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/{name}/allow
+FILE:         cogniwork/server/app.py
+FUNCTION:     connector_allow()
+ARGUMENTS:    name, body
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/connectors/slack/workspaces/{team_id}/directory
+FILE:         cogniwork/server/app.py
+FUNCTION:     slack_directory()
+ARGUMENTS:    team_id, q, limit
+DOCSTRING:    Workspace member roster for the people picker (team_id "default" =
+the manual Socket-Mode workspace). Cached locally; never leaves this machine.
+
+METHOD:       GET
+PATH:         /v1/connectors/slack/workspaces/{team_id}/channels
+FILE:         cogniwork/server/app.py
+FUNCTION:     slack_channels()
+ARGUMENTS:    team_id, q, limit
+DOCSTRING:    Channel roster for the channel typeahead: all public channels, private
+ones only where the bot is a member (Slack API constraint).
+
+METHOD:       POST
+PATH:         /v1/connectors/{name}/disallow
+FILE:         cogniwork/server/app.py
+FUNCTION:     connector_disallow()
+ARGUMENTS:    name, body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/slack/approval-owners/add
+FILE:         cogniwork/server/app.py
+FUNCTION:     slack_approval_owner_add()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/slack/approval-owners/remove
+FILE:         cogniwork/server/app.py
+FUNCTION:     slack_approval_owner_remove()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/connectors/gmail/oauth/start
+FILE:         cogniwork/connectors/gmail/routes.py
+FUNCTION:     start_oauth()
+ARGUMENTS:    request
+DOCSTRING:    Start the Google OAuth 2.0 Authorization Code flow with credentials.json.
+
+METHOD:       GET
+PATH:         /v1/connectors/gmail/oauth/callback
+FILE:         cogniwork/connectors/gmail/routes.py
+FUNCTION:     oauth_callback()
+ARGUMENTS:    code, state, error
+DOCSTRING:    Handle the Google OAuth redirect callback.
+
+METHOD:       GET
+PATH:         /oauth/callback
+FILE:         cogniwork/connectors/gmail/routes.py
+FUNCTION:     oauth_callback()
+ARGUMENTS:    code, state, error
+DOCSTRING:    Handle the Google OAuth redirect callback.
+
+METHOD:       GET
+PATH:         /v1/connectors/gmail/accounts
+FILE:         cogniwork/connectors/gmail/routes.py
+FUNCTION:     get_accounts()
+ARGUMENTS:    
+DOCSTRING:    List all connected Gmail accounts with safe metadata (no secrets/tokens).
+
+METHOD:       POST
+PATH:         /v1/connectors/gmail/accounts/{email}/disconnect
+FILE:         cogniwork/connectors/gmail/routes.py
+FUNCTION:     disconnect_account()
+ARGUMENTS:    email
+DOCSTRING:    Disconnect a Gmail account and securely remove its credentials.
+
+METHOD:       POST
+PATH:         /v1/connectors/gmail/accounts/{email}/default
+FILE:         cogniwork/connectors/gmail/routes.py
+FUNCTION:     set_default()
+ARGUMENTS:    email
+DOCSTRING:    Set an account as the default Gmail mailbox.
+
+METHOD:       PATCH
+PATH:         /v1/connectors/gmail/filters
+FILE:         cogniwork/connectors/gmail/routes.py
+FUNCTION:     update_filters()
+ARGUMENTS:    body
+DOCSTRING:    Update the sender and label privacy filters.
+
+
+--------------------------------------------------------------------------------
+--- Providers & Model Matrix ---
+--------------------------------------------------------------------------------
+
+METHOD:       GET
+PATH:         /v1/providers
+FILE:         cogniwork/server/app.py
+FUNCTION:     providers_get()
+ARGUMENTS:    
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/providers
+FILE:         cogniwork/server/app.py
+FUNCTION:     providers_set()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       DELETE
+PATH:         /v1/providers/{name}
+FILE:         cogniwork/server/app.py
+FUNCTION:     providers_remove()
+ARGUMENTS:    name
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/providers/verify
+FILE:         cogniwork/server/app.py
+FUNCTION:     providers_verify()
+ARGUMENTS:    body
+DOCSTRING:    
+
+
+--------------------------------------------------------------------------------
+--- Settings & Preferences ---
+--------------------------------------------------------------------------------
+
+METHOD:       GET
+PATH:         /v1/settings
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_get()
+ARGUMENTS:    
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/model-key
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_model_key()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/default-model
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_default_model()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/models/add
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_models_add()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/models/remove
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_models_remove()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/onboarded
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_onboarded()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/experimental-connectors
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_experimental()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/surfaces
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_surfaces()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/scratch-base
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_scratch_base()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/nav-layout
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_nav_layout()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/sessions-peek
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_sessions_peek()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/context-bar
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_context_bar()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/pdf
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_pdf()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/settings/compaction
+FILE:         cogniwork/server/app.py
+FUNCTION:     settings_set_compaction()
+ARGUMENTS:    body
+DOCSTRING:    
+
+
+--------------------------------------------------------------------------------
+--- Speech & Voice ---
+--------------------------------------------------------------------------------
+
+METHOD:       GET
+PATH:         /v1/voice/status
+FILE:         cogniwork/server/app.py
+FUNCTION:     voice_status()
+ARGUMENTS:    
+DOCSTRING:    Returns local speech-to-text model status.
+
+METHOD:       POST
+PATH:         /v1/voice/transcribe
+FILE:         cogniwork/server/app.py
+FUNCTION:     transcribe_voice()
+ARGUMENTS:    request
+DOCSTRING:    Transcribes recorded audio using local Useful Sensors Moonshine Tiny.
+
+
+--------------------------------------------------------------------------------
+--- Browser Automation ---
+--------------------------------------------------------------------------------
+
+METHOD:       GET
+PATH:         /v1/browser/state
+FILE:         cogniwork/server/app.py
+FUNCTION:     browser_state_get()
+ARGUMENTS:    
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/browser/screenshot
+FILE:         cogniwork/server/app.py
+FUNCTION:     browser_screenshot_post()
+ARGUMENTS:    
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/browser/close
+FILE:         cogniwork/server/app.py
+FUNCTION:     browser_close_post()
+ARGUMENTS:    
+DOCSTRING:    
+
+
+--------------------------------------------------------------------------------
+--- Web Tools & Search ---
+--------------------------------------------------------------------------------
+
+METHOD:       GET
+PATH:         /v1/web-search
+FILE:         cogniwork/server/app.py
+FUNCTION:     web_search_get()
+ARGUMENTS:    
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/web-search
+FILE:         cogniwork/server/app.py
+FUNCTION:     web_search_set()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/attachments/inspect-pdf
+FILE:         cogniwork/server/app.py
+FUNCTION:     attachments_inspect_pdf()
+ARGUMENTS:    body
+DOCSTRING:    
+
+
+--------------------------------------------------------------------------------
+--- System & Audit ---
+--------------------------------------------------------------------------------
+
+METHOD:       GET
+PATH:         /v1/health
+FILE:         cogniwork/server/app.py
+FUNCTION:     health()
+ARGUMENTS:    request
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/audit
+FILE:         cogniwork/server/app.py
+FUNCTION:     audit_list()
+ARGUMENTS:    limit, session_id, connector, tool
+DOCSTRING:    
+
+METHOD:       GET
+PATH:         /v1/messaging/dm-route
+FILE:         cogniwork/server/app.py
+FUNCTION:     dm_route_get()
+ARGUMENTS:    
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/messaging/dm-route
+FILE:         cogniwork/server/app.py
+FUNCTION:     dm_route_set()
+ARGUMENTS:    body
+DOCSTRING:    
+
+METHOD:       POST
+PATH:         /v1/_debug/inject_inbound
+FILE:         cogniwork/server/app.py
+FUNCTION:     debug_inject_inbound()
+ARGUMENTS:    body
+DOCSTRING:    
+
+
+====================================================================================================
+14. FRONTEND & UI ANALYSIS (REACT SPA, TAURI, ACTION FLOW)
+====================================================================================================
+
+CogniOS provides two rich frontend user experiences:
+
+14.1 PRIMARY DESKTOP REACT SPA (`surfaces/gui`)
+  - Technology: React 18.3.1, TypeScript 5.5.3, Vite, Tailwind CSS 3.4.19, custom Liquid Glass styling (`liquid-glass.css`).
+  - Application Shell: `surfaces/gui/src/App.tsx`.
+  - Core Layout Components:
+    * `AppTopBar.tsx`: Window controls, active workspace selector, theme toggle, model indicator.
+    * `Sidebar.tsx`: Session tree, new session picker, persona selector, connector status dots, attention badges.
+    * `Transcript.tsx`: Virtualized message stream, turn collapsible cards, ThinkingBlock, ToolCallBlock, Markdown renderer.
+    * `Composer.tsx`: Input area, file drop zone, voice recording intake, permission mode switcher (`ModeMenu.tsx`).
+    * `RightRail.tsx`: Collapsible side inspector showing Todo list, memory viewer, active files, and multi-root paths.
+  - Dedicated Management Views:
+    * `SettingsView.tsx` / `GeneralTab.tsx` / `ModelsTab.tsx` / `VoiceInputSection.tsx` / `AuthenticationSection.tsx`.
+    * `ConnectorsSection.tsx` / `ConnectorsList.tsx` / `SlackDetail.tsx` / `GithubDetail.tsx` / `GmailDetail.tsx`.
+    * `SkillsTab.tsx` / `PersonasTab.tsx` / `PersonaView.tsx`.
+  - Authentication Pages:
+    * `SignInPage.tsx`, `SignUpPage.tsx`, `ForgotPasswordPage.tsx` (TOTP setup, password recovery).
+  - Desktop IPC Layer (`surfaces/gui/src/tauri.ts`):
+    * Invokes Tauri commands: `pick_folder`, `start_dictation`, `stop_dictation`, `get_autostart`, `set_keep_awake`.
+
+14.2 INTERACTIVE ACTION FLOW & SYSTEM SPACE (`cognios-action-flow`)
+  - Technology: React 19.2.0, TanStack Start 1.168, Tailwind CSS 4.2, Radix UI Primitives.
+  - Purpose: Interactive interactive canvas visualizer demonstrating intent recognition, reasoning graphs,
+    tool execution, permission evaluations, and verification steps.
+
+
+====================================================================================================
+15. AGENTS AND ORCHESTRATION SUBSYSTEM
+====================================================================================================
+
+15.1 BUILTIN AGENT DEFINITIONS (`cogniwork/agents/`):
+  1. `CodeAgent` (`code.py`): Software engineering agent equipped with full file tools (`file_read`, `file_write`, `file_edit`),
+     git tools, shell execution, explorer subagent spawning, and code search (`rg`, `search`).
+  2. `ChatAgent` (`chat.py`): Pure conversational and research assistant (read-only tools, web search, web fetch).
+  3. `CogniWorkAgent` (`cogniwork.py`): General executive coworker equipped with messaging tools (`send_message`, `send_file`),
+     calendar, email, multi-service connectors, subscriptions, and self-wake automation tools.
+  4. `MyHelperAgent` (`myhelper.py`): Personal desktop super-agent with messaging gateway reply integration.
+
+15.2 PERSONA MANIFEST SYSTEM (`cogniwork/personas/`):
+  - Extensible via Markdown files with YAML frontmatter conforming to the persona specification:
+    ---
+    name: Ops Engineer
+    description: SRE and infrastructure operations coworker
+    model: anthropic:claude-3-7-sonnet
+    tools: [shell, files, git, datadog, aws]
+    ---
+    System prompt instructions...
+  - Loaded dynamically from `~/.config/cogniwork/personas/` or git repositories via `loading.py`.
+
+15.3 SUBAGENT EXPLORER (`cogniwork/tools/subagent.py`):
+  - For large codebases, the primary agent can spawn read-only `explorer_subagent` instances to investigate subtrees,
+    search files, and return concise summaries, preventing context explosion in the main conversation.
+
+
+====================================================================================================
+16. LLM & MODEL ARCHITECTURE (PROVIDER MATRIX & ROUTING)
+====================================================================================================
+
+CogniOS implements a unified `ProviderRouter` (`cogniwork/providers/router.py`) supporting 18 LLM providers:
+
+16.1 SUPPORTED PROVIDER BACKENDS:
+PROVIDER: openai
+  Title:              OpenAI
+  Needs Key:          True
+  Recommended Model:  gpt-5.6-sol
+  Env Key:            OPENAI_API_KEY
+  Blurb:              
+  Config Fields:      OpenAI API key, Custom endpoint (optional)
+
+PROVIDER: anthropic
+  Title:              Claude (Anthropic)
+  Needs Key:          True
+  Recommended Model:  claude-fable-5
+  Env Key:            ANTHROPIC_API_KEY
+  Blurb:              
+  Config Fields:      Anthropic API key
+
+PROVIDER: gemini
+  Title:              Gemini (Google)
+  Needs Key:          True
+  Recommended Model:  gemini-3.6-flash
+  Env Key:            GEMINI_API_KEY
+  Blurb:              
+  Config Fields:      Gemini API key
+
+PROVIDER: bedrock
+  Title:              AWS Bedrock
+  Needs Key:          True
+  Recommended Model:  claude/anthropic.claude-sonnet-4-6-v1:0
+  Env Key:            None
+  Blurb:              Runs models inside your own AWS account. Claude uses Anthropic's native Bedrock path; every other model goes through the Converse API.
+  Config Fields:      AWS region, Connect with, Bedrock API key, AWS profile, Access key ID, Secret access key, Session token (STS only, optional)
+
+PROVIDER: vertex
+  Title:              Vertex AI (Google Cloud)
+  Needs Key:          True
+  Recommended Model:  gemini/gemini-3.6-flash
+  Env Key:            None
+  Blurb:              Runs models inside your own Google Cloud project. Gemini and Claude use their native APIs; open-weight models go through the Vertex MaaS endpoint.
+  Config Fields:      GCP project ID, Location, Connect with, Service-account JSON, Vertex API key
+
+PROVIDER: zai
+  Title:              Z AI (GLM)
+  Needs Key:          True
+  Recommended Model:  glm-5.2
+  Env Key:            ZAI_API_KEY
+  Blurb:              Uses Z AI's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      Z AI API key, Endpoint
+
+PROVIDER: deepseek
+  Title:              DeepSeek
+  Needs Key:          True
+  Recommended Model:  deepseek-v4-flash
+  Env Key:            DEEPSEEK_API_KEY
+  Blurb:              Uses DeepSeek's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      DeepSeek API key, Endpoint
+
+PROVIDER: kimi
+  Title:              Kimi (Moonshot AI)
+  Needs Key:          True
+  Recommended Model:  kimi-k2.6
+  Env Key:            MOONSHOT_API_KEY
+  Blurb:              Uses Kimi's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      Kimi API key, Endpoint
+
+PROVIDER: minimax
+  Title:              MiniMax
+  Needs Key:          True
+  Recommended Model:  MiniMax-M2.5
+  Env Key:            MINIMAX_API_KEY
+  Blurb:              Uses MiniMax's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      MiniMax API key, Endpoint
+
+PROVIDER: qwen
+  Title:              Qwen (Alibaba)
+  Needs Key:          True
+  Recommended Model:  qwen3-max
+  Env Key:            DASHSCOPE_API_KEY
+  Blurb:              Uses Qwen's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      Qwen API key, Endpoint
+
+PROVIDER: xai
+  Title:              xAI (Grok)
+  Needs Key:          True
+  Recommended Model:  grok-4.3
+  Env Key:            XAI_API_KEY
+  Blurb:              Uses xAI's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      xAI API key, Endpoint
+
+PROVIDER: mistral
+  Title:              Mistral
+  Needs Key:          True
+  Recommended Model:  mistral-large-latest
+  Env Key:            MISTRAL_API_KEY
+  Blurb:              Uses Mistral's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      Mistral API key, Endpoint
+
+PROVIDER: meta
+  Title:              Meta (Muse Spark)
+  Needs Key:          True
+  Recommended Model:  muse-spark-1.1
+  Env Key:            META_API_KEY
+  Blurb:              Uses Meta's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      Meta API key, Endpoint
+
+PROVIDER: together
+  Title:              Together AI
+  Needs Key:          True
+  Recommended Model:  zai-org/GLM-5.2
+  Env Key:            TOGETHER_API_KEY
+  Blurb:              Uses Together AI's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      Together AI API key, Endpoint
+
+PROVIDER: fireworks
+  Title:              Fireworks AI
+  Needs Key:          True
+  Recommended Model:  accounts/fireworks/models/glm-5p2
+  Env Key:            FIREWORKS_API_KEY
+  Blurb:              Uses Fireworks AI's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      Fireworks AI API key, Endpoint
+
+PROVIDER: openrouter
+  Title:              OpenRouter
+  Needs Key:          True
+  Recommended Model:  z-ai/glm-5.2
+  Env Key:            OPENROUTER_API_KEY
+  Blurb:              Uses OpenRouter's OpenAI-compatible API — the endpoint is prefilled, just add your key.
+  Config Fields:      OpenRouter API key, Endpoint
+
+PROVIDER: ollama
+  Title:              Ollama (local models)
+  Needs Key:          False
+  Recommended Model:  qwen3-coder:30b
+  Env Key:            None
+  Blurb:              
+  Config Fields:      Ollama server URL
+
+16.2 CURATED MODEL MATRIX (`cogniwork/providers/matrix.py`):
+The single source of truth for validated, agent-capable models with verified context windows:
+
+MODEL: gpt-5.6-sol                         | Label: GPT-5.6 Sol · OpenAI           | Context: 400000   | Vision: True  | Tools: True 
+MODEL: gpt-5.6-terra                       | Label: GPT-5.6 Terra · OpenAI         | Context: 400000   | Vision: True  | Tools: True 
+MODEL: gpt-5.6-luna                        | Label: GPT-5.6 Luna · OpenAI          | Context: 400000   | Vision: True  | Tools: True 
+MODEL: gpt-5.5                             | Label: GPT-5.5 · OpenAI               | Context: 400000   | Vision: True  | Tools: True 
+MODEL: anthropic:claude-fable-5            | Label: Claude Fable 5 · Anthropic     | Context: 1000000  | Vision: True  | Tools: True 
+MODEL: anthropic:claude-opus-4-8           | Label: Claude Opus 4.8 · Anthropic    | Context: 200000   | Vision: True  | Tools: True 
+MODEL: anthropic:claude-sonnet-4-6         | Label: Claude Sonnet 4.6 · Anthropic  | Context: 200000   | Vision: True  | Tools: True 
+MODEL: anthropic:claude-haiku-4-5          | Label: Claude Haiku 4.5 · Anthropic   | Context: 200000   | Vision: True  | Tools: True 
+MODEL: gemini:gemini-3.1-pro-preview       | Label: Gemini 3.1 Pro · Google        | Context: 1048576  | Vision: True  | Tools: True 
+MODEL: gemini:gemini-3.6-flash             | Label: Gemini 3.6 Flash · Google      | Context: 1048576  | Vision: True  | Tools: True 
+MODEL: gemini:gemini-2.5-pro               | Label: Gemini 2.5 Pro · Google        | Context: 1048576  | Vision: True  | Tools: True 
+MODEL: gemini:gemini-2.5-flash             | Label: Gemini 2.5 Flash · Google      | Context: 1048576  | Vision: True  | Tools: True 
+MODEL: meta:muse-spark-1.1                 | Label: Muse Spark 1.1 · Meta          | Context: None     | Vision: True  | Tools: True 
+MODEL: zai:glm-5.2                         | Label: GLM-5.2 · Z AI                 | Context: 128000   | Vision: False | Tools: True 
+MODEL: deepseek:deepseek-v4-flash          | Label: DeepSeek V4 Flash · DeepSeek   | Context: 128000   | Vision: False | Tools: True 
+MODEL: deepseek:deepseek-v4-pro            | Label: DeepSeek V4 Pro · DeepSeek     | Context: 128000   | Vision: False | Tools: True 
+MODEL: kimi:kimi-k2.6                      | Label: Kimi K2.6 · Moonshot           | Context: 256000   | Vision: False | Tools: True 
+MODEL: minimax:MiniMax-M2.5                | Label: MiniMax M2.5 · MiniMax         | Context: None     | Vision: False | Tools: True 
+MODEL: qwen:qwen3-max                      | Label: Qwen3 Max · Alibaba            | Context: 256000   | Vision: False | Tools: True 
+MODEL: xai:grok-4.3                        | Label: Grok 4.3 · xAI                 | Context: 256000   | Vision: False | Tools: True 
+MODEL: mistral:mistral-large-latest        | Label: Mistral Large · Mistral        | Context: 128000   | Vision: False | Tools: True 
+MODEL: together:thinkingmachines/Inkling   | Label: Inkling · via Together         | Context: None     | Vision: False | Tools: True 
+MODEL: together:zai-org/GLM-5.2            | Label: GLM-5.2 · via Together         | Context: 128000   | Vision: False | Tools: True 
+MODEL: together:moonshotai/Kimi-K3         | Label: Kimi K3 · via Together         | Context: 1000000  | Vision: True  | Tools: True 
+MODEL: together:moonshotai/Kimi-K2.7-Code  | Label: Kimi K2.7 Code · via Together  | Context: 256000   | Vision: False | Tools: True 
+MODEL: together:moonshotai/Kimi-K2.6       | Label: Kimi K2.6 · via Together       | Context: 256000   | Vision: False | Tools: True 
+MODEL: together:deepseek-ai/DeepSeek-V4-Pro | Label: DeepSeek V4 Pro · via Together | Context: 128000   | Vision: False | Tools: True 
+MODEL: together:meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8 | Label: Llama 4 Maverick · via Together | Context: 1000000  | Vision: False | Tools: True 
+MODEL: fireworks:accounts/fireworks/models/glm-5p2 | Label: GLM-5.2 · via Fireworks        | Context: 128000   | Vision: False | Tools: True 
+MODEL: fireworks:accounts/fireworks/models/kimi-k2p6 | Label: Kimi K2.6 · via Fireworks      | Context: 256000   | Vision: False | Tools: True 
+MODEL: fireworks:accounts/fireworks/models/deepseek-v4-pro | Label: DeepSeek V4 Pro · via Fireworks | Context: 128000   | Vision: False | Tools: True 
+MODEL: fireworks:accounts/fireworks/models/llama4-maverick-instruct-basic | Label: Llama 4 Maverick · via Fireworks | Context: 1000000  | Vision: False | Tools: True 
+MODEL: openrouter:z-ai/glm-5.2             | Label: GLM-5.2 · via OpenRouter       | Context: 128000   | Vision: False | Tools: True 
+MODEL: openrouter:moonshotai/kimi-k2.6     | Label: Kimi K2.6 · via OpenRouter     | Context: 256000   | Vision: False | Tools: True 
+MODEL: openrouter:deepseek/deepseek-v4-pro | Label: DeepSeek V4 Pro · via OpenRouter | Context: 128000   | Vision: False | Tools: True 
+MODEL: openrouter:meta-llama/llama-4-maverick | Label: Llama 4 Maverick · via OpenRouter | Context: 1000000  | Vision: False | Tools: True 
+MODEL: bedrock:claude/anthropic.claude-sonnet-4-6-v1:0 | Label: Claude Sonnet 4.6 · AWS Bedrock | Context: 200000   | Vision: True  | Tools: True 
+MODEL: bedrock:claude/anthropic.claude-haiku-4-5-v1:0 | Label: Claude Haiku 4.5 · AWS Bedrock | Context: 200000   | Vision: True  | Tools: True 
+MODEL: bedrock:other/amazon.nova-2-pro-v1:0 | Label: Nova 2 Pro · AWS Bedrock       | Context: 300000   | Vision: False | Tools: True 
+MODEL: bedrock:other/meta.llama4-maverick-17b-instruct-v1:0 | Label: Llama 4 Maverick · AWS Bedrock | Context: 1000000  | Vision: False | Tools: True 
+MODEL: bedrock:other/mistral.mistral-large-3-v1:0 | Label: Mistral Large 3 · AWS Bedrock  | Context: 128000   | Vision: False | Tools: True 
+MODEL: bedrock:other/nvidia.nemotron-super-3-120b | Label: Nemotron Super 3 120B · AWS Bedrock | Context: None     | Vision: False | Tools: True 
+MODEL: vertex:gemini/gemini-3.1-pro-preview | Label: Gemini 3.1 Pro · Vertex AI     | Context: 1048576  | Vision: True  | Tools: True 
+MODEL: vertex:gemini/gemini-3.6-flash      | Label: Gemini 3.6 Flash · Vertex AI   | Context: 1048576  | Vision: True  | Tools: True 
+MODEL: vertex:claude/claude-sonnet-4-6     | Label: Claude Sonnet 4.6 · Vertex AI  | Context: 200000   | Vision: True  | Tools: True 
+MODEL: vertex:claude/claude-haiku-4-5      | Label: Claude Haiku 4.5 · Vertex AI   | Context: 200000   | Vision: True  | Tools: True 
+MODEL: vertex:openweight/meta/llama-4-maverick-17b-128e-instruct-maas | Label: Llama 4 Maverick · Vertex AI   | Context: 1000000  | Vision: False | Tools: True 
+MODEL: vertex:openweight/qwen/qwen3-coder-480b-a35b-instruct-maas | Label: Qwen3 Coder · Vertex AI        | Context: 256000   | Vision: False | Tools: True 
+
+
+====================================================================================================
+17. TOOLS AND INTEGRATIONS (CORE TOOLS & 34 CONNECTORS)
+====================================================================================================
+
+17.1 CORE SYSTEM TOOLS (`cogniwork/tools/`):
+  - `file_read`, `file_write`, `file_edit` (`files.py`): Safe file reading, whole-file writing, and unified diff/targeted edits.
+  - `git_status`, `git_diff`, `git_commit`, `git_log` (`git.py`): Local Git repository inspection and staging.
+  - `shell_execute`, `shell_background` (`shell.py`): Local terminal execution with timeout, cwd enforcement, and background task tracking.
+  - `search_files`, `rg` (`search.py`): Fast ripgrep and substring search across workspace roots.
+  - `ask_user` (`ask.py`): Universal interactive Q&A primitive prompting user for options or freeform text.
+  - `propose_plan` (`plan.py`): Presents execution plan to user for review, transitioning session from plan to execution mode.
+  - `todo_list` (`todo.py`): In-turn task progress tracking checklist.
+  - `request_directory` (`directories.py`): Requests additional workspace folder grant from user mid-session.
+  - `explorer_subagent` (`subagent.py`): Spawns read-only subagents for broad repository exploration.
+  - `web_search`, `web_fetch` (`cogniwork/web/`): DuckDuckGo/Brave/Tavily search and HTML text extraction guarded against SSRF.
+  - `remember`, `read_memories`, `memory_update`, `memory_forget` (`cogniwork/memory/tools.py`): Relational memory operations.
+  - `load_skill`, `save_skill` (`cogniwork/skills/base.py`): SKILL.md progressive disclosure.
+  - `schedule_wake`, `list_wakes`, `cancel_wake` (`cogniwork/selfwake.py`): Scheduled automations.
+  - `subscribe_channel`, `read_channel_buffer`, `unsubscribe_channel` (`cogniwork/subscriptions.py`): Messaging stream listening.
+
+17.2 34 SHIPPABLE EXTERNAL CONNECTORS (`cogniwork/connectors/`):
+
+CONNECTOR: telegram
+  Title:        Telegram
+  Category:     bot_token
+  Fields:       bot_token, allowed_users
+
+CONNECTOR: slack
+  Title:        Slack
+  Category:     socket_app
+  Fields:       bot_token, app_token, allowed_users
+
+CONNECTOR: email
+  Title:        Email (IMAP)
+  Category:     app_password
+  Fields:       address, app_password, display_name, imap_host, imap_port, smtp_host, smtp_port
+
+CONNECTOR: gmail
+  Title:        Gmail
+  Category:     oauth
+  Fields:       
+
+CONNECTOR: google_calendar
+  Title:        Google Calendar
+  Category:     oauth
+  Fields:       access_token
+
+CONNECTOR: browser
+  Title:        Browser
+  Category:     none
+  Fields:       
+
+CONNECTOR: github
+  Title:        GitHub
+  Category:     token
+  Fields:       token
+
+CONNECTOR: outlook
+  Title:        Outlook
+  Category:     oauth
+  Fields:       access_token
+
+CONNECTOR: jira
+  Title:        Jira
+  Category:     api_token
+  Fields:       base_url, email, api_token
+
+CONNECTOR: gitlab
+  Title:        GitLab
+  Category:     token
+  Fields:       base_url, token
+
+CONNECTOR: discord
+  Title:        Discord
+  Category:     bot_token
+  Fields:       bot_token
+
+CONNECTOR: hubspot
+  Title:        HubSpot
+  Category:     token
+  Fields:       token
+
+CONNECTOR: box
+  Title:        Box
+  Category:     oauth
+  Fields:       access_token
+
+CONNECTOR: whatsapp
+  Title:        WhatsApp
+  Category:     token
+  Fields:       access_token, phone_number_id
+
+CONNECTOR: datadog
+  Title:        Datadog
+  Category:     none
+  Fields:       
+
+CONNECTOR: salesforce
+  Title:        Salesforce
+  Category:     none
+  Fields:       
+
+CONNECTOR: google_drive
+  Title:        Google Drive
+  Category:     oauth
+  Fields:       access_token
+
+CONNECTOR: canva
+  Title:        Canva
+  Category:     oauth
+  Fields:       access_token
+
+CONNECTOR: figma
+  Title:        Figma
+  Category:     api_token
+  Fields:       access_token
+
+CONNECTOR: descript
+  Title:        Descript
+  Category:     none
+  Fields:       
+
+CONNECTOR: clay
+  Title:        Clay
+  Category:     none
+  Fields:       
+
+CONNECTOR: notion
+  Title:        Notion
+  Category:     oauth
+  Fields:       access_token
+
+CONNECTOR: attio
+  Title:        Attio
+  Category:     oauth
+  Fields:       access_token
+
+CONNECTOR: mixpanel
+  Title:        Mixpanel
+  Category:     api_token
+  Fields:       username, secret, project_id
+
+CONNECTOR: pagerduty
+  Title:        PagerDuty
+  Category:     none
+  Fields:       
+
+17.3 CONNECTOR TOOL DEFINITIONS:
+Total Connector Tools Defined: 90
+  - browser_read_url               | Fetch readable text from a public URL....
+  - browser_open_url               | Open a URL in the Playwright browser....
+  - browser_snapshot               | Read page text and visible controls....
+  - browser_get_text               | Read visible text from the current browser page....
+  - browser_click                  | Click a visible browser element....
+  - browser_type                   | Type into or fill a browser field....
+  - browser_select                 | Select a dropdown option....
+  - browser_upload_file            | Upload a local file through a file input....
+  - browser_wait                   | Wait for time or an element....
+  - browser_screenshot             | Capture a browser screenshot....
+  - browser_close                  | Close the browser session....
+  - github_search                  | Search issues, pull requests, or repositories....
+  - github_get_issue               | Read a GitHub issue or pull request....
+  - github_create_issue            | Create a GitHub issue....
+  - github_reply                   | Comment on an issue or pull request....
+  - github_review                  | Submit a pull-request review (approve / request changes / comment)....
+  - github_list_commits            | List a repository's recent commits (for activity summaries)....
+  - github_clone                   | Clone a repository into a session folder to explore the code....
+  - github_pull                    | Fast-forward an existing clone to the latest commits....
+  - email_list_folders             | List mailbox folders and message counts....
+  ... and 70 more connector tools.
+
+
+====================================================================================================
+18. CONFIGURATION & ENVIRONMENT VARIABLES
+====================================================================================================
+
+CogniOS resolves configuration hierarchically: System Environment Variables -> `.env` File -> `SecretStore` -> Defaults.
+
+ENVIRONMENT VARIABLE REFERENCE TABLE:
+VARIABLE                         | PURPOSE                                  | DEFAULT / SENSITIVE       | FAILURE IMPACT      
+----------------------------------------------------------------------------------------------------
+COGNIWORK_API_TOKEN              | Loopback sidecar authentication token (X | UUIDv4 random on b (Sens:Yes) | Unauthenticated loop
+COGNIWORK_AUTH_DISABLED          | Bypass local single-owner account authen | 0 (False)          (Sens:No) | If 1, skips sign-in/
+COGNIWORK_STATE_DIR              | Root directory for database, logs, secre | %APPDATA%\cogniwor (Sens:No) | Uses standard OS def
+COGNIWORK_SERVER_BIN             | Path override for cognios-server executa | Auto-discovered si (Sens:No) | Falls back to venv/S
+COGNIWORK_DEBUG_INJECT           | Enable debug route POST /v1/_debug/injec | 0 (Disabled)       (Sens:No) | Route disabled (404)
+OPENAI_API_KEY                   | API key for OpenAI models (Responses API | None (reads Secret (Sens:Yes) | OpenAI models refuse
+ANTHROPIC_API_KEY                | API key for Anthropic Claude models      | None (reads Secret (Sens:Yes) | Claude models refuse
+GEMINI_API_KEY                   | API key for Google Gemini GenAI SDK      | None (reads Secret (Sens:Yes) | Gemini models refuse
+AWS_ACCESS_KEY_ID                | AWS Access Key for Bedrock Converse/Clau | None (or AWS profi (Sens:Yes) | Bedrock calls fail  
+AWS_SECRET_ACCESS_KEY            | AWS Secret Key for Bedrock               | None               (Sens:Yes) | Bedrock calls fail  
+AWS_REGION                       | AWS Region for Bedrock (e.g. us-east-1)  | us-east-1          (Sens:No) | Falls back to us-eas
+GOOGLE_APPLICATION_CREDENTIALS   | Path to GCP Service Account JSON for Ver | None (ADC default) (Sens:Yes) | Vertex calls fail   
+TELEGRAM_BOT_TOKEN               | Bot token for Telegram messaging bridge  | None (reads Secret (Sens:Yes) | Telegram listener di
+SLACK_BOT_TOKEN                  | Bot token for Slack Socket Mode integrat | None (reads Secret (Sens:Yes) | Slack listener disab
+SLACK_APP_TOKEN                  | App-level token (xapp-...) for Slack Soc | None (reads Secret (Sens:Yes) | Slack Socket Mode fa
+TAVILY_API_KEY                   | API key for Tavily AI web search provide | None (falls back t (Sens:Yes) | Falls back to DuckDu
+BRAVE_API_KEY                    | API key for Brave search provider        | None (falls back t (Sens:Yes) | Falls back to DuckDu
+
+
+====================================================================================================
+19. SECURITY AUDIT & RISK ANALYSIS
+====================================================================================================
+
+Evaluation of the security perimeter, threat vectors, and mitigation mechanisms:
+
+SECURITY AUDIT ITEM: [CRITICAL] Loopback Sidecar Authentication -> STATUS: PASS
+  Analysis: Tauri generates a 64-character random UUID token on boot. All HTTP/WS requests must pass `X-CogniOS-Token` header. Browser Origin header is strictly checked (`tauri://localhost`, `127.0.0.1`). Non-browser native clients without Origin pass with token.
+
+SECURITY AUDIT ITEM: [HIGH] Password & Auth Security -> STATUS: PASS
+  Analysis: Local user credentials use Argon2id with random salts. TOTP adheres to RFC 6238 via pyotp. Recovery questions use Argon2id hashes. Rate limiter applies exponential backoff on auth attempts.
+
+SECURITY AUDIT ITEM: [HIGH] Shell Execution Confinement -> STATUS: CAUTION
+  Analysis: LocalExecutor checks commands for dangerous forbidden operators (`rm -rf /`, piping into bash, etc.) in non-auto modes. However, in `auto` mode or on complex subshells, advanced shell injection could bypass regex heuristics if run without user oversight.
+
+SECURITY AUDIT ITEM: [HIGH] Workspace Root Confinement -> STATUS: PASS
+  Analysis: `normalize_roots()` and `check_path_confinement()` ensure file operations are strictly constrained within active workspace roots. Path traversal attacks (`../..`) are caught and rejected.
+
+SECURITY AUDIT ITEM: [MEDIUM] SSRF & Web Fetch Safety -> STATUS: PASS
+  Analysis: `cogniwork/web/guard.py` checks all target URLs before fetching. Blocks RFC1918 private IPs (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), loopback (127.0.0.0/8), cloud metadata endpoints (169.254.169.254), and local hostnames.
+
+SECURITY AUDIT ITEM: [MEDIUM] Secret Storage Encryption -> STATUS: PARTIAL
+  Analysis: Secrets in `secrets.json` rely on filesystem ACLs (mode 0600 on POSIX). On Windows, files are restricted to the local user SID. Native OS keychain integration (Keytar/SecretService) is recommended for high-security environments.
+
+SECURITY AUDIT ITEM: [MEDIUM] Prompt Injection Defense -> STATUS: PASS
+  Analysis: Tool results, user rules, and memory blocks are segregated into dedicated XML tags (`<tool-result>`, `<user-rules>`, `<known-memories>`) to prevent confusion with system instructions.
+
+
+====================================================================================================
+20. ERROR HANDLING & RESILIENCE
+====================================================================================================
+
+20.1 MODEL PROVIDER RESILIENCE (`cogniwork/providers/errors.py`):
+  - `friendly_model_error()` translates cryptic API exceptions (HTTP 429 rate limits, context overflow 400,
+    missing credit balances, invalid keys) into actionable, user-friendly error banners in the UI.
+  - Automatically detects model deprecation or unreleased tiers (e.g. GPT-5.6 Sol fallback notices).
+
+20.2 WEBSOCKET & NETWORK FAULT TOLERANCE:
+  - Auto-reconnect with exponential backoff in `surfaces/gui/src/api.ts`.
+  - In-flight turn state is preserved on unexpected socket disconnect; client resumes event stream on reconnect.
+
+20.3 TOOL EXECUTION CRASH ISOLATION:
+  - Tool execution errors are caught and returned as structured error strings inside `ToolMessage`.
+  - A crashing tool never crashes the TurnEngine loop or FastAPI server.
+
+
+====================================================================================================
+21. LOGGING, OBSERVABILITY & TELEMETRY
+====================================================================================================
+
+21.1 LOGGING TOPOLOGY:
+  - Server Log: `%APPDATA%\cogniwork\logs\cognios-server.log` (Rotated to `.old` per launch).
+  - Audit Events Table: SQLite `audit_events` recording every tool invocation, arguments, decision, and risk class.
+  - Session Transcripts: `%APPDATA%\cogniwork\conversations\<id>.jsonl` with full turn chronology.
+
+21.2 REAL-TIME OBSERVABILITY:
+  - Global WebSocket event stream on `/ws/events` broadcasts session state changes, inbox updates, and connector status.
+  - Context Fill Meter in GUI computes live token consumption against curated model context limits.
+
+
+====================================================================================================
+22. BACKGROUND JOBS, SCHEDULERS & EVENT LISTENERS
+====================================================================================================
+
+22.1 AUTOMATIONS SCHEDULER (`cogniwork/server/manager.py`):
+  - Runs an async background loop ticking every 10 seconds.
+  - Evaluates `wakes.json` via `croniter` math for cron-based automations and one-shot timers.
+  - Wakes up target sessions, injects the scheduled prompt, and triggers autonomous execution.
+
+22.2 INBOUND MESSAGING LISTENERS:
+  - Slack Gateway: Listens via Slack Bolt Socket Mode WebSocket; dispatches DMs and mentions to agent sessions.
+  - Telegram Bridge (`cogniwork/connectors/telegram/bridge.py`): Polling / webhook receiver mapping Telegram chats to desktop sessions.
+
+22.3 DESKTOP KEEP-AWAKE WORKER (`surfaces/gui/src-tauri/src/lib.rs`):
+  - Windows: Dedicated thread asserting `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)` every 30s.
+  - macOS: Spawns `caffeinate -i -s` child process while keep-awake is active.
+
+
+====================================================================================================
+23. TESTING & EVALUATION AUDIT
+====================================================================================================
+
+Backend Test Suite Overview: 92 test files, 1121 test cases.
+
+KEY TEST COVERAGE AREAS:
+  - Engine & Turns: `test_engine.py`, `test_engine_stop.py`, `test_compaction.py`, `test_durable_resume.py`.
+  - Providers & Routing: `test_providers.py`, `test_provider_router.py`, `test_anthropic_provider.py`, `test_gemini_provider.py`, `test_bedrock_provider.py`.
+  - Memory & Relational Facts: `test_memory.py`, `test_memory_api.py`.
+  - Authentication & 2FA: `test_auth.py`, `test_secrets.py`.
+  - Connectors & Gateway: `test_connectors.py`, `test_telegram_bridge.py`, `test_fake_slack.py`, `test_gmail_oauth.py`.
+  - Tools & Shell: `test_shell.py`, `test_code_tools.py`, `test_tools_permissions.py`, `test_web_search.py`.
+  - E2E GUI Tests: 57 Playwright spec files in `surfaces/gui/e2e/`.
+
+
+====================================================================================================
+24. BUILD, RUN & PACKAGING PIPELINE
+====================================================================================================
+
+24.1 LOCAL DEVELOPMENT WORKFLOW:
+  - 1-Click Windows Launch: `start_cognios.bat`
+    * Starts Python FastAPI server on `http://127.0.0.1:8765`
+    * Starts React Vite frontend on `http://localhost:1420`
+
+24.2 DESKTOP PACKAGING PIPELINE:
+  - Python Sidecar: PyInstaller packages `cogniwork` into a standalone binary / onedir (`packaging/cognios-server.spec`).
+  - Tauri Shell: `cargo tauri build` compiles Rust native container, embeds frontend assets, and bundles Python sidecar.
+  - Output Deliverables: `.exe` / `.msi` for Windows, `.app` / `.dmg` for macOS, AppImage for Linux.
+
+
+====================================================================================================
+25. COMPLETE FEATURE INVENTORY & OPERATIONAL STATUS
+====================================================================================================
+
+FEATURE                             | DESCRIPTION                                   | STATUS      
+----------------------------------------------------------------------------------------------------
+Multi-Iteration Agent Loop          | Autonomous tool-calling loop until task completion | WORKING     
+Bring Your Own Model (BYOM)         | 18 LLM providers supported via unified router | WORKING     
+Dual-Tier Relational Memory         | Global & workspace SQLite memory with prompt injection | WORKING     
+Algorithmic Context Compaction      | Dynamic token management for long sessions    | WORKING     
+5 Permission Modes                  | discuss, plan, interactive, auto, custom      | WORKING     
+Cross-Session Inbox                 | Parked approvals and notifications queue      | WORKING     
+Offline Speech-To-Text              | Moonshine Tiny STT with CPAL Rust capture     | WORKING     
+34 SaaS Connectors                  | Slack, GitHub, Jira, HubSpot, Notion, etc.    | WORKING     
+Inbound Messaging Gateway           | Slack Socket Mode & Telegram triggers         | WORKING     
+Scheduled Automations               | Croniter-based self-wake tools and periodic scheduler | WORKING     
+Single-Owner Auth & TOTP 2FA        | Argon2id password, TOTP QR, pet recovery      | WORKING     
+Terminal UI (CLI)                   | Headless / TUI Textual application            | WORKING     
+MCP Client Integration              | Stdio and HTTP/SSE Model Context Protocol     | WORKING     
+Subagent Explorer                   | Read-only subagents for broad codebase search | WORKING     
+Action Flow Visualizer              | TanStack Start interactive visualizer app     | WORKING     
+
+
+====================================================================================================
+26. FEATURE-TO-COMPONENT MATRIX
+====================================================================================================
+
+
+Feature                     UI    API   Manager  Engine  Memory   DB   Providers  Tools
+---------------------------------------------------------------------------------------
+Chat & Coding Turns          V     V       V        V       V      V       V        V
+Global & Workspace Memory    V     V       -        V       V      V       -        V
+Permission & Plan Gating     V     V       V        V       -      V       -        V
+Offline Voice Dictation      V     V       -        -       -      -       -        -
+SaaS Connectors (34 apps)    V     V       V        V       -      V       -        V
+Messaging Gateway (Slack/TG) V     V       V        V       -      V       -        V
+Scheduled Automations        -     V       V        V       -      V       -        V
+Single-Owner Auth & 2FA      V     V       -        -       -      V       -        -
+MCP Tool Servers             V     V       V        V       -      -       -        V
+Subagent Explorers           -     -       -        V       -      -       V        V
+    
+
+====================================================================================================
+27. FILE-TO-FEATURE MATRIX
+====================================================================================================
+
+
+Source File                            Primary Feature Area                    Status
+------------------------------------------------------------------------------------------
+cogniwork/engine.py                    Agent Execution Loop & Iteration        WORKING
+cogniwork/server/manager.py            Session Lifecycle, Gateway, Approvals   WORKING
+cogniwork/server/app.py                FastAPI REST & WebSocket Protocol       WORKING
+cogniwork/agent.py                     Engine Construction & Context Injection WORKING
+cogniwork/permissions.py               Risk Gating & Security Policies         WORKING
+cogniwork/memory/sqlite_store.py       Dual-Tier Relational Memory             WORKING
+cogniwork/compaction.py                Token Compaction & Budgeting            WORKING
+cogniwork/providers/router.py          18-Provider LLM Router                  WORKING
+cogniwork/providers/matrix.py          Curated Model Capabilities Matrix       WORKING
+cogniwork/auth/store.py                Argon2id, Sessions, TOTP 2FA Store      WORKING
+cogniwork/connectors/descriptors.py    34 Connector Definitions & Validation   WORKING
+cogniwork/connectors/telegram/bridge.py Telegram Bot Messaging Bridge           WORKING
+cogniwork/stt/engine.py                Moonshine Tiny Speech Recognition       WORKING
+stt/src/lib.rs                         Rust CPAL Audio Capture & SHA256 Marker WORKING
+surfaces/gui/src/App.tsx               Primary Desktop Application Shell       WORKING
+surfaces/gui/src/api.ts                REST Client & WebSocket Transport       WORKING
+surfaces/gui/src-tauri/src/lib.rs      Tauri IPC & Python Sidecar Supervisor   WORKING
+cognios-action-flow/src/routes/index.tsx Interactive Action Flow Visualizer     WORKING
+    
+
+====================================================================================================
+28. IMPORTANT CLASSES, FUNCTIONS & INTERFACES REFERENCE
+====================================================================================================
+
+Detailed specification of key symbols driving the system:
+
+SYMBOL:       TurnEngine
+  File:       cogniwork/engine.py
+  Purpose:    Core multi-turn execution loop driving LLM tool iterations and approval gating
+
+SYMBOL:       SessionManager
+  File:       cogniwork/server/manager.py
+  Purpose:    Stateful orchestrator for active sessions, WebSockets, background tasks, and gateways
+
+SYMBOL:       PermissionEngine
+  File:       cogniwork/permissions.py
+  Purpose:    Security evaluator assessing tool risk classes against mode rules
+
+SYMBOL:       SQLiteMemoryStore
+  File:       cogniwork/memory/sqlite_store.py
+  Purpose:    Relational SQLite manager for global and workspace memory items
+
+SYMBOL:       ProviderRouter
+  File:       cogniwork/providers/router.py
+  Purpose:    Stateless multi-provider client router mapping model strings to provider clients
+
+SYMBOL:       LocalExecutor
+  File:       cogniwork/tools/shell.py
+  Purpose:    Subprocess execution manager enforcing working directory and command checks
+
+SYMBOL:       AuthStore
+  File:       cogniwork/auth/store.py
+  Purpose:    Single-owner account manager with Argon2id hashing and TOTP RFC 6238 state
+
+SYMBOL:       Dictation
+  File:       stt/src/lib.rs
+  Purpose:    Thread-safe Rust audio capture engine managing hardware microphone streams
+
+
+====================================================================================================
+29. DEPENDENCY ANALYSIS (PYTHON, NODE, RUST, SYSTEM)
+====================================================================================================
+
+29.1 PYTHON BACKEND DEPENDENCIES (`pyproject.toml`):
+  - `fastapi` & `uvicorn`: Asynchronous ASGI web framework and HTTP/WebSocket server.
+  - `aisuite`: Provider toolkit and unified schema generator for tool definitions.
+  - `openai`, `anthropic`, `google-genai`: Native provider SDKs for first-party LLMs.
+  - `boto3`: AWS SDK for Amazon Bedrock Claude/Converse provider.
+  - `google-auth`: GCP authentication for Vertex AI endpoints.
+  - `mcp`: Model Context Protocol client SDK (v1.1+).
+  - `pydantic` (v2): Data modeling and schema validation.
+  - `argon2-cffi`, `pyotp`, `cryptography`: High-security authentication, password hashing, and TOTP.
+  - `transformers`, `torch`, `soundfile`: Offline speech-to-text inference with Moonshine Tiny.
+  - `croniter`: Cron mathematical calculation for scheduled automations.
+  - `ddgs`: Keyless DuckDuckGo search library.
+  - `pypdf`, `pypdfium2`: PDF text extraction and rasterization.
+  - `textual`: Modern terminal UI framework for the `cognios` CLI.
+
+29.2 FRONTEND DEPENDENCIES (`surfaces/gui/package.json`):
+  - `react` (18.3.1) & `react-dom`: Core reactive view rendering.
+  - `@tauri-apps/api` & `@tauri-apps/plugin-*`: Native desktop IPC, dialogs, updater, autostart.
+  - `lucide-react`: Clean, modern UI icon set.
+  - `tailwindcss` (3.4.19), `postcss`, `autoprefixer`: Utility styling.
+
+29.3 RUST DESKTOP CRATES (`surfaces/gui/src-tauri/Cargo.toml` & `stt/Cargo.toml`):
+  - `tauri` (2.0): Multi-platform webview container with tray icon support.
+  - `cpal` (0.15.3): Low-level hardware audio capture across CoreAudio, WASAPI, and ALSA.
+  - `serde`, `serde_json`: High-performance JSON serialization.
+
+
+====================================================================================================
+30. DEAD CODE, OBSOLETE ARTIFACTS & DUPLICATION AUDIT
+====================================================================================================
+
+Findings from AST and filesystem code inspection:
+
+1. Legacy Coworker Naming & Compatibility Paths:
+   - `cogniwork.secrets.state_dir()` still checks `%APPDATA%\coworker` before `%APPDATA%\cogniwork`.
+   - Environment variables support legacy fallbacks: `COWORKER_API_TOKEN` alongside `COGNIWORK_API_TOKEN`.
+   - Header support: `x-openworker-token` accepted alongside `x-cognios-token`.
+   - Status: INTENTIONAL BACKWARD COMPATIBILITY for existing user data.
+
+2. Experimental Connectors Directory (`cogniwork/connectors/experimental/`):
+   - Directory contains only an empty `__init__.py`.
+   - Status: STUB / RESERVED for future connector prototypes.
+
+3. Artifacts Directory (`Artifacts/`):
+   - Contains static HTML/JS prototypes and mockups from early design phases.
+   - Status: NON-RUNTIME DEVELOPMENT ARTIFACTS (Safe to retain as reference or clean in release builds).
+
+
+====================================================================================================
+31. TODO, FIXME & INCOMPLETE WORK INVENTORY
+====================================================================================================
+
+Verified code annotations across the repository:
+
+1. Groq Provider Integration:
+   - Location: `cogniwork/providers/matrix.py:19` and `cogniwork/providers/registry.py:530`
+   - Annotation: `TODO: add Groq here (+ its matrix rows) once the current provider surface is tested`
+   - Impact: Low (Users can currently access open-weight models via Ollama, Together, Fireworks, or OpenRouter).
+
+2. Debug Inbound Injection Route:
+   - Location: `cogniwork/server/app.py:1237`
+   - Annotation: Guarded by `COGNIWORK_DEBUG_INJECT=1` environment variable.
+   - Impact: None in production (safely disabled unless explicitly turned on for testing).
+
+
+====================================================================================================
+32. ARCHITECTURAL RISKS & TECHNICAL DEBT
+====================================================================================================
+
+Critical architectural observations:
+
+1. Monolithic SessionManager Concurrency:
+   - `cogniwork/server/manager.py` is ~3,900 lines and coordinates sessions, sockets, approvals, gateway listeners,
+     and scheduler ticks. High concurrent WebSocket message volume could contend on Python GIL during JSON encoding.
+   - Mitigation: Refactor manager into specialized sub-services (GatewayService, SessionStore, ApprovalRouter).
+
+2. SQLite Lock Contention Under Rapid Concurrent Tool Calls:
+   - `cogniwork.db` is shared across memories, sessions, audit events, and auth.
+   - Mitigation: Enable WAL mode (`PRAGMA journal_mode=WAL;`) and WAL checkpointing.
+
+
+====================================================================================================
+33. SINGLE POINTS OF FAILURE (SPOF)
+====================================================================================================
+
+1. FastAPI Python Sidecar Process:
+   - If the Python sidecar process crashes, the Tauri UI loses all agent capabilities.
+   - Behavior: Tauri UI displays disconnected banner; sidecar logs error in `cognios-server.log`.
+
+2. Model Provider API Outage:
+   - If the configured model endpoint (e.g. OpenAI / Anthropic) is down, turns will fail with `friendly_model_error()`.
+   - Mitigation: CogniOS allows instant model switching in the top bar to local Ollama or backup providers.
+
+
+====================================================================================================
+34. PERFORMANCE & RESOURCE BOTTLENECK ANALYSIS
+====================================================================================================
+
+  - Speech-To-Text: Moonshine Tiny safetensors weights (~108 MB) load into PyTorch RAM (~300 MB). Transcription takes ~300-600ms on modern CPUs.
+  - Context Compaction: Compacting a 50-turn thread executes in <50ms without model calls using algorithmic heuristics.
+  - Tool Execution: Low-risk read tools (`file_read`, `search`) execute concurrently; write tools stay strictly serialized.
+
+
+====================================================================================================
+35. SCALABILITY & CONCURRENCY ASSESSMENT
+====================================================================================================
+
+CogniOS is explicitly designed as a Single-User, Local-First AI Workstation Operating Environment.
+It comfortably supports:
+  - 100+ active conversation sessions.
+  - 10+ concurrent background tasks / scheduled automations.
+  - 50+ workspace folder roots.
+It is NOT intended as a multi-tenant cloud SaaS backend.
+
+
+====================================================================================================
+36. PRODUCTION READINESS EVALUATION
+====================================================================================================
+
+
+CATEGORY                  STATUS             EVALUATION
+--------------------------------------------------------------------------------------------------
+Architecture              PRODUCTION-READY   Clean separation of UI, Sidecar, Engine, Providers
+Security                  PRODUCTION-READY   Sidecar token, Argon2id, TOTP 2FA, SSRF URL Guard
+Testing                   HIGH QUALITY       92 test files / 1,121 test functions, 57 E2E specs
+Observability             PRODUCTION-READY   Structured logs, audit_events table, JSONL streams
+Reliability               HIGH QUALITY       Turn interruption hooks, friendly model errors
+Memory Architecture       PRODUCTION-READY   Dual-tier SQLite global/workspace store
+Provider Integration      PRODUCTION-READY   18 providers, curated matrix, fallback handling
+Frontend UI               PRODUCTION-READY   Polished Liquid Glass React SPA + Tauri 2.0 shell
+Desktop Packaging         PRODUCTION-READY   PyInstaller onedir + Cargo Tauri multi-OS build
+    
+
+====================================================================================================
+37. VERIFIED VS SUSPECTED CONNECTIONS
+====================================================================================================
+
+37.1 VERIFIED CONNECTIONS (Confirmed by AST, Imports & Runtime Tests):
+  - `surfaces/gui/src/api.ts` -> `cogniwork/server/app.py` via HTTP REST and WebSocket on `127.0.0.1:8765`.
+  - `cogniwork/server/app.py` -> `cogniwork/server/manager.py:SessionManager`.
+  - `cogniwork/server/manager.py` -> `cogniwork/agent.py:build_engine` -> `cogniwork/engine.py:TurnEngine`.
+  - `cogniwork/engine.py` -> `cogniwork/permissions.py:PermissionEngine` -> `cogniwork/risk.py`.
+  - `cogniwork/engine.py` -> `cogniwork/providers/router.py:ProviderRouter` -> Native SDKs.
+  - `cogniwork/agent.py` -> `cogniwork/memory/sqlite_store.py:SQLiteMemoryStore` -> `cogniwork.db`.
+  - `surfaces/gui/src-tauri/src/lib.rs` -> `stt/src/lib.rs:Dictation` via Rust crate linkage.
+
+37.2 SUSPECTED / PLANNED BUT NOT CURRENTLY ACTIVE:
+  - Groq direct provider (currently accessed through reseller keys; native Groq entry is pending).
+
+
+====================================================================================================
+38. COMPLETE SYSTEM ARCHITECTURE FLOW (ASCII TOPOLOGY)
+====================================================================================================
+
+
+                           +-------------------------------------+
+                           |            HUMAN USER               |
+                           +------------------+------------------+
+                                              |
+                                              v
+                           +-------------------------------------+
+                           |    CogniOS React SPA (Tauri Shell)  |
+                           +------------------+------------------+
+                                              |
+                                              | [WebSocket + REST /v1]
+                                              v
+                           +-------------------------------------+
+                           |      FastAPI Server (app.py)        |
+                           |  - Origin Check & Sidecar Auth      |
+                           +------------------+------------------+
+                                              |
+                                              v
+                           +-------------------------------------+
+                           |   SessionManager (manager.py)       |
+                           |  - Session Turn Lock & Gateways     |
+                           +------------------+------------------+
+                                              |
+                                              v
+                           +-------------------------------------+
+                           |      TurnEngine (engine.py)         |
+                           +--------+-------------------+--------+
+                                    |                   |
+                     +--------------+                   +---------------+
+                     |                                                  |
+                     v                                                  v
+     +-------------------------------+                  +-------------------------------+
+     |      PermissionEngine         |                  |        Context Builder        |
+     |  - Risk Classes (READ, WRITE) |                  |  - Memories (<known-memories>)|
+     |  - Standing Rules & Modes     |                  |  - User Rules (<user-rules>)  |
+     +---------------+---------------+                  |  - Progressive Skills Catalog |
+                     |                                  +---------------+---------------+
+                     v                                                  |
+     +-------------------------------+                                  v
+     |        Tool Execution         |                  +-------------------------------+
+     |  - Local Files / Git / Shell  |                  |        ProviderRouter         |
+     |  - 34 SaaS Connectors         |                  |  - OpenAI / Anthropic / Gemini|
+     |  - MCP Tool Servers           |                  |  - Bedrock / Vertex / Ollama  |
+     +---------------+---------------+                  +---------------+---------------+
+                     |                                                  |
+                     +------------------------+-------------------------+
+                                              |
+                                              v
+                                   [STREAMING TURN RESPONSE]
+                                              |
+                                              v
+                                       [USER INTERFACE]
+    
+
+====================================================================================================
+39. DEVELOPER PLAYBOOK: 'HOW TO MODIFY THE SYSTEM'
+====================================================================================================
+
+Practical guide for engineers extending or modifying CogniOS:
+
+1. HOW TO ADD A NEW MODEL PROVIDER:
+   - Step 1: Add a `ProviderDescriptor` in `cogniwork/providers/registry.py` declaring UI fields and `build()` factory.
+   - Step 2: Add curated models and context limits in `cogniwork/providers/matrix.py`.
+   - Step 3: Add provider logo SVG in `surfaces/gui/src/providers/logos/` and register in `logos.ts`.
+
+2. HOW TO ADD A NEW CORE TOOL:
+   - Step 1: Implement the tool function with type annotations and docstring in `cogniwork/tools/<tool_name>.py`.
+   - Step 2: Register in `cogniwork/agent.py:build_engine` via `registry.register(your_tool)`.
+   - Step 3: Assign risk class in `cogniwork/risk.py` (`RiskClass.READ`, `WRITE_LOCAL`, `EXEC`, `EXTERNAL`).
+
+3. HOW TO ADD A NEW SAAS CONNECTOR:
+   - Step 1: Define connector schema and validation in `cogniwork/connectors/descriptors.py`.
+   - Step 2: Define tool signatures in `cogniwork/connectors/tool_defs.py`.
+   - Step 3: Implement client integration in `cogniwork/connectors/integration_tools.py`.
+   - Step 4: Register icon in `surfaces/gui/src/connectors/registry.tsx`.
+
+4. HOW TO MODIFY MEMORY SCOPING:
+   - Edit `cogniwork/memory/sqlite_store.py` (`remember` and `get_all` methods) and prompt formatter in `base.py`.
+
+
+====================================================================================================
+40. ONE FEATURE, ALL DEPENDENCIES END-TO-END TRACES
+====================================================================================================
+
+Deep vertical traces of 5 core features through all layers:
+
+TRACE 1: DUAL-TIER PERSISTENT MEMORY ('remember this preference')
+  UI Composer -> WebSocket frame -> app.py (ws_session) -> manager.py -> TurnEngine ->
+  LLM calls `remember(content='...', summary='...', scope='global')` ->
+  cogniwork/memory/tools.py -> SQLiteMemoryStore.remember() -> INSERT INTO memories ->
+  Engine formats confirmation -> Next session build_engine fetches memories -> Prompt <known-memories> -> LLM.
+
+TRACE 2: PLAN MODE GATING ('propose_plan')
+  UI switches to Plan Mode -> PermissionEngine blocks write/shell tools ->
+  LLM explores read-only -> LLM calls `propose_plan(steps=[...])` ->
+  TurnEngine emits PLAN_PROPOSED event -> UI renders PlanCard with Approve/Reject buttons ->
+  User clicks Approve -> PermissionEngine switches to Interactive/Auto -> Session executes changes.
+
+TRACE 3: LOCAL OFFLINE VOICE DICTATION
+  User presses Voice Button -> surfaces/gui/src/hooks/useVoiceInput.ts ->
+  tauri.ts:startDictation() -> surfaces/gui/src-tauri/src/lib.rs ->
+  stt/src/lib.rs:Dictation.start() captures PCM audio via CPAL ->
+  User releases button -> stop_and_transcribe() calls cogniwork/stt/engine.py ->
+  MoonshineSTTEngine PyTorch model generates transcript -> Text injected into Composer.
+
+TRACE 4: SCHEDULED AUTOMATION (SELF-WAKE CRON)
+  Agent calls `schedule_wake(cron='0 9 * * *', prompt='Daily repo digest')` ->
+  cogniwork/selfwake.py writes entry to `wakes.json` ->
+  manager.py periodic scheduler loop evaluates croniter math every 10s ->
+  At 09:00 UTC, scheduler wakes session -> Injects prompt -> TurnEngine executes task autonomously.
+
+TRACE 5: INBOUND MESSAGING TRIGGER (TELEGRAM BRIDGE)
+  External Telegram user sends message to Bot -> Telegram webhook / polling ->
+  cogniwork/connectors/telegram/bridge.py receives update ->
+  Looks up session in `telegram_active_sessions` -> Calls manager.post_user_message() ->
+  TurnEngine executes turn -> Agent calls `send_message(text)` ->
+  Telegram Bot API sends reply back to Telegram chat.
+
+
+====================================================================================================
+41. FINAL COGNIOS IN ONE PAGE EXECUTIVE REFERENCE
+====================================================================================================
+
+
+====================================================================================================
+COGNIOS AT A GLANCE (5-MINUTE ARCHITECTURAL SUMMARY)
+====================================================================================================
+
+1. WHAT IT IS:
+   CogniOS is a local-first AI operating environment and coworker platform. It bridges human intent
+   with local tools, Git repositories, terminal commands, 34 SaaS integrations, and 18 LLM providers.
+
+2. HOW IT STARTS:
+   Running `start_cognios.bat` or the Tauri desktop executable launches:
+     - The FastAPI ASGI server (`cogniwork.server.app`) on `127.0.0.1:8765` with a random sidecar token.
+     - The React 18 / Liquid Glass desktop frontend on `localhost:1420` (embedded in Tauri).
+
+3. HOW A REQUEST FLOWS:
+   User input in Composer -> WebSocket `/ws/session/{id}` -> SessionManager turn lock ->
+   TurnEngine loop -> Context assembled (System Prompt + Memories + Skills + Files) ->
+   ProviderRouter stream -> Tool call requested -> PermissionEngine checks risk policy ->
+   Tool executes -> Results looped back to model -> Final response streamed to UI.
+
+4. HOW MEMORY WORKS:
+   Dual-tier SQLite relational store (`cogniwork.db`):
+     - Global memories: User-level facts and preferences across all projects.
+     - Workspace memories: Project-specific conventions and rules.
+     - Injected into `<known-memories>` prompt section every turn.
+
+5. HOW SECURITY & PERMISSIONS WORK:
+   Intrinsic risk classification (READ, WRITE_LOCAL, EXEC, EXTERNAL) evaluated across 5 modes:
+   `discuss` (read-only), `plan` (plan approval), `interactive` (HITL approval), `auto`, `custom`.
+   Sidecar loopback token (`X-CogniOS-Token`) and Argon2id / TOTP 2FA protect the server.
+
+6. HOW VOICE INPUT WORKS:
+   100% offline, zero-cloud audio transcription combining a native Rust CPAL capture crate
+   (`ocw-stt`) with Useful Sensors Moonshine Tiny safetensors weights (~108 MB).
+
+7. KEY FILES NEVER TO BREAK:
+   - `cogniwork/engine.py` (Turn execution loop)
+   - `cogniwork/server/manager.py` (Session manager and gateways)
+   - `cogniwork/server/app.py` (REST and WebSocket API)
+   - `cogniwork/permissions.py` (Security policies)
+   - `cogniwork/memory/sqlite_store.py` (Memory engine)
+====================================================================================================

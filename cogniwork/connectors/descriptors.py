@@ -187,16 +187,6 @@ def _validate_attio(creds: dict) -> ValidationResult:
     )
 
 
-def _validate_posthog(creds: dict) -> ValidationResult:
-    base = str(creds.get("base_url") or "https://us.posthog.com").rstrip("/")
-    return _validate_whoami(
-        "GET",
-        f"{base}/api/users/@me/",
-        headers={"Authorization": f"Bearer {creds.get('api_key', '')}"},
-        identity=lambda d: d["email"],
-    )
-
-
 def _validate_mixpanel(creds: dict) -> ValidationResult:
     import base64 as _b64
 
@@ -206,51 +196,6 @@ def _validate_mixpanel(creds: dict) -> ValidationResult:
         "https://mixpanel.com/api/app/me",
         headers={"Authorization": "Basic " + _b64.b64encode(pair.encode()).decode()},
         identity=lambda d, u=creds.get("username", ""): u,
-    )
-
-
-def _validate_amplitude(creds: dict) -> ValidationResult:
-    import base64 as _b64
-
-    pair = f"{creds.get('api_key', '')}:{creds.get('secret_key', '')}"
-    return _validate_whoami(
-        "GET",
-        "https://amplitude.com/api/2/annotations",
-        headers={"Authorization": "Basic " + _b64.b64encode(pair.encode()).decode()},
-        # No user identity on this API — name the account by the key's tail so
-        # two projects stay tellable-apart in the accounts list.
-        identity=lambda d, k=str(creds.get("api_key", "")): f"key …{k[-6:]}",
-    )
-
-
-def _validate_apollo(creds: dict) -> ValidationResult:
-    return _validate_whoami(
-        "GET",
-        "https://api.apollo.io/api/v1/auth/health",
-        headers={"X-Api-Key": creds.get("api_key", "")},
-        identity=lambda d: str(creds.get("label") or "").strip() or "default",
-    )
-
-
-def _validate_hunter(creds: dict) -> ValidationResult:
-    return _validate_whoami(
-        "GET",
-        f"https://api.hunter.io/v2/account?api_key={creds.get('api_key', '')}",
-        headers={},
-        identity=lambda d: d["data"]["email"],
-    )
-
-
-def _validate_linear(creds: dict) -> ValidationResult:
-    return _validate_whoami(
-        "POST",
-        "https://api.linear.app/graphql",
-        headers={
-            "Authorization": creds.get("api_key", ""),
-            "Content-Type": "application/json",
-        },
-        json={"query": "{ viewer { name } }"},
-        identity=lambda d: d["data"]["viewer"]["name"],
     )
 
 
@@ -273,52 +218,12 @@ def _validate_discord(creds: dict) -> ValidationResult:
     )
 
 
-def _validate_asana(creds: dict) -> ValidationResult:
-    return _validate_whoami(
-        "GET",
-        "https://app.asana.com/api/1.0/users/me",
-        headers={"Authorization": f"Bearer {creds.get('token', '')}"},
-        identity=lambda d: d["data"]["name"],
-    )
-
-
 def _validate_hubspot(creds: dict) -> ValidationResult:
     return _validate_whoami(
         "GET",
         "https://api.hubapi.com/account-info/v3/details",
         headers={"Authorization": f"Bearer {creds.get('token', '')}"},
         identity=lambda d: f"portal {d['portalId']}",
-    )
-
-
-def _validate_dropbox(creds: dict) -> ValidationResult:
-    return _validate_whoami(
-        "POST",
-        "https://api.dropboxapi.com/2/users/get_current_account",
-        headers={"Authorization": f"Bearer {creds.get('access_token', '')}"},
-        identity=lambda d: d["email"],
-    )
-
-
-def _quickbooks_host(creds: dict) -> str:
-    env = str(creds.get("environment", "")).lower()
-    return (
-        "sandbox-quickbooks.api.intuit.com"
-        if env.startswith("sand")
-        else "quickbooks.api.intuit.com"
-    )
-
-
-def _validate_quickbooks(creds: dict) -> ValidationResult:
-    realm = creds.get("realm_id", "")
-    return _validate_whoami(
-        "GET",
-        f"https://{_quickbooks_host(creds)}/v3/company/{realm}/companyinfo/{realm}",
-        headers={
-            "Authorization": f"Bearer {creds.get('access_token', '')}",
-            "Accept": "application/json",
-        },
-        identity=lambda d: d["CompanyInfo"]["CompanyName"],
     )
 
 
@@ -340,28 +245,6 @@ def _validate_whatsapp(creds: dict) -> ValidationResult:
     )
 
 
-def _validate_clickup(creds: dict) -> ValidationResult:
-    return _validate_whoami(
-        "GET",
-        "https://api.clickup.com/api/v2/user",
-        headers={"Authorization": creds.get("api_token", "")},
-        identity=lambda d: d["user"]["username"],
-    )
-
-
-def _validate_close(creds: dict) -> ValidationResult:
-    import base64 as _b64
-
-    # Close authenticates with HTTP basic auth: the API key is the username, blank password.
-    pair = f"{creds.get('api_key', '')}:"
-    return _validate_whoami(
-        "GET",
-        "https://api.close.com/api/v1/me/",
-        headers={"Authorization": "Basic " + _b64.b64encode(pair.encode()).decode()},
-        identity=lambda d: d["email"],
-    )
-
-
 def _validate_figma(creds: dict) -> ValidationResult:
     return _validate_whoami(
         "GET",
@@ -377,17 +260,6 @@ def _validate_google_drive(creds: dict) -> ValidationResult:
         "https://www.googleapis.com/drive/v3/about?fields=user",
         headers={"Authorization": f"Bearer {creds.get('access_token', '')}"},
         identity=lambda d: d["user"]["emailAddress"],
-    )
-
-
-def _validate_docusign(creds: dict) -> ValidationResult:
-    # userinfo also carries accounts[] (account_id + base_uri); the tool layer
-    # re-fetches and caches those on first use, so validation only needs identity.
-    return _validate_whoami(
-        "GET",
-        "https://account.docusign.com/oauth/userinfo",
-        headers={"Authorization": f"Bearer {creds.get('access_token', '')}"},
-        identity=lambda d: d["email"],
     )
 
 
@@ -548,22 +420,15 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         brand_color="#ea4335",
         aliases=("email", "mail", "google"),
         logo="gmail",
-        fields=[
-            Field(
-                "access_token",
-                "OAuth access token",
-                secret=True,
-                help="Google OAuth token with Gmail scopes.",
-            ),
-        ],
+        fields=[],
         instructions=[
-            "Use a Google OAuth access token with Gmail readonly and send scopes.",
-            "Paste the access token below.",
+            "Download your credentials.json from the Google Cloud Console (APIs & Services → Credentials → Desktop app).",
+            "Choose your credentials.json file and click 'Connect with Google'.",
+            "Google will ask you to authorize Gmail access. Access tokens refresh automatically.",
         ],
         available=True,
-        managed=True,
-        # Google OAuth verification (CASA) pending — one-click off until it clears.
-        managed_paused=True,
+        managed=False,
+        managed_paused=False,
     ),
     ConnectorDescriptor(
         name="google_calendar",
@@ -691,98 +556,6 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         available=True,
     ),
     ConnectorDescriptor(
-        name="monday",
-        title="monday.com",
-        icon="▦",
-        blurb="Read boards and items, track work, create items and post updates.",
-        auth="oauth",
-        two_way=False,
-        brand_color="#6161ff",
-        logo="monday",
-        aliases=("project management", "tasks", "boards", "work management"),
-        mcp_url="https://mcp.monday.com/mcp",
-        fields=[],
-        instructions=[
-            "One click connects via monday.com sign-in in your browser.",
-            "Sign-in is fully local — tokens stay on this computer.",
-        ],
-        available=True,
-    ),
-    ConnectorDescriptor(
-        name="confluence",
-        title="Confluence",
-        icon="◫",
-        blurb="Search spaces, read pages, and draft documentation.",
-        auth="api_token",
-        two_way=False,
-        brand_color="#172b4d",
-        logo="confluence",
-        fields=[
-            Field(
-                "base_url",
-                "Atlassian site URL",
-                secret=False,
-                help="Example: https://example.atlassian.net",
-            ),
-            Field("email", "Account email", secret=False),
-            Field("api_token", "API token", secret=True, help="Atlassian API token."),
-        ],
-        instructions=[
-            "Create an Atlassian API token for your account.",
-            "Paste your site URL, account email, and API token below.",
-        ],
-        available=True,
-    ),
-    ConnectorDescriptor(
-        name="zendesk",
-        title="Zendesk",
-        icon="◇",
-        blurb="Search tickets, summarize customer context, and draft replies.",
-        auth="api_token",
-        two_way=False,
-        brand_color="#03363d",
-        logo="zendesk",
-        fields=[
-            Field(
-                "subdomain",
-                "Zendesk subdomain",
-                secret=False,
-                help="For example, 'acme' for acme.zendesk.com.",
-            ),
-            Field("email", "Agent email", secret=False),
-            Field("api_token", "API token", secret=True),
-        ],
-        instructions=[
-            "Create a Zendesk API token.",
-            "Paste your subdomain, agent email, and API token below.",
-        ],
-        available=True,
-    ),
-    ConnectorDescriptor(
-        name="linear",
-        title="Linear",
-        icon="⟋",
-        blurb="Search, read, and create Linear issues.",
-        auth="api_token",
-        two_way=False,
-        brand_color="#5e6ad2",
-        logo="linear",
-        fields=[
-            Field(
-                "api_key",
-                "API key",
-                secret=True,
-                help="Personal API key from Linear settings.",
-                placeholder="lin_api_…",
-            ),
-        ],
-        instructions=[
-            "In Linear, open Settings → Security & access → Personal API keys.",
-            "Create a key and paste it below.",
-        ],
-        validate=_validate_linear,
-    ),
-    ConnectorDescriptor(
         name="gitlab",
         title="GitLab",
         icon="▲",
@@ -838,58 +611,6 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         validate=_validate_discord,
     ),
     ConnectorDescriptor(
-        name="stripe",
-        title="Stripe",
-        icon="≋",
-        blurb="Read-only access to customers, charges, and invoices.",
-        auth="api_token",
-        two_way=False,
-        brand_color="#635bff",
-        logo="stripe",
-        fields=[
-            Field(
-                "api_key",
-                "Restricted API key",
-                secret=True,
-                help="Read-only restricted key recommended.",
-                placeholder="rk_live_…",
-            ),
-        ],
-        instructions=[
-            "In the Stripe Dashboard, create a restricted API key with read access to Customers, Charges, and Invoices.",
-            "Paste the key below. The connector only exposes read tools.",
-        ],
-    ),
-    ConnectorDescriptor(
-        name="asana",
-        title="Asana",
-        icon="⊙",
-        blurb="Search and read tasks and projects; create, update, and comment.",
-        auth="token",
-        two_way=False,
-        brand_color="#f06a6a",
-        logo="asana",
-        aliases=("project management", "tasks", "work management"),
-        # NO mcp_url (2026-07-20): Asana's V2 MCP server rejects Dynamic Client
-        # Registration — it needs a pre-registered "MCP app" with an EXACT redirect
-        # URI, which our dynamic sidecar port can't provide. One-click returns when
-        # the broker-routed callback lands; the pinned mcp__asana__* defs sit
-        # dormant until then. Manual token stays the connect path.
-        fields=[
-            Field(
-                "token",
-                "Personal access token",
-                secret=True,
-                help="From the Asana developer console.",
-            ),
-        ],
-        instructions=[
-            "In Asana, open My Settings → Apps → Manage developer apps.",
-            "Create a personal access token and paste it below.",
-        ],
-        validate=_validate_asana,
-    ),
-    ConnectorDescriptor(
         name="hubspot",
         title="HubSpot",
         icon="⊚",
@@ -914,29 +635,6 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         ],
         validate=_validate_hubspot,
         managed=True,
-    ),
-    ConnectorDescriptor(
-        name="dropbox",
-        title="Dropbox",
-        icon="▣",
-        blurb="Search, browse, and read files in Dropbox.",
-        auth="oauth",
-        two_way=False,
-        brand_color="#0061ff",
-        logo="dropbox",
-        fields=[
-            Field(
-                "access_token",
-                "OAuth access token",
-                secret=True,
-                help="Dropbox token with files.metadata.read and files.content.read scopes.",
-            ),
-        ],
-        instructions=[
-            "Create an app in the Dropbox App Console with files.metadata.read and files.content.read scopes.",
-            "Generate an access token and paste it below. Managed sign-in will replace this manual step later.",
-        ],
-        validate=_validate_dropbox,
     ),
     ConnectorDescriptor(
         name="box",
@@ -991,42 +689,6 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         ],
         validate=_validate_whatsapp,
     ),
-    ConnectorDescriptor(
-        name="quickbooks",
-        title="QuickBooks",
-        icon="◴",
-        blurb="Read-only access to customers, invoices, and financial reports.",
-        auth="oauth",
-        two_way=False,
-        brand_color="#2ca01c",
-        logo="quickbooks",
-        fields=[
-            Field(
-                "access_token",
-                "OAuth access token",
-                secret=True,
-                help="Intuit OAuth token with the com.intuit.quickbooks.accounting scope. Expires hourly.",
-            ),
-            Field(
-                "realm_id",
-                "Company ID (realm ID)",
-                help="Shown during OAuth authorization and in the developer playground.",
-            ),
-            Field(
-                "environment",
-                "Environment",
-                required=False,
-                help="production (default) or sandbox.",
-                placeholder="production",
-            ),
-        ],
-        instructions=[
-            "Create an app at developer.intuit.com and authorize it against your company (the OAuth playground works for testing).",
-            "Copy the access token and the company ID (realm ID) and paste them below.",
-            "Intuit access tokens expire after about an hour. Managed sign-in will replace this manual step later.",
-        ],
-        validate=_validate_quickbooks,
-    ),
     # -- placeholders (available=False) --------------------------------------------
     # Not yet shipped, but referenced by persona `recommends` (e.g. Ops → datadog/pagerduty) so
     # the GUI can render a brand badge + a "connect to enable" state. A placeholder has no fields,
@@ -1058,55 +720,6 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         available=False,
         brand_color="#00a1e0",
         logo="salesforce",
-    ),
-    ConnectorDescriptor(
-        name="docusign",
-        title="Docusign",
-        icon="✍",
-        blurb="Track agreements, check envelope status, and send documents for signature.",
-        auth="oauth",
-        two_way=False,
-        brand_color="#4c00ff",
-        logo="docusign",
-        fields=[
-            Field(
-                "access_token",
-                "OAuth access token",
-                secret=True,
-                help="Access token from a Docusign app (JWT or authorization-code grant).",
-            ),
-        ],
-        instructions=[
-            "Create an app in the Docusign developer console and complete an OAuth grant.",
-            "Paste the access token below; the account and API base are discovered automatically.",
-        ],
-        validate=_validate_docusign,
-        available=True,
-    ),
-    ConnectorDescriptor(
-        name="clickup",
-        title="ClickUp",
-        icon="⌃",
-        blurb="Search tasks and docs; create and update items.",
-        auth="api_token",
-        two_way=False,
-        brand_color="#7b68ee",
-        logo="clickup",
-        fields=[
-            Field(
-                "api_token",
-                "Personal API token",
-                secret=True,
-                help="ClickUp → Settings → Apps → API Token.",
-                placeholder="pk_…",
-            ),
-        ],
-        instructions=[
-            "In ClickUp, open Settings → Apps and generate a personal API token.",
-            "Paste it below.",
-        ],
-        validate=_validate_clickup,
-        available=True,
     ),
     ConnectorDescriptor(
         name="google_drive",
@@ -1214,31 +827,6 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         logo="clay",
     ),
     ConnectorDescriptor(
-        name="close",
-        title="Close",
-        icon="❋",
-        blurb="Read and update leads, contacts, and opportunities in the CRM.",
-        auth="api_token",
-        two_way=False,
-        brand_color="#276392",
-        logo="close",
-        fields=[
-            Field(
-                "api_key",
-                "API key",
-                secret=True,
-                help="Close → Settings → Developer → API Keys.",
-                placeholder="api_…",
-            ),
-        ],
-        instructions=[
-            "In Close, open Settings → Developer → API Keys and create a key.",
-            "Paste it below.",
-        ],
-        validate=_validate_close,
-        available=True,
-    ),
-    ConnectorDescriptor(
         name="notion",
         title="Notion",
         icon="◰",
@@ -1295,44 +883,6 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         account_field="account_id",
     ),
     ConnectorDescriptor(
-        name="posthog",
-        title="PostHog",
-        icon="◫",
-        blurb="Query product analytics: events, funnels, saved insights.",
-        auth="api_token",
-        two_way=False,
-        fields=[
-            Field(
-                "base_url",
-                "PostHog URL",
-                required=False,
-                help="Leave empty for US cloud; set for EU cloud or self-hosted.",
-                placeholder="https://us.posthog.com",
-            ),
-            Field(
-                "api_key",
-                "Personal API key",
-                secret=True,
-                help="Settings → Personal API keys (read access is enough).",
-                placeholder="phx_…",
-            ),
-            Field(
-                "project_id",
-                "Project ID",
-                help="Settings → Project → Project ID. Add more projects as extra accounts.",
-            ),
-        ],
-        instructions=[
-            "In PostHog, open Settings → Personal API keys and create a key.",
-            "Copy your Project ID from Settings → Project.",
-            "One project per account — connect again to add another project.",
-        ],
-        validate=_validate_posthog,
-        brand_color="#f54e00",
-        logo="posthog",
-        account_field="project_id",
-    ),
-    ConnectorDescriptor(
         name="mixpanel",
         title="Mixpanel",
         icon="◭",
@@ -1356,76 +906,6 @@ DESCRIPTORS: list[ConnectorDescriptor] = [
         brand_color="#7856ff",
         logo="mixpanel",
         account_field="project_id",
-    ),
-    ConnectorDescriptor(
-        name="amplitude",
-        title="Amplitude",
-        icon="∿",
-        blurb="Query Amplitude charts data: active users, event totals.",
-        auth="api_token",
-        two_way=False,
-        fields=[
-            Field(
-                "api_key", "API key", secret=True, help="Project Settings → API Keys."
-            ),
-            Field("secret_key", "Secret key", secret=True),
-        ],
-        instructions=[
-            "In Amplitude, open Settings → Projects → your project → API Keys.",
-            "Copy the API key and secret key. One project per account.",
-        ],
-        validate=_validate_amplitude,
-        brand_color="#1e61f0",
-        logo="amplitude",
-        account_field="@identity",
-    ),
-    ConnectorDescriptor(
-        name="apollo",
-        title="Apollo.io",
-        icon="☄",
-        blurb="Enrich people and companies; search the B2B database.",
-        auth="api_token",
-        two_way=False,
-        fields=[
-            Field(
-                "api_key", "API key", secret=True, help="Settings → Integrations → API."
-            ),
-            Field(
-                "label",
-                "Account label",
-                required=False,
-                help="Name this account (used if you connect more than one).",
-                placeholder="work",
-            ),
-        ],
-        instructions=[
-            "In Apollo, open Settings → Integrations → API and create an API key.",
-            "Enrichment and search endpoints require a paid Apollo plan.",
-        ],
-        validate=_validate_apollo,
-        brand_color="#fbbf24",
-        logo="apollo",
-        account_field="@identity",
-    ),
-    ConnectorDescriptor(
-        name="hunter",
-        title="Hunter",
-        icon="✉",
-        blurb="Find and verify professional email addresses by domain.",
-        auth="api_token",
-        two_way=False,
-        fields=[
-            Field(
-                "api_key", "API key", secret=True, help="hunter.io → API → API keys."
-            ),
-        ],
-        instructions=[
-            "In Hunter, open API → API keys and copy your key.",
-        ],
-        validate=_validate_hunter,
-        brand_color="#fa5320",
-        logo="hunter",
-        account_field="@identity",
     ),
     ConnectorDescriptor(
         name="pagerduty",

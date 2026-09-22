@@ -39,11 +39,7 @@ const DETAIL_PAGES: Record<string, (p: DetailProps) => JSX.Element> = {
   // Generic multi-account connectors (accounts.py layer) share one page.
   notion: (p) => <AccountsDetail {...p} />,
   attio: (p) => <AccountsDetail {...p} />,
-  posthog: (p) => <AccountsDetail {...p} />,
   mixpanel: (p) => <AccountsDetail {...p} />,
-  amplitude: (p) => <AccountsDetail {...p} />,
-  apollo: (p) => <AccountsDetail {...p} />,
-  hunter: (p) => <AccountsDetail {...p} />,
 };
 
 export function ConnectorsSection() {

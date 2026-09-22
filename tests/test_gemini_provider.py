@@ -669,7 +669,7 @@ def test_union_type_schema_validates_as_sdk_config():
             {
                 "type": "function",
                 "function": {
-                    "name": "mcp__monday__search",
+                    "name": "mcp__vendor__search",
                     "parameters": {
                         "type": "object",
                         "properties": {

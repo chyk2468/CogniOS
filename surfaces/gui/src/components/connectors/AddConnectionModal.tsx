@@ -7,6 +7,7 @@ import {
 } from "../../api";
 import { ConnectorBadge } from "../../connectors/ConnectorIcon";
 import { ConnectSetup } from "../ManageTabs";
+import { GmailConnectModal } from "./GmailConnectModal";
 import { PILL_ACCENT, PILL_LINE, TAG_ACCENT } from "./ui";
 
 const INPUT =
@@ -23,6 +24,19 @@ export function AddConnectionModal({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  if (c.name === "gmail") {
+    return (
+      <GmailConnectModal
+        c={c}
+        onClose={onClose}
+        onConnected={() => {
+          onChanged();
+          onClose();
+        }}
+      />
+    );
+  }
+
   const mcpBacked = !!c.mcp;
   const twoModes = c.name === "slack" || (mcpBacked && c.fields.length > 0);
   const [pane, setPane] = useState<"one" | "manual">("one");

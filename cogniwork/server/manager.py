@@ -49,6 +49,7 @@ from ..connectors.browser_automation import (
     browser_take_screenshot,
 )
 from ..connectors.parked import ParkedStore
+from ..connectors.telegram import TelegramAgentBridge
 from ..conversations import ConversationStore, title_from
 from ..engine import ApprovalOutcome, Approver, TurnEngine
 from ..inbox import InboxStore, args_preview
@@ -236,6 +237,12 @@ class SessionManager:
         # Dead-letter: inbound messages with no destination + background-turn failures, so neither
         # vanishes silently (a debugging/visibility surface, not a redelivery queue).
         self.unrouted = UnroutedStore(base / "unrouted.json")
+        # Telegram Agent Bridge — remote agent session bridge with SQLite state and live progress
+        self.telegram_bridge = TelegramAgentBridge(self, base / "cogniwork.db")
+        try:
+            self.telegram_bridge.recover_stale_sessions()
+        except Exception:
+            pass
 
     # -- workspaces -------------------------------------------------------------
     def open_workspace(self, path: str, *, create: bool = False) -> dict[str, Any]:
@@ -381,6 +388,7 @@ class SessionManager:
         *,
         workspace: str | None = None,
         agent: str = "code",
+        model: str | None = None,
         approver: Approver | None = None,
         extra_tools: list[Any] | None = None,
         directory_requester: Any | None = None,
@@ -409,7 +417,7 @@ class SessionManager:
             model, mode, messages = record.model, Mode(record.mode), record.messages
         else:
             ws = self.resolve_workspace(workspace) if ag.needs_workspace else None
-            model, mode, messages = self.model, self.mode, None
+            model, mode, messages = model or self.model, self.mode, None
 
         if ag.needs_workspace and (not ws or not Path(ws).is_dir()):
             # Knowledge surfaces (CogniWork, Ops, …) start "orphan": no folder picked →
@@ -432,6 +440,12 @@ class SessionManager:
                 if Path(str(r.get("path", ""))).is_dir()
             ]
             roots = [{"path": ws, "writable": True, "label": "scratch"}, *extra]
+        session_default_target = None
+        if record and record.telegram_chat_id:
+            session_default_target = f"telegram:{record.telegram_chat_id}"
+        elif record and record.origin and record.origin_label:
+            session_default_target = f"{record.origin}:{record.origin_label}"
+
         engine = build_engine(
             agent=ag,
             workspace=ws,
@@ -475,6 +489,8 @@ class SessionManager:
             # Per-session skill menu, LIVE (SKILLS-SPEC §3): a callable so load_skill sees
             # disables/new skills immediately; the catalog snapshot is taken at build.
             skill_filter=lambda sid=session_id, w=ws: self.effective_skill_names(sid, w),
+            default_target=session_default_target,
+            on_file_sent=self._on_file_sent(session_id),
         )
 
         # A mention-spawned session (§31) keeps its in-thread reply pre-approved across
@@ -496,6 +512,19 @@ class SessionManager:
         if is_new_session:
             self._emit_session_created(session_id, agent_name)
         return engine
+
+    def _on_file_sent(self, session_id: str):
+        def _hook(platform: str, path: Path, file_id: str | None) -> None:
+            if platform == "telegram" and getattr(self, "telegram_bridge", None):
+                try:
+                    from ..connectors.telegram.artifacts import compute_file_hash
+                    norm_path = str(path.resolve())
+                    h = compute_file_hash(path)
+                    dedup_key = f"{session_id}:path:{norm_path}:{h or ''}"
+                    self.telegram_bridge._delivered_artifacts.setdefault(session_id, set()).add(dedup_key)
+                except Exception as exc:
+                    logger.debug("Error recording delivered artifact: %s", exc)
+        return _hook
 
     def _emit_session_created(self, session_id: str, persona_id: str) -> None:
         """Phase 5 telemetry (disabled)."""
@@ -1204,7 +1233,7 @@ class SessionManager:
 
     def list_artifacts(self, session_id: str) -> list[dict[str, Any]]:
         record = self.session_store.load(session_id)
-        workspace = record.workspace if record else self.default_workspace
+        workspace = (record.workspace if (record and record.workspace) else None) or self.default_workspace
         if not workspace:
             return []
         ws_path = Path(workspace).expanduser().resolve()
@@ -1213,6 +1242,7 @@ class SessionManager:
         if not root.is_dir():
             return []
         out: list[dict[str, Any]] = []
+        is_dedicated_artifacts_dir = (root == artifacts_sub)
         suffixes = {
             ".md",
             ".markdown",
@@ -1227,6 +1257,20 @@ class SessionManager:
             ".ts",
             ".tsx",
             ".css",
+            ".c",
+            ".h",
+            ".cpp",
+            ".hpp",
+            ".rs",
+            ".go",
+            ".java",
+            ".sh",
+            ".bat",
+            ".sql",
+            ".yaml",
+            ".yml",
+            ".xml",
+            ".svg",
             ".png",
             ".jpg",
             ".jpeg",
@@ -1255,7 +1299,7 @@ class SessionManager:
                 if name.startswith("."):
                     continue
                 path = Path(dirpath) / name
-                if path.suffix.lower() not in suffixes:
+                if not is_dedicated_artifacts_dir and path.suffix.lower() not in suffixes:
                     continue
                 try:
                     st = path.stat()
@@ -1281,41 +1325,105 @@ class SessionManager:
 
     MAX_BINARY_PREVIEW = 25 * 1024 * 1024  # base64-over-JSON gets heavy past this
 
-    def _artifact_target(
+    def resolve_artifact(
         self, session_id: str, path: str, *, allow_dir: bool = False
     ) -> tuple[Path | None, str | None]:
-        """Resolve an artifact path under the session's workspace, or (None, error)."""
+        """Public API: resolve an artifact path under the session's workspace safely, or (None, error).
+        
+        Enforces strict path containment against the session's workspace and allowed roots,
+        rejecting traversal attacks (../), non-existent files, and unreadable files.
+        """
+        if not path or not isinstance(path, str):
+            return None, "empty path"
+
+        # Explicitly guard against path traversal tokens
+        normalized_str = path.replace("\\", "/")
+        if "/../" in f"/{normalized_str}/" or normalized_str.startswith("../") or normalized_str == "..":
+            return None, "path escapes workspace"
+
         record = self.session_store.load(session_id)
-        workspace = record.workspace if record else self.default_workspace
+        workspace = (record.workspace if (record and record.workspace) else None) or self.default_workspace
         if not workspace:
             return None, "no workspace"
-        
+
+
         base_root = Path(workspace).expanduser().resolve()
         artifacts_root = (base_root / "Artifacts").resolve()
-        
-        target = (artifacts_root / path).expanduser().resolve()
-        
-        if (allow_dir and target.is_dir()) or target.is_file():
+        allowed_roots = [artifacts_root, base_root]
+        if record and record.extra_roots:
+            for r in record.extra_roots:
+                r_path = r.get("path")
+                if r_path:
+                    try:
+                        allowed_roots.append(Path(r_path).expanduser().resolve())
+                    except OSError:
+                        pass
+
+        # Handle absolute or relative candidate paths
+        raw_p = Path(path).expanduser()
+        resolved_candidate: Path | None = None
+
+        if raw_p.is_absolute():
             try:
-                target.relative_to(artifacts_root)
-                return target, None
-            except ValueError:
-                pass
-                
-        fallback_target = (base_root / path).expanduser().resolve()
-        try:
-            fallback_target.relative_to(base_root)
-        except ValueError:
-            return None, "path escapes workspace"
-            
-        if allow_dir and fallback_target.is_dir():
-            return fallback_target, None
-        if not fallback_target.is_file():
+                candidate = raw_p.resolve(strict=False)
+            except OSError:
+                return None, "invalid path"
+            # Ensure the absolute path lives strictly inside one of the allowed roots
+            for root in allowed_roots:
+                try:
+                    candidate.relative_to(root)
+                    resolved_candidate = candidate
+                    break
+                except ValueError:
+                    continue
+            if resolved_candidate is None:
+                return None, "path escapes workspace"
+        else:
+            # Check relative to artifacts_root, then base_root, then extra roots
+            search_roots = [artifacts_root, base_root]
+            if record and record.extra_roots:
+                for r in record.extra_roots:
+                    r_path = r.get("path")
+                    if r_path:
+                        try:
+                            search_roots.append(Path(r_path).expanduser().resolve())
+                        except OSError:
+                            pass
+
+            for root in search_roots:
+                try:
+                    cand = (root / path).resolve(strict=False)
+                    cand.relative_to(root)
+                except (ValueError, OSError):
+                    continue
+                if (allow_dir and cand.is_dir()) or cand.is_file():
+                    resolved_candidate = cand
+                    break
+
+        if resolved_candidate is None:
             return None, (
                 "This isn't in the conversation's folder anymore — it may have been "
                 "moved or deleted."
             )
-        return fallback_target, None
+
+        # Verify existence and file types
+        if not resolved_candidate.exists():
+            return None, "file does not exist"
+
+        if not allow_dir and not resolved_candidate.is_file():
+            return None, "target is not a regular file"
+
+        # Verify readability
+        if not os.access(resolved_candidate, os.R_OK):
+            return None, "file is not readable"
+
+        return resolved_candidate, None
+
+    def _artifact_target(
+        self, session_id: str, path: str, *, allow_dir: bool = False
+    ) -> tuple[Path | None, str | None]:
+        """Resolve an artifact path under the session's workspace, or (None, error)."""
+        return self.resolve_artifact(session_id, path, allow_dir=allow_dir)
 
     def read_artifact(self, session_id: str, path: str) -> dict[str, Any]:
         # Folders are readable too (a model sometimes links a whole package, e.g. a skill
@@ -1849,6 +1957,22 @@ class SessionManager:
             **self.pdf_settings(),
             **self.compaction_settings_payload(),
         }
+
+    def get_available_models(self) -> list[str]:
+        """List of all selectable models across configured providers and Ollama."""
+        settings = self.get_settings()
+        models = list(settings.get("models") or [])
+        if self.model and self.model not in models:
+            models.insert(0, self.model)
+        ollama_models = self._ollama_models()
+        for om in ollama_models:
+            if om not in models:
+                models.append(om)
+        return list(dict.fromkeys(models))
+
+    def get_default_model(self) -> str:
+        """The CogniOS global default model."""
+        return self.model
 
     def _surfaces(self) -> dict[str, bool]:
         """Which session surfaces are shown in the sidebar. CogniWork is always on; Chat and Code
@@ -2476,6 +2600,15 @@ class SessionManager:
             team_id=s.team_id,
             text=event.text or "",
         )
+        if s.platform == "telegram" and hasattr(self, "telegram_bridge"):
+            client = self.telegram_bridge.get_client()
+            if client:
+                await asyncio.to_thread(
+                    client.send_message,
+                    s.chat_id,
+                    "⛔ You are not authorized to use this CogniOS bot.",
+                    thread_id=s.thread_id,
+                )
 
     async def resolve_unauthorized(
         self, name: str, item_id: str, action: str
@@ -2604,9 +2737,14 @@ class SessionManager:
 
     # -- interactive prompt buttons (Slack/Telegram) ----------------------------
     async def _on_interaction(self, event) -> None:
-        """A button click on a mirrored Inbox prompt. The button value carries the item id + the
-        resolution, so this is unambiguous — resolve the item, then swap the buttons for the
-        outcome. Resolving releases any agent suspended on it (first-responder-wins)."""
+        """A button click on a mirrored Inbox prompt or connector interaction (e.g. model selector)."""
+        if getattr(event, "platform", "") == "telegram":
+            val = str(getattr(event, "value", "") or "")
+            if val.startswith("model_select:") or val.startswith("model:"):
+                if hasattr(self, "telegram_bridge"):
+                    await self.telegram_bridge.handle_interaction(event)
+                return
+
         from ..interactions import decode
 
         decoded = decode(getattr(event, "value", "") or "")
@@ -2710,7 +2848,10 @@ class SessionManager:
         # Every turn path (WS, background delivery, durable resume) marks idle when it
         # finishes — the one shared post-turn moment, so auto-titling hooks in here and
         # can never add latency to the response itself.
-        self._maybe_autotitle(session_id)
+        try:
+            self._maybe_autotitle(session_id)
+        except Exception:
+            pass
 
     def is_running(self, session_id: str) -> bool:
         return session_id in self._running_sessions
@@ -2773,6 +2914,18 @@ class SessionManager:
         who = src.user_name or src.user_id or "?"
         channel = f"{src.platform}:{src.chat_id}"  # thread-agnostic channel address
         self._note_person(src.platform, src.user_id, src.user_name)
+
+        logger.warning("[TG-TRACE] MANAGER_DISPATCH platform=%r", src.platform)
+        if src.platform == "telegram" and hasattr(self, "telegram_bridge"):
+            logger.info(
+                "[Telegram] MANAGER_DISPATCH chat_id=%s user_id=%s text=%r",
+                src.chat_id,
+                src.user_id,
+                text[:60],
+            )
+            await self.telegram_bridge.handle_inbound(event)
+            return
+
         # Structured sidecar (display-only) built from the resolved identities on the event — the
         # framed text below stays the model-facing `content`; `ms.text` carries the RAW message.
         ms = MessageSource(
@@ -2952,6 +3105,18 @@ class SessionManager:
     def save(self, session_id: str, engine: TurnEngine) -> None:
         executor = getattr(engine, "executor", None)
         workspace = os.path.realpath(str(executor.cwd)) if executor else ""
+        existing = self.session_store.load(session_id)
+        source = existing.source if existing else "web"
+        status = existing.status if existing else "active"
+        last_act = existing.last_activity_at if existing else None
+        created_at = existing.created_at if existing else None
+        tg_chat_id = existing.telegram_chat_id if existing else None
+        tg_user = existing.telegram_username if existing else None
+        tg_disp = existing.telegram_display_name if existing else None
+        unread = existing.unread_count if existing else 0
+        origin = existing.origin if existing else None
+        origin_label = existing.origin_label if existing else None
+        title = existing.title if (existing and existing.title and existing.title != "New session") else title_from(engine.messages)
         self.session_store.save(
             SessionRecord(
                 session_id=session_id,
@@ -2959,7 +3124,7 @@ class SessionManager:
                 model=engine.model,
                 mode=engine.permissions.mode.value,
                 messages=engine.messages,
-                title=title_from(engine.messages),
+                title=title,
                 agent=getattr(engine, "agent_name", "code"),
                 extra_roots=self._extra_roots_of(engine),
                 grants=_grants_of(engine),
@@ -2968,6 +3133,16 @@ class SessionManager:
                     if getattr(engine, "compaction_state", None)
                     else {}
                 ),
+                origin=origin,
+                origin_label=origin_label,
+                source=source,
+                status=status,
+                created_at=created_at,
+                last_activity_at=last_act,
+                telegram_chat_id=tg_chat_id,
+                telegram_username=tg_user,
+                telegram_display_name=tg_disp,
+                unread_count=unread,
             )
         )
 
@@ -3243,10 +3418,19 @@ class SessionManager:
         # persisted record — which may not even exist yet for a scheduled run's first turn
         # (opening a "running" automation showed a blank session; owner report 2026-07-04).
         engine = self._engines.get(session_id)
+        # Clear unread status when messages are viewed
+        try:
+            self.session_store.mark_read(session_id)
+        except Exception:
+            pass
         if engine is not None:
             return list(engine.messages)
         record = self.session_store.load(session_id)
         return record.messages if record else []
+
+    def mark_session_read(self, session_id: str) -> dict[str, Any]:
+        ok = self.session_store.mark_read(session_id)
+        return {"ok": ok, "session_id": session_id}
 
     def rename_session(self, session_id: str, title: str) -> dict[str, Any]:
         if session_id.startswith("__"):
@@ -3304,10 +3488,12 @@ class SessionManager:
                 if (
                     resolved.is_relative_to(scratch)
                     and resolved != scratch
-                    and resolved.is_dir()
+                    and resolved.exists()
                 ):
-                    shutil.rmtree(resolved)
-            except OSError:
+                    import shutil
+
+                    shutil.rmtree(resolved, ignore_errors=True)
+            except (ValueError, OSError):
                 pass  # a stale/foreign path must not fail the delete
         return {"ok": ok, "session_id": session_id}
 
@@ -3323,7 +3509,9 @@ class SessionManager:
             invalidate(name)
 
     # -- read models ------------------------------------------------------------
-    def list_sessions(self, workspace: str | None = None) -> list[dict[str, Any]]:
+    def list_sessions(
+        self, workspace: str | None = None, source: str | None = None
+    ) -> list[dict[str, Any]]:
         ws = self.resolve_workspace(workspace) if workspace else None
         return [
             {
@@ -3337,6 +3525,12 @@ class SessionManager:
                 "messages": r.message_count,
                 "pinned": r.pinned,
                 "archived": r.archived,
+                # Channel namespace source ("web" | "telegram") & metadata
+                "source": r.source,
+                "telegram_chat_id": r.telegram_chat_id,
+                "telegram_username": r.telegram_username,
+                "last_message": r.last_message,
+                "unread_count": r.unread_count,
                 # §31: non-user origin ("slack") + display label — drives the sidebar's
                 # "From Slack" group and the row's platform icon.
                 "origin": r.origin,
@@ -3352,7 +3546,7 @@ class SessionManager:
                     s.channel for s in self.subscriptions.for_session(r.session_id)
                 ],
             }
-            for r in self.session_store.list(workspace=ws)
+            for r in self.session_store.list(workspace=ws, source=source)
             if not r.session_id.startswith("__")  # hide internal threads
         ]
 

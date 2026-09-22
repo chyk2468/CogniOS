@@ -196,6 +196,7 @@ def create_app(manager: SessionManager) -> FastAPI:
         "/auth/callback",
         "/mcp/oauth/callback",
         "/oauth/callback",
+        "/v1/connectors/gmail/oauth/callback",
         "/v1/voice/transcribe",
     }
     public_auth_paths = {
@@ -693,12 +694,18 @@ def create_app(manager: SessionManager) -> FastAPI:
         return await asyncio.to_thread(manager.pick_native_folder)
 
     @app.get("/v1/sessions")
-    def sessions(workspace: str | None = None) -> dict[str, Any]:
-        return {"sessions": manager.list_sessions(workspace)}
+    def sessions(
+        workspace: str | None = None, source: str | None = None
+    ) -> dict[str, Any]:
+        return {"sessions": manager.list_sessions(workspace, source=source)}
 
     @app.get("/v1/sessions/{session_id}/messages")
     def session_messages(session_id: str) -> dict[str, Any]:
         return {"messages": manager.session_messages(session_id)}
+
+    @app.post("/v1/sessions/{session_id}/read")
+    def session_read(session_id: str) -> dict[str, Any]:
+        return manager.mark_session_read(session_id)
 
     @app.patch("/v1/sessions/{session_id}")
     def session_patch(session_id: str, body: dict) -> dict[str, Any]:
@@ -942,31 +949,9 @@ def create_app(manager: SessionManager) -> FastAPI:
         """GitHub health: relay socket / cloud sign-in / per-installation tokens."""
         return manager.github_status()
 
-    @app.post("/v1/connectors/gmail/accounts/{email}/disconnect")
-    async def gmail_account_disconnect(email: str) -> dict[str, Any]:
-        """Drop ONE mailbox; the default pointer moves to the next account."""
-        from ..connectors import gmail_accounts
-        return gmail_accounts.disconnect_account(manager.secrets, email)
+    from ..connectors.gmail.routes import create_gmail_router
 
-    @app.post("/v1/connectors/gmail/accounts/{email}/default")
-    def gmail_account_default(email: str) -> dict[str, Any]:
-        from ..connectors import gmail_accounts
-
-        return gmail_accounts.set_default(manager.secrets, email)
-
-    @app.patch("/v1/connectors/gmail/filters")
-    def gmail_filters(body: dict) -> dict[str, Any]:
-        """Replace the "Never show agents" lists. Enforced in the local tool
-        layer; agents see silent omissions, the user sees counts + audit."""
-        from ..connectors import gmail_accounts
-
-        senders = body.get("senders") if isinstance(body, dict) else None
-        labels = body.get("labels") if isinstance(body, dict) else None
-        if senders is not None and not isinstance(senders, list):
-            return {"ok": False, "error": "senders must be a list"}
-        if labels is not None and not isinstance(labels, list):
-            return {"ok": False, "error": "labels must be a list"}
-        return gmail_accounts.set_filters(manager.secrets, senders, labels)
+    app.include_router(create_gmail_router(manager.secrets, _browser_page))
 
     @app.post("/v1/connectors/google_calendar/accounts/{email}/disconnect")
     async def gcal_account_disconnect(email: str) -> dict[str, Any]:

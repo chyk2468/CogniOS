@@ -18,6 +18,7 @@ import { baseName } from "../paths";
 import { showPersonas } from "../flags";
 import { AttnBadge, LiveDot } from "./sidebar/SidebarBadges";
 import { SessionRow } from "./sidebar/SessionRow";
+import { TelegramSessionRow } from "./sidebar/TelegramSessionRow";
 import { NewSessionSplit } from "./sidebar/NewSessionSplit";
 import { useAuth } from "../auth/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -186,8 +187,18 @@ export function Sidebar(props: Props) {
     return next;
   };
 
+  const [telegramCollapsed, setTelegramCollapsed] = useState(false);
+
+  const isTelegram = (s: SessionInfo) => s.source === "telegram" || s.origin === "telegram";
+
+  const telegramSessions = props.sessions
+    .filter((s) => !s.archived && !s.session_id.startsWith("__") && isTelegram(s))
+    .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
+
+  const totalTelegramUnread = telegramSessions.reduce((acc, s) => acc + (s.unread_count || 0), 0);
+
   const pinnedSessions = props.sessions.filter(
-    (s) => s.pinned && !s.session_id.startsWith("__") && !s.archived,
+    (s) => s.pinned && !s.session_id.startsWith("__") && !s.archived && !isTelegram(s),
   );
 
   const appMenuItem = (
@@ -219,7 +230,7 @@ export function Sidebar(props: Props) {
   const liveByPersona = new Map<string, "working" | "sleeping">();
   let totalAttention = 0;
   for (const s of props.sessions) {
-    if (s.session_id.startsWith("__") || s.archived) continue;
+    if (s.session_id.startsWith("__") || s.archived || isTelegram(s)) continue;
     const a = s.attention || 0;
     if (a > 0) {
       attnByPersona.set(s.agent, (attnByPersona.get(s.agent) || 0) + a);
@@ -237,14 +248,14 @@ export function Sidebar(props: Props) {
     }
   }, [totalAttention]);
 
-  const all = props.sessions.filter((s) => s.agent === browseKey && !s.session_id.startsWith("__"));
+  const all = props.sessions.filter((s) => s.agent === browseKey && !s.session_id.startsWith("__") && !isTelegram(s));
   const mine = all.filter((s) => !s.archived && !s.pinned);
   const archived = all.filter((s) => s.archived);
   const workspaceSurface = isProjectScoped(personaOf(browseKey));
   const matches = (_s: SessionInfo) => true;
 
   const recentSessions = [...props.sessions]
-    .filter((s) => !s.archived && !s.session_id.startsWith("__") && !s.pinned)
+    .filter((s) => !s.archived && !s.session_id.startsWith("__") && !s.pinned && !isTelegram(s))
     .filter((s) => personaVisible(s.agent))
     .filter(matches)
     .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
@@ -286,7 +297,7 @@ export function Sidebar(props: Props) {
 
   const agentsWithSessions = new Set(
     props.sessions
-      .filter((s) => !s.archived && !s.session_id.startsWith("__"))
+      .filter((s) => !s.archived && !s.session_id.startsWith("__") && !isTelegram(s))
       .map((s) => s.agent),
   );
 
@@ -469,7 +480,7 @@ export function Sidebar(props: Props) {
             <Icon name="sidebar" size={16} />
           </button>
         )}
-        <div className="brand-wordmark text-[15px]">CogniOS<span className="beta-tag">BETA</span></div>
+        <div className="brand-wordmark text-[15px]">CogniOS</div>
       </div>
 
       <NewSessionSplit
@@ -490,6 +501,72 @@ export function Sidebar(props: Props) {
 
       <div className="flex-1 overflow-y-auto px-2.5 mt-3 pb-2">
         <div className="space-y-4">
+          {/* Dedicated TELEGRAM Section */}
+          <div>
+            <div
+              className="relative flex items-center justify-between px-1.5 mb-1 cursor-pointer select-none"
+              data-testid="telegram-header"
+              onClick={() => setTelegramCollapsed((v) => !v)}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-[#2AABEE]" />
+                <span className="text-[10.5px] uppercase tracking-[0.07em] text-faint font-semibold">
+                  Telegram
+                </span>
+                {totalTelegramUnread > 0 && (
+                  <span
+                    className="bg-[#2AABEE] text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full min-w-[16px] text-center leading-[14px]"
+                    title={`${totalTelegramUnread} unread Telegram messages`}
+                  >
+                    {totalTelegramUnread}
+                  </span>
+                )}
+              </div>
+              <button
+                className="w-6 h-6 grid place-items-center rounded-md text-faint hover:text-fg hover:bg-bg -mr-1"
+                title={telegramCollapsed ? "Expand Telegram conversations" : "Collapse Telegram conversations"}
+                aria-label={telegramCollapsed ? "Expand Telegram conversations" : "Collapse Telegram conversations"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTelegramCollapsed((v) => !v);
+                }}
+              >
+                <Icon name={telegramCollapsed ? "chevronRight" : "chevronDown"} size={13} />
+              </button>
+            </div>
+            {!telegramCollapsed && (
+              <div className="space-y-1" data-testid="telegram-list">
+                {telegramSessions.length === 0 ? (
+                  <div className="px-2 py-1.5 text-[12px] text-faint leading-snug">
+                    No Telegram conversations yet.
+                  </div>
+                ) : (
+                  telegramSessions.map((s) => (
+                    <TelegramSessionRow
+                      key={s.session_id}
+                      s={s}
+                      activeSession={props.activeSession}
+                      editingId={editingId}
+                      editValue={editValue}
+                      confirmDelId={confirmDelId}
+                      rowMenu={rowMenu}
+                      onSelectSession={props.onSelectSession}
+                      onRenameSession={props.onRenameSession}
+                      onTogglePin={props.onTogglePin}
+                      onArchiveSession={props.onArchiveSession}
+                      onDeleteSession={props.onDeleteSession}
+                      setEditingId={setEditingId}
+                      setEditValue={setEditValue}
+                      setConfirmDelId={setConfirmDelId}
+                      openRowMenu={openRowMenu}
+                      closeRowMenu={closeRowMenu}
+                    />
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
           {pinnedBand()}
           <div>
             <div className="relative flex items-center justify-between px-1.5 mb-1" data-testid="recent-header">

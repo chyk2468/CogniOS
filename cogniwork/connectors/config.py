@@ -49,12 +49,19 @@ def is_authorized(settings: ConnectorSettings, source: SessionSource) -> bool:
             return False
         if team.allow_all:
             return True
-        uid = source.user_id
+        uid = str(source.user_id or "")
         return bool(uid) and uid in team.allowed_users
     if settings.allow_all:
         return True
-    uid = source.user_id
-    return bool(uid) and uid in settings.allowed_users
+    uid = str(source.user_id or "")
+    uname = str(source.user_name or "").lstrip("@")
+    cid = str(source.chat_id or "")
+    allowed = {u.lstrip("@") for u in settings.allowed_users if u}
+    return (
+        (bool(uid) and uid in allowed)
+        or (bool(uname) and uname in allowed)
+        or (bool(cid) and cid in allowed)
+    )
 
 
 def _csv(value: str | None) -> set[str]:
@@ -77,6 +84,8 @@ def load_settings(
         token = profile.get("bot_token")
         allowed = set(profile.get("allowed_users") or [])
         allowed |= _csv(os.environ.get(f"{platform.upper()}_ALLOWED_USERS"))
+        allowed |= _csv(os.environ.get(f"{platform.upper()}_ALLOWED_USER_IDS"))
+        allowed |= _csv(os.environ.get(f"{platform.upper()}_ALLOWED_CHAT_IDS"))
         allow_all = bool(profile.get("allow_all")) or os.environ.get(
             f"{platform.upper()}_ALLOW_ALL_USERS", ""
         ).lower() in ("1", "true", "yes")

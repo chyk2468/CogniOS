@@ -217,6 +217,8 @@ def build_engine(
     connector_filter: set[str] | None = None,
     # A set (static snapshot) or a zero-arg callable (live, re-evaluated per load_skill).
     skill_filter: set[str] | Callable[[], set[str]] | None = None,
+    default_target: str | Callable[[], str | None] | None = None,
+    on_file_sent: Callable[[str, Path, str | None], None] | None = None,
 ) -> TurnEngine:
     ws = Path(workspace).expanduser().resolve() if workspace else None
     if agent.needs_workspace and ws is None:
@@ -242,6 +244,31 @@ def build_engine(
         workspace=ws, executor=executor, todo=todo, roots=root_list or None
     )
 
+    _engine_box: list = []
+
+    def _resolve_default_target() -> str | None:
+        if default_target:
+            if callable(default_target):
+                try:
+                    res = default_target()
+                    if res:
+                        return str(res)
+                except Exception:
+                    pass
+            elif isinstance(default_target, str):
+                return default_target
+        eng = _engine_box[0] if _engine_box else None
+        msgs = eng.messages if eng else (messages or [])
+        for m in reversed(msgs):
+            if isinstance(m, dict):
+                src = m.get("source")
+                if isinstance(src, dict):
+                    conn = src.get("connector") or src.get("platform")
+                    cid = src.get("channel_id") or src.get("chat_id")
+                    if conn and cid:
+                        return f"{conn}:{cid}"
+        return None
+
     registry = ToolRegistry()
     registry.register_all(agent.build_tools(context))
     # MCP / connector tools (supplied by the manager) carry their own metadata + schema.
@@ -251,11 +278,19 @@ def build_engine(
     # the reply path for inbound Telegram/Slack super-agent sessions.
     secrets = secrets or SecretStore()
     if agent.messaging and any(s.enabled for s in load_settings(secrets).values()):
-        registry.register(make_send_message_tool(secrets))
+        registry.register(
+            make_send_message_tool(secrets, default_target=_resolve_default_target)
+        )
         # send_file (§34): hand deliverables into the chat — same targets, but its OWN
         # approval surface (a thread's standing send_message grant never covers uploads).
         registry.register(
-            make_send_file_tool(secrets, workspace=ws, roots=root_list or None)
+            make_send_file_tool(
+                secrets,
+                workspace=ws,
+                roots=root_list or None,
+                default_target=_resolve_default_target,
+                on_file_sent=on_file_sent,
+            )
         )
         # Channel subscriptions (inbound): listen to a channel, catch up, (un)subscribe. The agent
         # obtains a channel via ask_user or from a channel message it's reacting to.
@@ -412,9 +447,8 @@ def build_engine(
         else None
     )
 
-    # Late-bound engine ref: the closure needs the conversation history (for the disable
-    # countermand) but the engine is constructed after the closure. Filled below.
-    _engine_box: list = []
+    # Late-bound engine ref: the closures need the engine / conversation history
+    # but the engine is constructed after the closures. Filled below.
 
     def context_provider() -> str:
         parts = []

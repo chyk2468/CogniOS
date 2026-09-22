@@ -30,29 +30,10 @@ def _slack_api_base() -> str:
 def _send_telegram(
     token: str, chat_id: str, text: str, thread_id: str | None = None
 ) -> SendResult:
-    import httpx
+    from .telegram.client import TelegramClient
 
-    payload: dict = {"chat_id": chat_id, "text": text}
-    # Telegram's General forum topic is thread_id "1", which sendMessage rejects → omit it.
-    if thread_id and thread_id != "1":
-        try:
-            payload["message_thread_id"] = int(thread_id)
-        except ValueError:
-            pass
-    try:
-        resp = httpx.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json=payload,
-            timeout=_TIMEOUT,
-        )
-        data = resp.json()
-    except Exception as exc:  # network / decode
-        return SendResult(False, error=str(exc))
-    if data.get("ok"):
-        return SendResult(
-            True, message_id=str(data.get("result", {}).get("message_id"))
-        )
-    return SendResult(False, error=data.get("description") or "telegram send failed")
+    client = TelegramClient(token, timeout=_TIMEOUT)
+    return client.send_message(chat_id, text, thread_id=thread_id)
 
 
 def _send_slack(
@@ -211,6 +192,27 @@ def _send_slack_file(
     return SendResult(False, error=data_out.get("error") or "slack file send failed")
 
 
+def _send_telegram_file(
+    token: str,
+    chat_id: str,
+    thread_id: str | None,
+    filename: str,
+    data: bytes,
+    title: str | None = None,
+    comment: str | None = None,
+) -> SendResult:
+    """Upload and deliver a file to Telegram using TelegramClient.send_document."""
+    from .telegram.client import TelegramClient
+
+    client = TelegramClient(token, timeout=max(_TIMEOUT, 60.0))
+    caption = comment or title
+    return client.send_document(
+        chat_id, data, filename, caption=caption, thread_id=thread_id
+    )
+
+
 DEFAULT_FILE_SENDERS: dict[str, FileSender] = {
     "slack": _send_slack_file,
+    "telegram": _send_telegram_file,
 }
+

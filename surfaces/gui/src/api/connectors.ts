@@ -60,6 +60,11 @@ export interface GmailAccount {
   managed: boolean;
   scopes: string;
   needs_reauth: boolean;
+  status?: string;
+  error_message?: string;
+  created_at?: number;
+  updated_at?: number;
+  last_refresh_at?: number;
 }
 
 export interface GmailFilters {

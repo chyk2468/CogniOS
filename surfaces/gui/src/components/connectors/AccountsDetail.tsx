@@ -10,8 +10,7 @@ import type { DetailProps } from "./ConnectorsSection";
 import { ToolsDisclosure } from "./ToolsDisclosure";
 import { FOOT, GRP, GRP_H, PILL_ACCENT, ROW, TAG_ACCENT, XBTN } from "./ui";
 
-// The generic detail page for multi-account connectors on the accounts layer
-// (Notion, Attio, PostHog, Mixpanel, Amplitude, Apollo, Hunter — batch 2).
+// (Notion, Attio, Mixpanel — multi-account layer).
 // Same grammar as the Calendar page: an Accounts group with a Default badge,
 // make-default, per-account ×. "＋ Add account" launches managed OAuth when
 // the connector has it (and the user is signed in); the manual token form is

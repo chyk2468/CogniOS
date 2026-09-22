@@ -35,8 +35,16 @@ def telegram_message_to_event(msg: Any) -> MessageEvent | None:
     text = getattr(msg, "text", None)
     if not text:
         return None
-    chat = msg.chat
+    chat = getattr(msg, "chat", None)
     user = getattr(msg, "from_user", None)
+    chat_id = str(getattr(chat, "id", ""))
+    user_id = str(getattr(user, "id", "")) if user else None
+    user_name = (
+        getattr(user, "username", None)
+        or getattr(user, "full_name", None)
+        if user
+        else None
+    )
     chat_type = (
         "dm"
         if str(getattr(chat, "type", "private")).lower().endswith("private")
@@ -45,14 +53,22 @@ def telegram_message_to_event(msg: Any) -> MessageEvent | None:
     thread = getattr(msg, "message_thread_id", None)
     source = SessionSource(
         platform="telegram",
-        chat_id=str(chat.id),
-        user_id=str(user.id) if user else None,
-        user_name=getattr(user, "full_name", None) if user else None,
+        chat_id=chat_id,
+        user_id=user_id,
+        user_name=user_name,
         chat_type=chat_type,
         thread_id=str(thread) if thread else None,
     )
+    message_id = str(getattr(msg, "message_id", ""))
+    logger.info(
+        "[Telegram] MESSAGE_PARSED chat_id=%s user_id=%s message_id=%s text=%r",
+        chat_id,
+        user_id,
+        message_id,
+        text[:60],
+    )
     return MessageEvent(
-        text=text, source=source, message_id=str(getattr(msg, "message_id", ""))
+        text=text, source=source, message_id=message_id
     )
 
 
@@ -95,28 +111,83 @@ class TelegramAdapter(BasePlatformAdapter):
         self._app = None
 
     async def connect(self) -> bool:
+        logger.info("[Telegram] BOT_STARTUP")
         try:
-            from telegram.ext import Application, MessageHandler, filters
+            from telegram.ext import Application, CallbackQueryHandler, MessageHandler, filters
         except ImportError:
             logger.warning(
                 "python-telegram-bot not installed — `pip install cogniwork[messaging]`"
             )
             return False
 
+        token_suffix = self.token[-4:] if len(self.token) >= 4 else "..."
+        logger.info("[Telegram] BOT_TOKEN_LOADED token_suffix=...%s", token_suffix)
+
         self._app = Application.builder().token(self.token).build()
 
         async def _on_update(update, _context):
-            event = telegram_message_to_event(update.effective_message)
+            update_id = getattr(update, "update_id", None)
+            msg = getattr(update, "effective_message", None)
+            text = getattr(msg, "text", "") or getattr(msg, "caption", "") or ""
+            logger.warning("[TG-TRACE] UPDATE_RECEIVED text=%r", text)
+            logger.info("[Telegram] UPDATE_RECEIVED update_id=%s", update_id)
+            event = telegram_message_to_event(msg)
             if event is not None:
+                logger.warning("[TG-TRACE] ADAPTER_EVENT")
+                logger.info(
+                    "[Telegram] INBOUND_EVENT_CREATED chat_id=%s user_id=%s message_id=%s",
+                    event.source.chat_id,
+                    event.source.user_id,
+                    event.message_id,
+                )
                 await self.handle_message(event)
 
+        async def _on_callback_query(update, _context):
+            cb = getattr(update, "callback_query", None)
+            if cb is None:
+                return
+            data = getattr(cb, "data", "") or ""
+            msg = getattr(cb, "message", None)
+            user = getattr(cb, "from_user", None)
+            chat = getattr(msg, "chat", None)
+            cb_id = str(getattr(cb, "id", ""))
+            chat_id = str(getattr(chat, "id", "")) if chat else ""
+            user_id = str(getattr(user, "id", "")) if user else None
+            user_name = (
+                getattr(user, "username", None)
+                or getattr(user, "full_name", None)
+                if user
+                else None
+            )
+            msg_id = str(getattr(msg, "message_id", "")) if msg else None
+
+            logger.info(
+                "[Telegram] CALLBACK_QUERY_RECEIVED chat_id=%s user_id=%s data=%r",
+                chat_id,
+                user_id,
+                data,
+            )
+            event = InteractionEvent(
+                platform="telegram",
+                chat_id=chat_id,
+                message_id=msg_id,
+                value=data,
+                user_id=user_id,
+                user_name=user_name,
+                response_url=cb_id,
+            )
+            await self.handle_interaction(event)
+
         self._app.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, _on_update)
+            MessageHandler(filters.TEXT | filters.COMMAND, _on_update)
+        )
+        self._app.add_handler(
+            CallbackQueryHandler(_on_callback_query)
         )
         await self._app.initialize()
         await self._app.start()
-        await self._app.updater.start_polling(drop_pending_updates=True)
-        logger.info("telegram adapter polling")
+        await self._app.updater.start_polling(drop_pending_updates=False)
+        logger.info("[Telegram] POLLING_STARTED")
         return True
 
     async def disconnect(self) -> None:
@@ -133,6 +204,14 @@ class TelegramAdapter(BasePlatformAdapter):
         self, chat_id: str, text: str, *, thread_id: str | None = None
     ) -> SendResult:
         return _send_telegram(self.token, chat_id, text, thread_id)
+
+    async def edit_message(
+        self, chat_id: str, message_id: str, text: str
+    ) -> SendResult:
+        from .telegram.client import TelegramClient
+
+        client = TelegramClient(self.token)
+        return client.edit_message_text(chat_id, message_id, text)
 
 
 class SlackAdapter(BasePlatformAdapter):

@@ -38,17 +38,22 @@ export function SearchModal({
       ? baseName(s.workspace)
       : shortPersonaName(personaOf(s.agent)?.name, s.agent);
 
+  const isTelegram = (s: SessionInfo) => s.source === "telegram" || s.origin === "telegram";
+
   const q = query.trim().toLowerCase();
   const real = sessions.filter((s) => !s.session_id.startsWith("__") && !s.archived);
   const match = (s: SessionInfo) =>
     !q ||
     (s.title || s.session_id).toLowerCase().includes(q) ||
+    (s.telegram_username || "").toLowerCase().includes(q) ||
+    (s.last_message || "").toLowerCase().includes(q) ||
     tagFor(s).toLowerCase().includes(q);
 
   const filtered = real.filter(match);
-  const pinned = filtered.filter((s) => s.pinned).sort(byRecent);
-  const recent = filtered.filter((s) => !s.pinned).sort(byRecent);
-  const ordered = [...pinned, ...recent]; // flat order drives keyboard nav + ⌘N
+  const telegram = filtered.filter(isTelegram).sort(byRecent);
+  const pinned = filtered.filter((s) => s.pinned && !isTelegram(s)).sort(byRecent);
+  const recent = filtered.filter((s) => !s.pinned && !isTelegram(s)).sort(byRecent);
+  const ordered = [...telegram, ...pinned, ...recent]; // flat order drives keyboard nav + ⌘N
 
   // Reset the highlight whenever the result set changes.
   useEffect(() => {
@@ -84,8 +89,13 @@ export function SearchModal({
     }
   };
 
-  const row = (s: SessionInfo, idx: number) => {
+  const row = (s: SessionInfo, idx: number, isTg = false) => {
     const isActive = idx === active;
+    const title = isTg
+      ? (s.telegram_username || s.title || `Telegram Chat ${s.telegram_chat_id || ""}`)
+      : (s.title || s.session_id);
+    const subtext = isTg ? s.last_message : tagFor(s);
+
     return (
       <button
         key={s.session_id}
@@ -96,10 +106,14 @@ export function SearchModal({
         onMouseEnter={() => setActive(idx)}
         onClick={() => choose(s)}
       >
-        <span className="min-w-0 flex-1 truncate text-[13.5px] text-fg">
-          {s.title || s.session_id}
-        </span>
-        <span className="text-[12px] text-faint shrink-0">{tagFor(s)}</span>
+        {isTg && <span className="w-2 h-2 rounded-full bg-[#2AABEE] shrink-0" />}
+        <div className="min-w-0 flex-1 flex flex-col">
+          <span className="truncate text-[13.5px] text-fg font-medium">{title}</span>
+          {subtext && (
+            <span className="truncate text-[11.5px] text-faint leading-snug">{subtext}</span>
+          )}
+        </div>
+        {!isTg && <span className="text-[12px] text-faint shrink-0">{tagFor(s)}</span>}
         {idx < 9 && (
           <kbd className="text-[10.5px] text-faint bg-bg border border-border rounded px-1.5 py-0.5 shrink-0 font-sans">
             ⌘{idx + 1}
@@ -131,12 +145,21 @@ export function SearchModal({
             <div className="px-4 py-8 text-center text-[13px] text-faint">No chats found.</div>
           ) : (
             <>
+              {telegram.length > 0 && (
+                <div className="px-2 mb-2">
+                  <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] uppercase tracking-[0.05em] text-faint font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-[#2AABEE]" />
+                    Telegram
+                  </div>
+                  {telegram.map((s, i) => row(s, i, true))}
+                </div>
+              )}
               {pinned.length > 0 && (
-                <div className="px-2">
+                <div className="px-2 mb-2">
                   <div className="px-2 py-1 text-[11px] uppercase tracking-[0.05em] text-faint font-semibold">
                     Pinned chats
                   </div>
-                  {pinned.map((s, i) => row(s, i))}
+                  {pinned.map((s, i) => row(s, telegram.length + i))}
                 </div>
               )}
               {recent.length > 0 && (
@@ -144,7 +167,7 @@ export function SearchModal({
                   <div className="px-2 py-1 text-[11px] uppercase tracking-[0.05em] text-faint font-semibold">
                     Recent chats
                   </div>
-                  {recent.map((s, i) => row(s, pinned.length + i))}
+                  {recent.map((s, i) => row(s, telegram.length + pinned.length + i))}
                 </div>
               )}
             </>

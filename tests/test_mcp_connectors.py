@@ -31,11 +31,7 @@ def test_every_mcp_backed_descriptor_pins_tools():
     """The guard that keeps 'MCP-backed' meaning 'curated': a descriptor with an
     mcp_url must pin at least one tool, and every pin is classified read/write."""
     backed = [d for d in list_descriptors() if d.mcp_url]
-    assert {d.name for d in backed} >= {"monday", "jira"}
-    # asana is deliberately NOT backed (2026-07-20): their V2 server rejects DCR —
-    # needs a pre-registered MCP app + exact redirect URI vs our dynamic sidecar
-    # port. Its mcp__asana__* pins sit dormant until the broker-routed callback.
-    assert "asana" not in {d.name for d in backed}
+    assert {d.name for d in backed} >= {"jira"}
     for d in backed:
         pins = mcp_pinned_tools(d.name)
         assert pins, f"{d.name} is MCP-backed but pins no tools"
@@ -58,16 +54,6 @@ def test_tool_dicts_follow_the_profile_mode(tmp_path, monkeypatch):
     names = [t["name"] for t in tool_dicts(secrets, "jira")]
     assert names and all(n.startswith("mcp__jira__") for n in names)
 
-    names = [t["name"] for t in tool_dicts(secrets, "monday")]
-    assert names and all(n.startswith("mcp__monday__") for n in names)
-
-    # asana mirrors jira: manual token → asana_* REST tools; mcp → the pin.
-    names = [t["name"] for t in tool_dicts(secrets, "asana")]
-    assert "asana_search_tasks" in names
-    secrets.put("asana:default", {"mode": "mcp"})
-    names = [t["name"] for t in tool_dicts(secrets, "asana")]
-    assert names and all(n.startswith("mcp__asana__") for n in names)
-
 
 def test_mcp_connect_seeds_pinned_config_and_profile(tmp_path, monkeypatch):
     _state(tmp_path, monkeypatch)
@@ -77,16 +63,16 @@ def test_mcp_connect_seeds_pinned_config_and_profile(tmp_path, monkeypatch):
         return {"ok": True, "tools": 9}
 
     monkeypatch.setattr(manager, "connect_mcp", fake_connect)
-    out = asyncio.run(manager.mcp_connect_connector("monday"))
+    out = asyncio.run(manager.mcp_connect_connector("jira"))
     assert out["ok"]
 
-    raw = read_global()["monday"]
-    assert raw["url"] == "https://mcp.monday.com/mcp"
+    raw = read_global()["jira"]
+    assert raw["url"] == "https://mcp.atlassian.com/v1/mcp"
     assert raw["auth"] == "oauth"
     # Server-level approval is OFF — per-tool classification gates writes instead.
     assert raw["requires_approval"] is False
-    assert set(raw["include_tools"]) == set(mcp_pinned_tools("monday"))
-    assert manager.secrets.get("monday:default")["mode"] == "mcp"
+    assert set(raw["include_tools"]) == set(mcp_pinned_tools("jira"))
+    assert manager.secrets.get("jira:default")["mode"] == "mcp"
 
     # A connector without an MCP path fails closed.
     out = asyncio.run(manager.mcp_connect_connector("notion"))
@@ -94,9 +80,6 @@ def test_mcp_connect_seeds_pinned_config_and_profile(tmp_path, monkeypatch):
 
 
 def test_failed_mcp_connect_removes_the_seeded_config(tmp_path, monkeypatch):
-    """A one-click that fails (DCR rejected, user closed the browser) must not leave
-    an enabled oauth server behind — the leftover re-arms at every session start
-    (owner-hit: the pulled asana attempt froze all new sessions, 2026-07-20)."""
     _state(tmp_path, monkeypatch)
     manager = SessionManager(data_dir=tmp_path / "data")
 
@@ -104,10 +87,10 @@ def test_failed_mcp_connect_removes_the_seeded_config(tmp_path, monkeypatch):
         return {"ok": False, "error": "no DCR"}
 
     monkeypatch.setattr(manager, "connect_mcp", fail_connect)
-    out = asyncio.run(manager.mcp_connect_connector("monday"))
+    out = asyncio.run(manager.mcp_connect_connector("jira"))
     assert not out["ok"]
-    assert "monday" not in read_global()
-    assert manager.secrets.get("monday:default") is None
+    assert "jira" not in read_global()
+    assert manager.secrets.get("jira:default") is None
 
 
 def test_prepare_mcp_tools_never_starts_an_oauth_flow(tmp_path, monkeypatch):
@@ -144,33 +127,33 @@ def test_connected_follows_tokens_and_disconnect_forgets_everything(
 ):
     _state(tmp_path, monkeypatch)
     secrets = SecretStore()
-    secrets.put("monday:default", {"mode": "mcp", "enabled": True})
-    put_global_server("monday", {"url": "https://mcp.monday.com/mcp", "auth": "oauth"})
+    secrets.put("jira:default", {"mode": "mcp", "enabled": True})
+    put_global_server("jira", {"url": "https://mcp.atlassian.com/v1/mcp", "auth": "oauth"})
 
     # Profile alone is just a marker — no tokens, not connected.
-    row = {c["name"]: c for c in connector_list(secrets)}["monday"]
+    row = {c["name"]: c for c in connector_list(secrets)}["jira"]
     assert row["mcp"] is True and row["connected"] is False
 
-    secrets.put("mcp-oauth:monday", {"tokens": {"access_token": "at"}})
-    row = {c["name"]: c for c in connector_list(secrets)}["monday"]
+    secrets.put("mcp-oauth:jira", {"tokens": {"access_token": "at"}})
+    row = {c["name"]: c for c in connector_list(secrets)}["jira"]
     assert row["connected"] is True and row["mode"] == "mcp"
 
     # Disconnect forgets tokens + DCR registration, the seeded config, and the profile.
-    out = disconnect_connector(secrets, "monday")
+    out = disconnect_connector(secrets, "jira")
     assert out["ok"]
-    assert secrets.get("mcp-oauth:monday") is None
-    assert "monday" not in read_global()
-    row = {c["name"]: c for c in connector_list(secrets)}["monday"]
+    assert secrets.get("mcp-oauth:jira") is None
+    assert "jira" not in read_global()
+    row = {c["name"]: c for c in connector_list(secrets)}["jira"]
     assert row["connected"] is False
 
 
 def test_connector_backed_servers_hidden_from_mcp_tab(tmp_path, monkeypatch):
     _state(tmp_path, monkeypatch)
     manager = SessionManager(data_dir=tmp_path / "data")
-    put_global_server("monday", {"url": "https://mcp.monday.com/mcp", "auth": "oauth"})
+    put_global_server("jira", {"url": "https://mcp.atlassian.com/v1/mcp", "auth": "oauth"})
     put_global_server("granola", {"url": "https://mcp.granola.ai/mcp", "auth": "oauth"})
     names = [s["name"] for s in manager.list_mcp()]
-    assert "granola" in names and "monday" not in names
+    assert "granola" in names and "jira" not in names
 
 
 def _fake_tool(name):
@@ -185,47 +168,45 @@ def test_prepare_mcp_tools_gates_by_session_pin_and_toggles(tmp_path, monkeypatc
     approval follows the read/write classification."""
     _state(tmp_path, monkeypatch)
     manager = SessionManager(data_dir=tmp_path / "data")
-    manager.secrets.put("monday:default", {"mode": "mcp", "enabled": True})
-    # Tokens present — a token-less oauth server is skipped outright (see
-    # test_prepare_mcp_tools_never_starts_an_oauth_flow).
-    manager.secrets.put("mcp-oauth:monday", {"tokens": {"access_token": "at"}})
+    manager.secrets.put("jira:default", {"mode": "mcp", "enabled": True})
+    manager.secrets.put("mcp-oauth:jira", {"tokens": {"access_token": "at"}})
     # Stale config: include_tools claims a tool we never pinned.
     put_global_server(
-        "monday",
+        "jira",
         {
-            "url": "https://mcp.monday.com/mcp",
+            "url": "https://mcp.atlassian.com/v1/mcp",
             "auth": "oauth",
             "include_tools": ["manage_agent"],
             "enabled": True,
         },
     )
-    update_connector_tools(manager.secrets, "monday", {"mcp__monday__search": False})
+    update_connector_tools(manager.secrets, "jira", {"mcp__jira__searchJiraIssuesUsingJql": False})
 
     seen = {}
 
     async def fake_ensure(server):
         seen["include_tools"] = list(server.include_tools or [])
         allow = set(server.include_tools or [])
-        tools = [_fake_tool(n) for n in ["get_board_info", "create_item", "search"]]
+        tools = [_fake_tool(n) for n in ["searchJiraIssuesUsingJql", "createJiraIssue", "getJiraIssue"]]
         return SimpleNamespace(tools=[t for t in tools if t.name in allow])
 
     monkeypatch.setattr(manager.mcp, "ensure", fake_ensure)
     monkeypatch.setattr(
-        manager, "effective_connectors", lambda sid, agent=None: {"monday"}
+        manager, "effective_connectors", lambda sid, agent=None: {"jira"}
     )
 
     tools = asyncio.run(manager.prepare_mcp_tools("s1"))
     # Pin is authoritative (no manage_agent), the toggled-off search is gone.
-    assert set(seen["include_tools"]) == set(mcp_pinned_tools("monday")) - {"search"}
+    assert set(seen["include_tools"]) == set(mcp_pinned_tools("jira")) - {"searchJiraIssuesUsingJql"}
     by_name = {t.__aisuite_tool_metadata__.name: t for t in tools}
-    assert "mcp__monday__search" not in by_name
+    assert "mcp__jira__searchJiraIssuesUsingJql" not in by_name
     # Reads run free; writes ask first.
-    read = by_name["mcp__monday__get_board_info"].__aisuite_tool_metadata__
-    write = by_name["mcp__monday__create_item"].__aisuite_tool_metadata__
+    read = by_name["mcp__jira__getJiraIssue"].__aisuite_tool_metadata__
+    write = by_name["mcp__jira__createJiraIssue"].__aisuite_tool_metadata__
     assert read.requires_approval is False
     assert write.requires_approval is True
 
-    # Session gating: a session whose effective set excludes monday gets nothing.
+    # Session gating: a session whose effective set excludes jira gets nothing.
     monkeypatch.setattr(manager, "effective_connectors", lambda sid, agent=None: set())
     assert asyncio.run(manager.prepare_mcp_tools("s2")) == []
 

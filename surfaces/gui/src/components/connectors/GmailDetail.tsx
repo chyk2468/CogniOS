@@ -7,18 +7,24 @@ import {
 } from "../../api";
 import { ConnectorBadge } from "../../connectors/ConnectorIcon";
 import type { DetailProps } from "./ConnectorsSection";
+import { GmailConnectModal } from "./GmailConnectModal";
 import { ToolsDisclosure } from "./ToolsDisclosure";
 import { FOOT, GRP, GRP_H, PILL_ACCENT, ROW, TAG_ACCENT, TAG_WARN, XBTN } from "./ui";
 
-// The Gmail detail page (UX-DECISIONS §21): connected mailboxes (multi-account,
-// Default badge, per-account disconnect) + "Never show agents" privacy filters.
-// Adding an account launches managed OAuth DIRECTLY — Gmail has one connect mode,
-// so no modal (the pill-modal is only for ≥2-mode connectors like Slack).
+// The Gmail detail page: connected mailboxes (multi-account,
+// Default badge, per-account disconnect, reauthorization prompt) + "Never show agents" privacy filters.
 
 const LABEL = "text-[12.5px] text-muted w-24 shrink-0";
 
 export function GmailDetail({ c, slack: _slack, onChanged }: DetailProps) {
-  const accounts = (c.accounts ?? []) as GmailAccount[]; // email-keyed (pre-generic-layer shape)
+  const accounts = (c.accounts ?? []) as GmailAccount[];
+  const [connectModalOpen, setConnectModalOpen] = useState(false);
+  const [reauthAccount, setReauthAccount] = useState<string | undefined>(undefined);
+
+  const openConnect = (hint?: string) => {
+    setReauthAccount(hint);
+    setConnectModalOpen(true);
+  };
 
   return (
     <div data-testid="gmail-detail">
@@ -40,29 +46,43 @@ export function GmailDetail({ c, slack: _slack, onChanged }: DetailProps) {
           </div>
         </div>
         <button
-          className={PILL_ACCENT + " opacity-50"}
+          className={PILL_ACCENT}
           data-testid="add-account-btn"
-          disabled={true}
-          title={"Google sign-in requires CogniOS Cloud which has been removed."}
+          onClick={() => openConnect()}
+          title="Connect a Google account"
         >
-          ＋ Add account (Unavailable)
+          {c.connected ? "＋ Add account" : "Connect"}
         </button>
       </div>
 
       {!c.connected && (
         <div className={GRP}>
-          <div className={ROW + " text-[12.5px] text-muted"}>
-            Sign in with Google — each mailbox stays separate, agents say which one they use.
+          <div className={ROW + " text-[12.5px] text-muted flex-col items-start gap-2.5 !py-3"}>
+            <p className="text-[13px] text-fg">
+              Connect your Google account securely using OAuth 2.0 with credentials.json.
+            </p>
+            <button
+              className={PILL_ACCENT + " !py-1.5"}
+              data-testid="gmail-connect-banner-btn"
+              onClick={() => openConnect()}
+            >
+              Connect Gmail
+            </button>
           </div>
         </div>
       )}
 
       {accounts.length > 0 && (
         <>
-          <div className={GRP_H + " !mt-0"}>Accounts</div>
+          <div className={GRP_H + " !mt-0"}>Connected accounts</div>
           <div className={GRP} data-testid="gmail-accounts">
             {accounts.map((a) => (
-              <AccountRow key={a.email} a={a} onChanged={onChanged} />
+              <AccountRow
+                key={a.email}
+                a={a}
+                onChanged={onChanged}
+                onReconnect={() => openConnect(a.email)}
+              />
             ))}
           </div>
         </>
@@ -75,30 +95,60 @@ export function GmailDetail({ c, slack: _slack, onChanged }: DetailProps) {
         Filters are enforced on this computer, before an agent sees results. Hidden counts show
         on the tool card and in Activity — never the content.
       </div>
+
+      {connectModalOpen && (
+        <GmailConnectModal
+          c={c}
+          accountHint={reauthAccount}
+          onClose={() => setConnectModalOpen(false)}
+          onConnected={() => {
+            setConnectModalOpen(false);
+            onChanged();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function AccountRow({ a, onChanged }: { a: GmailAccount; onChanged: () => void }) {
+function AccountRow({
+  a,
+  onChanged,
+  onReconnect,
+}: {
+  a: GmailAccount;
+  onChanged: () => void;
+  onReconnect: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   return (
     <div className={ROW} data-testid={`gmail-account-${a.email}`}>
       <span className="min-w-0 flex-1 flex items-center gap-2">
         <span className="text-[13px] font-medium truncate">{a.email}</span>
         {a.default && <span className={TAG_ACCENT}>Default</span>}
-        {a.needs_reauth && <span className={TAG_WARN}>⚠ Sign in again</span>}
+        {a.needs_reauth && <span className={TAG_WARN}>⚠ Authorization required</span>}
       </span>
-      {!a.default && (
+      {a.needs_reauth ? (
         <button
-          className="text-[12px] text-muted hover:text-fg shrink-0"
-          data-testid={`gmail-make-default-${a.email}`}
-          onClick={async () => {
-            await setGmailDefaultAccount(a.email);
-            onChanged();
-          }}
+          className="text-[12px] font-medium text-warnInk hover:underline shrink-0 mr-2"
+          data-testid={`gmail-reconnect-${a.email}`}
+          onClick={onReconnect}
         >
-          Make default
+          Reconnect Gmail
         </button>
+      ) : (
+        !a.default && (
+          <button
+            className="text-[12px] text-muted hover:text-fg shrink-0"
+            data-testid={`gmail-make-default-${a.email}`}
+            onClick={async () => {
+              await setGmailDefaultAccount(a.email);
+              onChanged();
+            }}
+          >
+            Make default
+          </button>
+        )
       )}
       <button
         className={XBTN}

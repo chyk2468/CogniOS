@@ -15,6 +15,9 @@ def _key_path() -> Path:
 
 
 def _load_fernet() -> Fernet:
+    env_key = os.environ.get("COGNIWORK_ENCRYPTION_KEY") or os.environ.get("GMAIL_ENCRYPTION_KEY")
+    if env_key:
+        return Fernet(env_key.strip().encode("ascii"))
     path = _key_path()
     if path.is_file():
         key = path.read_text(encoding="utf-8").strip().encode("ascii")

@@ -326,9 +326,11 @@ class TurnEngine:
             # can show progress instead of a silent stall.
             notice = None
             if self._compaction_due():
+                logger.info("[COMPACTION] triggered=true")
                 yield Event(EventType.COMPACTING, {})
                 notice = await self._compact_now()
             if notice:
+                logger.info("[COMPACTION_STATE] connector_state_preserved=true notice=%s", notice)
                 self._append_notice("compacted", notice)
                 yield Event(EventType.COMPACTED, {"text": notice})
 
@@ -364,9 +366,11 @@ class TurnEngine:
                 # is progress-guarded: each pass moves the boundary forward or gives up,
                 # so a model that keeps overflowing still terminates in the error path.
                 if _compaction.is_context_overflow(exc) and not self._cancel.is_set():
+                    logger.info("[COMPACTION] triggered=true overflow=true")
                     yield Event(EventType.COMPACTING, {})
                     notice = await self._compact_now(force=True)
                     if notice:
+                        logger.info("[COMPACTION_STATE] connector_state_preserved=true notice=%s", notice)
                         self._append_notice("compacted", notice)
                         yield Event(EventType.COMPACTED, {"text": notice})
                         continue
@@ -413,6 +417,40 @@ class TurnEngine:
                 if self._steering:
                     self._inject_steering()
                     continue
+
+                # Workflow completion invariants: verify no uncompleted batch connector items remain
+                pending_work = self._pending_connector_work()
+                if pending_work and pending_work.get("pending_ids") and iterations < self.max_iterations:
+                    pending_ids = pending_work["pending_ids"]
+                    logger.info(
+                        "[GMAIL_STATE] Incomplete batch detected: expected=%d fetched=%d pending=%d (IDs: %s)",
+                        pending_work["expected_count"],
+                        len(pending_work["fetched_ids"]),
+                        len(pending_ids),
+                        pending_ids,
+                    )
+                    logger.info(
+                        "[LOOP] tool_calls=0 pending=%d action=recover",
+                        len(pending_ids),
+                    )
+                    # Automatically prompt the model to fetch remaining pending items before completing summary
+                    recovery_prompt = (
+                        f"Task in progress: {len(pending_ids)} message(s) still need to be retrieved "
+                        f"using {pending_work['provider']}_get_message before providing the final summary: "
+                        f"{', '.join(pending_ids)}. Please fetch them now."
+                    )
+                    self.queue_steering(recovery_prompt)
+                    self._inject_steering()
+                    continue
+
+                if pending_work and not pending_work.get("pending_ids"):
+                    logger.info(
+                        "[WORKFLOW] complete=true provider=%s expected=%d fetched=%d",
+                        pending_work["provider"],
+                        pending_work["expected_count"],
+                        len(pending_work["fetched_ids"]),
+                    )
+
                 yield Event(
                     EventType.TURN_END,
                     {"status": "completed", "iterations": iterations},
@@ -813,6 +851,18 @@ class TurnEngine:
                 status="hidden",
                 reason=" · ".join(parts) + " by privacy filters",
             )
+        # Structured logging for connector tool results
+        if "gmail_search" in tool_call.name or "search_messages" in tool_call.name or "search_emails" in tool_call.name:
+            count = 0
+            if isinstance(result, dict):
+                inner_d = result.get("data") if isinstance(result.get("data"), dict) else result
+                if isinstance(inner_d, dict) and "messages" in inner_d:
+                    count = len(inner_d.get("messages") or [])
+            logger.info("[GMAIL_SEARCH] found=%d query=%s", count, tool_call.arguments.get("query", ""))
+        elif "gmail_get_message" in tool_call.name or "read_email" in tool_call.name or "read_message" in tool_call.name:
+            mid = tool_call.arguments.get("message_id") or tool_call.arguments.get("id") or ""
+            logger.info("[GMAIL_FETCH] id=%s status=%s", mid, status)
+
         self._audit(
             tool_call,
             stage="finished",
@@ -831,6 +881,70 @@ class TurnEngine:
                 **({"standing_rule": rule} if rule else {}),
             },
         )
+
+    def _pending_connector_work(self) -> dict[str, Any] | None:
+        """Inspect message history to check if an active batch connector workflow has pending items."""
+        discovered_ids: list[str] = []
+        fetched_ids: set[str] = set()
+        provider_name = ""
+        query = ""
+
+        for msg in self.messages:
+            role = msg.get("role")
+            if role == "tool":
+                content = msg.get("content", "")
+                if isinstance(content, str):
+                    try:
+                        res_data = json.loads(content)
+                    except Exception:
+                        res_data = {}
+                elif isinstance(content, dict):
+                    res_data = content
+                else:
+                    res_data = {}
+
+                if isinstance(res_data, dict):
+                    # Search hits
+                    inner = res_data.get("data") if isinstance(res_data.get("data"), dict) else res_data
+                    if isinstance(inner, dict) and "messages" in inner:
+                        msgs_list = inner.get("messages")
+                        if isinstance(msgs_list, list):
+                            ids = [str(m.get("id")) for m in msgs_list if isinstance(m, dict) and m.get("id")]
+                            if ids:
+                                discovered_ids = ids
+                                provider_name = "gmail"
+                    # Fetched hit
+                    if res_data.get("ok"):
+                        item = res_data.get("data") if isinstance(res_data.get("data"), dict) else res_data
+                        if isinstance(item, dict) and item.get("id"):
+                            fetched_ids.add(str(item["id"]))
+            elif role == "assistant":
+                for tc in msg.get("tool_calls") or []:
+                    fn = tc.get("function") or {}
+                    name = fn.get("name", "")
+                    if "search" in name:
+                        provider_name = "gmail" if "gmail" in name else "email"
+                        try:
+                            args = json.loads(fn.get("arguments") or "{}")
+                            query = str(args.get("query") or args.get("q") or "")
+                        except Exception:
+                            pass
+                    elif "get_message" in name or "read_email" in name:
+                        provider_name = "gmail" if "gmail" in name else "email"
+
+        if discovered_ids:
+            pending = [mid for mid in discovered_ids if mid not in fetched_ids]
+            if pending:
+                return {
+                    "provider": provider_name or "gmail",
+                    "operation": "message_summary",
+                    "query": query,
+                    "discovered_ids": discovered_ids,
+                    "fetched_ids": list(fetched_ids),
+                    "pending_ids": pending,
+                    "expected_count": len(discovered_ids),
+                }
+        return None
 
     def _audit(self, tool_call: ToolCall, **event: Any) -> None:
         if self.audit_sink is None:

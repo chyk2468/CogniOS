@@ -118,11 +118,13 @@ html[data-ui-style="liquid-glass"] .right-rail:not(.artifact-mode) {
   background: var(--lg-surface);
   backdrop-filter: var(--lg-filter);
   -webkit-backdrop-filter: var(--lg-filter);
-  border: 1px solid var(--lg-border-strong);
+  border: 0;
   border-left: 1px solid var(--lg-border-strong);
-  border-radius: var(--lg-radius-lg);
-  box-shadow: var(--lg-shadow);
-  overflow: hidden;
+  border-radius: 0;
+  box-shadow: none;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 html[data-ui-style="liquid-glass"] .page-subnav {

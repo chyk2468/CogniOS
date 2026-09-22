@@ -1054,15 +1054,17 @@ def test_always_allow_grants_survive_restart(tmp_path):
 
 
 def test_google_one_click_paused_but_manual_alive(tmp_path):
-    """CASA verification pending: Gmail/Calendar/Drive expose managed_paused (GUI badges
-    "Coming soon"), the managed-connect route refuses, and the manual fields stay."""
+    """CASA verification pending for cloud managed connectors: Calendar/Drive expose managed_paused
+    (GUI badges 'Coming soon'), while Gmail uses local OAuth 2.0 flow with credentials.json."""
     client = _client(tmp_path, [])
     connectors = {c["name"]: c for c in client.get("/v1/connectors").json()["connectors"]}
-    for name in ("gmail", "google_calendar", "google_drive"):
+    for name in ("google_calendar", "google_drive"):
         c = connectors[name]
         assert c["managed"] is True and c["managed_paused"] is True
         assert c["fields"], f"{name} lost its manual fields"
-    assert connectors["slack"]["managed_paused"] is False  # only Google is paused
+    assert connectors["slack"]["managed_paused"] is False
+    # Gmail uses automated OAuth 2.0 flow
+    assert connectors["gmail"]["auth"] == "oauth"
 
 
 
@@ -1078,3 +1080,71 @@ def test_set_provider_persists_extra_fields(tmp_path):
     manager.set_provider("ollama", {"base_url": ""})
     providers = {p["name"]: p for p in manager.get_providers()}
     assert "base_url" not in providers["ollama"]["values"]
+
+
+def test_sessions_api_source_filtering_and_read_mark(tmp_path):
+    from cogniwork.sessions import SessionRecord
+
+    manager = SessionManager(workspace=tmp_path, provider=ScriptedProvider([]))
+    # 1. Save Web session
+    manager.session_store.save(
+        SessionRecord(
+            session_id="web-session-abc",
+            workspace=str(tmp_path),
+            model="gpt-5",
+            mode="interactive",
+            title="Web Chat",
+            source="web",
+        )
+    )
+    # 2. Save Telegram session
+    manager.session_store.save(
+        SessionRecord(
+            session_id="tg-session-xyz",
+            workspace=str(tmp_path),
+            model="gpt-5",
+            mode="interactive",
+            title="Yashwant",
+            source="telegram",
+            telegram_chat_id="123456",
+            telegram_username="Yashwant",
+            last_message="Working on CogniOS...",
+            unread_count=3,
+        )
+    )
+
+    client = TestClient(create_app(manager))
+
+    # All sessions
+    all_res = client.get("/v1/sessions").json()["sessions"]
+    all_ids = [s["session_id"] for s in all_res]
+    assert "web-session-abc" in all_ids
+    assert "tg-session-xyz" in all_ids
+
+    # Source = web
+    web_res = client.get("/v1/sessions?source=web").json()["sessions"]
+    web_ids = [s["session_id"] for s in web_res]
+    assert "web-session-abc" in web_ids
+    assert "tg-session-xyz" not in web_ids
+
+    # Source = telegram
+    tg_res = client.get("/v1/sessions?source=telegram").json()["sessions"]
+    tg_ids = [s["session_id"] for s in tg_res]
+    assert "tg-session-xyz" in tg_ids
+    assert "web-session-abc" not in tg_ids
+    tg_item = next(s for s in tg_res if s["session_id"] == "tg-session-xyz")
+    assert tg_item["source"] == "telegram"
+    assert tg_item["telegram_chat_id"] == "123456"
+    assert tg_item["telegram_username"] == "Yashwant"
+    assert tg_item["last_message"] == "Working on CogniOS..."
+    assert tg_item["unread_count"] == 3
+
+    # Mark read endpoint
+    read_resp = client.post("/v1/sessions/tg-session-xyz/read")
+    assert read_resp.status_code == 200
+    assert read_resp.json()["ok"] is True
+
+    # Verify unread_count is now 0
+    tg_res_after = client.get("/v1/sessions?source=telegram").json()["sessions"]
+    tg_item_after = next(s for s in tg_res_after if s["session_id"] == "tg-session-xyz")
+    assert tg_item_after["unread_count"] == 0

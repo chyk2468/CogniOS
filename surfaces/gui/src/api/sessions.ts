@@ -50,10 +50,20 @@ export interface RootInfo {
   exists: boolean;
 }
 
-export async function getSessions(workspace?: string): Promise<SessionInfo[]> {
-  const q = workspace ? `?workspace=${encodeURIComponent(workspace)}` : "";
+export async function getSessions(workspace?: string, source?: string): Promise<SessionInfo[]> {
+  const params = new URLSearchParams();
+  if (workspace) params.set("workspace", workspace);
+  if (source) params.set("source", source);
+  const q = params.toString() ? `?${params.toString()}` : "";
   const res = await fetch(`${httpBase()}/v1/sessions${q}`);
   return (await res.json()).sessions ?? [];
+}
+
+export async function markSessionRead(sessionId: string): Promise<{ ok: boolean; session_id: string }> {
+  const res = await fetch(`${httpBase()}/v1/sessions/${encodeURIComponent(sessionId)}/read`, {
+    method: "POST",
+  });
+  return res.json();
 }
 
 export async function getSessionMessages(sessionId: string): Promise<ConversationMessage[]> {

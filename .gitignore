@@ -41,6 +41,11 @@ sdist/
 .dev.vars
 *.pem
 *.key
+*.token
+credentials*.json
+token*.json
+oauth*.json
+client_secret*.json
 
 # ==============================================================================
 # Databases (SQLite + WAL / Shared Memory / Journal)

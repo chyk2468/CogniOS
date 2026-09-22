@@ -34,6 +34,7 @@ import type {
   SessionInfo,
   SessionUsage,
   TodoItem,
+  ToolItem,
   WsEvent,
 } from "./types";
 import { isProjectScoped } from "./personaScope";
@@ -47,6 +48,7 @@ import { isTauri, platformOS, startWindowDrag } from "./tauri";
 import { Icon } from "./components/Icon";
 import { Sidebar } from "./components/Sidebar";
 import { ThinkingBlock, Transcript } from "./components/Transcript";
+import { ChatScrollbar } from "./components/ChatScrollbar";
 import { Composer } from "./components/Composer";
 import { Markdown } from "./components/Markdown";
 import { SearchModal } from "./components/SearchModal";
@@ -789,22 +791,27 @@ export function App() {
   const autoScrollingRef = useRef(false);
   const lastScrollTopRef = useRef(0);
   const [following, setFollowing] = useState(true);
-  const scrollToBottom = () => {
+  const scrollToBottom = (smooth = false) => {
     const el = scrollRef.current;
     if (!el) return;
-    autoScrollingRef.current = true;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    if (smooth) {
+      autoScrollingRef.current = true;
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
   };
   const followLatest = () => {
     atBottomRef.current = true;
     setFollowing(true);
-    scrollToBottom();
+    scrollToBottom(true);
   };
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
     const top = el.scrollTop;
-    const atBottom = el.scrollHeight - top - el.clientHeight < 48;
+    const distanceFromBottom = el.scrollHeight - top - el.clientHeight;
+    const atBottom = distanceFromBottom < 80;
     if (autoScrollingRef.current) {
       if (atBottom) autoScrollingRef.current = false; // landed
       else if (top >= lastScrollTopRef.current) {
@@ -824,7 +831,10 @@ export function App() {
     setFollowing(true);
   }, [sessionId]);
   useEffect(() => {
-    if (atBottomRef.current) scrollToBottom();
+    if (atBottomRef.current) {
+      // During active token streaming, scroll instantly to eliminate animation jitter; otherwise follow
+      scrollToBottom(false);
+    }
   }, [items, streaming]);
 
   // Track produced-file count for the topbar "Artifacts" affordance (works even when the rail is
@@ -1138,7 +1148,7 @@ export function App() {
         {overlay && (
           <div className="titlebar-drag" data-tauri-drag-region>
             <span className="titlebar-brand brand-wordmark">
-              <Icon name="logo" size={13} className="mark" /> CogniOS<span className="beta-tag">BETA</span>
+              <Icon name="logo" size={13} className="mark" /> CogniOS
             </span>
           </div>
         )}
@@ -1154,7 +1164,6 @@ export function App() {
         </div>
         <div className="boot-text">
           {resumedExisting ? "Restoring your session…" : "Starting CogniOS…"}
-          <span className="beta-tag">BETA</span>
         </div>
       </div>
     );
@@ -1262,180 +1271,186 @@ export function App() {
         />
       ) : (
         <div className={"main" + (agent !== "chat" && !railHidden ? " rail-open" : "")}>
-          <AppTopBar
-            navCollapsed={navCollapsed}
-            onToggleNav={toggleNav}
-            onStartNewSession={startNewSession}
-            onSearchOpen={() => setSearchOpen(true)}
-            onBeginWindowDrag={beginWindowDrag}
-            activeTitle={activeTitle}
-            activeInfo={!!activeInfo}
-            hasHistory={hasHistory}
-            subtitleParts={subtitleParts}
-            agent={agent}
-            railHidden={railHidden}
-            artifactCount={artifactCount}
-            onSetRailHidden={setRailHidden}
-          />
-          <div className={"main-workspace" + (railHidden ? " rail-hidden" : "")}>
-            <div className="main-chat">
-              <div className="main-scroll" ref={scrollRef} onScroll={handleScroll}>
-                {idle ? (
-                  agent === "cogniwork" || agent === "cowork" ? (
-                    <SessionIntro
-                      sessionId={sessionId}
-                      onOpenSessionSettings={openAccess}
-                      onPrefill={prefillComposer}
-                    />
-                  ) : (
-                    <div className="hero">
-                      <h1 className="greeting">
-                        <span className="mark">✦</span>
-                        {agent === "chat" ? "How can I help?" : "Let's build something."}
-                      </h1>
-                      {needsWorkspace(agent) && (
-                        <div className="suggestions">
-                          <div className="suggest-head">Try a task</div>
-                          {SUGGESTIONS.map((s, i) => (
-                            <div className="suggest" key={i} onClick={() => workspace && send(s.text)}>
-                              <span className="ico">{s.ico}</span>
-                              {s.text}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                ) : (
-                  <>
-                    <Transcript
-                      items={items}
-                      onApprove={approve}
-                      running={running}
-                      onRetry={retry}
-                      onUndoMemory={(id, previous) => void undoMemorySave(id, previous)}
-                      streamingText={streamMode(streaming, items, running) === "quiet" ? streaming : undefined}
-                    />
-                    {running && reasoningStream && !streaming && (
-                      <div className="transcript">
-                        <ThinkingBlock text={reasoningStream} live />
-                      </div>
-                    )}
-                    {running && compacting && <WaitingForAgent label="Compacting context…" />}
-                    {running &&
-                      !compacting &&
-                      !reasoningStream &&
-                      (!streaming || streamMode(streaming, items, running) === "hold") &&
-                      !lastItemIsAssistant(items) && <WaitingForAgent />}
-                    {streaming && streamMode(streaming, items, running) === "answer" && (
-                      <div className="transcript">
-                        <div className="bubble-assistant">
-                          <div className="who">assistant</div>
-                          <Markdown text={streaming} />
-                          <span className="stream-cursor">▍</span>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {!following && (running || !!streaming) && (
-                <div className="relative h-0 z-10">
-                  <button
-                    className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-panel shadow-md text-[12px] text-muted hover:text-fg cursor-pointer whitespace-nowrap"
-                    data-testid="jump-to-latest"
-                    onClick={followLatest}
-                  >
-                    <Icon name="chevronDown" size={13} />
-                    Jump to latest
-                  </button>
-                </div>
-              )}
-
-              <Composer
-                mode={mode}
-                model={model}
-                models={models}
-                modelLabels={modelLabels}
-                running={running}
-                connected={connected}
-                modelReady={modelReady}
-                onConnectModel={openModelSetup}
-                onConfigureVoiceInput={() => openSettings("voice")}
-                onSend={send}
-                onInterrupt={interrupt}
-                onModeChange={changeMode}
-                onModelChange={changeModel}
-                sessionId={sessionId}
-                workspace={needsWorkspace(agent) ? workspace || "" : undefined}
-                unattended={unattended}
-                onUnattendedChange={agent !== "chat" ? toggleUnattended : undefined}
-                prefill={composerPrefill}
-                resetKey={sessionId}
-                usage={usage}
-                contextWindow={modelContextWindows[model]}
-                contextBar={contextBar}
-                placeholder={
-                  agent === "code"
-                    ? "Ask the coder to build, fix, or explain…  (drop or paste files)"
-                    : agent === "chat"
-                      ? "Ask anything…  (drop or paste files)"
-                      : "Ask CogniWork…  (drop or paste files)"
-                }
-                approvalSlot={
-                  !unattended && pendingPlan?.kind === "planreq" ? (
-                    <PlanCard item={pendingPlan} onRespond={respondPlan} />
-                  ) : !unattended && pendingDirReq?.kind === "dirreq" ? (
-                    <DirectoryRequestCard item={pendingDirReq} onRespond={respondDirectory} />
-                  ) : !unattended && pendingApproval?.kind === "approval" ? (
-                    <ApprovalCard item={pendingApproval} onApprove={approve} compact />
-                  ) : !unattended && pendingQuestion?.kind === "question" ? (
-                    <InboxItemCard
-                      item={{
-                        id: "live-question",
-                        session_id: sessionId,
-                        kind: "question",
-                        title: pendingQuestion.question,
-                        body: "",
-                        state: "pending",
-                        resolution: null,
-                        inbox: "default",
-                        created_at: "",
-                        resolved_at: null,
-                        options: pendingQuestion.options,
-                        allow_text: pendingQuestion.allow_text,
-                        multi: pendingQuestion.multi,
-                        header: pendingQuestion.header,
-                        questions: pendingQuestion.questions,
-                      }}
-                      onResolve={(_id, answer) => answerQuestion(answer)}
-                      compact
-                    />
-                  ) : sessionInbox[0] ? (
-                    <InboxItemCard item={sessionInbox[0]} onResolve={resolveSessionInbox} compact />
-                  ) : undefined
-                }
-              />
-            </div>
-            <RightRail
-              active={surface === "session" && agent !== "chat" && !railHidden}
-              sessionId={sessionId}
-              refreshKey={browserRefreshKey}
-              toolNames={items.filter((i) => i.kind === "tool").map((i: any) => i.name)}
-              todo={todo}
-              running={running}
-              onPreviewChange={onArtifactPreview}
-              showArtifacts={agent === "cogniwork" || agent === "cowork"}
-              personaId={agent}
-              projectScoped={isProjectScoped(personaOf(agent))}
-              workspace={workspace || undefined}
-              branch={branch}
-              scratchPrimary={agent === "cogniwork" || agent === "cowork"}
-              openAccessKey={accessKey}
-              onOpenIntegrations={() => setSurface("integrations")}
+          <div className="main-content-column">
+            <AppTopBar
+              navCollapsed={navCollapsed}
+              onToggleNav={toggleNav}
+              onStartNewSession={startNewSession}
+              onSearchOpen={() => setSearchOpen(true)}
+              onBeginWindowDrag={beginWindowDrag}
+              activeTitle={activeTitle}
+              activeInfo={!!activeInfo}
+              hasHistory={hasHistory}
+              subtitleParts={subtitleParts}
+              agent={agent}
+              railHidden={railHidden}
+              artifactCount={artifactCount}
+              onSetRailHidden={setRailHidden}
             />
+            <div className={"main-workspace" + (railHidden ? " rail-hidden" : "")}>
+              <div className="main-chat">
+                <div className="main-chat-viewport">
+                  <div className="main-scroll" ref={scrollRef} onScroll={handleScroll}>
+                    {idle ? (
+                      agent === "cogniwork" || agent === "cowork" ? (
+                        <SessionIntro
+                          sessionId={sessionId}
+                          onOpenSessionSettings={openAccess}
+                          onPrefill={prefillComposer}
+                        />
+                      ) : (
+                        <div className="hero">
+                          <h1 className="greeting">
+                            <span className="mark">✦</span>
+                            {agent === "chat" ? "How can I help?" : "Let's build something."}
+                          </h1>
+                          {needsWorkspace(agent) && (
+                            <div className="suggestions">
+                              <div className="suggest-head">Try a task</div>
+                              {SUGGESTIONS.map((s, i) => (
+                                <div className="suggest" key={i} onClick={() => workspace && send(s.text)}>
+                                  <span className="ico">{s.ico}</span>
+                                  {s.text}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    ) : (
+                      <>
+                        <Transcript
+                          items={items}
+                          onApprove={approve}
+                          running={running}
+                          onRetry={retry}
+                          onUndoMemory={(id, previous) => void undoMemorySave(id, previous)}
+                          streamingText={streamMode(streaming, items, running) === "quiet" ? streaming : undefined}
+                        />
+                        {running && reasoningStream && !streaming && (
+                          <div className="transcript">
+                            <ThinkingBlock text={reasoningStream} live />
+                          </div>
+                        )}
+                        {running && compacting && <WaitingForAgent label="Compacting context…" />}
+                        {running &&
+                          !compacting &&
+                          !reasoningStream &&
+                          (!streaming || streamMode(streaming, items, running) === "hold") &&
+                          !lastItemIsAssistant(items) && <WaitingForAgent />}
+                        {streaming && streamMode(streaming, items, running) === "answer" && (
+                          <div className="transcript">
+                            <div className="bubble-assistant">
+                              <div className="who">assistant</div>
+                              <Markdown text={streaming} />
+                              <span className="stream-cursor">▍</span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <ChatScrollbar scrollRef={scrollRef} items={items} streaming={streaming} />
+                </div>
+
+                {!following && (running || !!streaming) && (
+                  <div className="relative h-0 z-10">
+                    <button
+                      className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-panel shadow-md text-[12px] text-muted hover:text-fg cursor-pointer whitespace-nowrap"
+                      data-testid="jump-to-latest"
+                      onClick={followLatest}
+                    >
+                      <Icon name="chevronDown" size={13} />
+                      Jump to latest
+                    </button>
+                  </div>
+                )}
+
+                <Composer
+                  mode={mode}
+                  model={model}
+                  models={models}
+                  modelLabels={modelLabels}
+                  running={running}
+                  connected={connected}
+                  modelReady={modelReady}
+                  onConnectModel={openModelSetup}
+                  onConfigureVoiceInput={() => openSettings("voice")}
+                  onSend={send}
+                  onInterrupt={interrupt}
+                  onModeChange={changeMode}
+                  onModelChange={changeModel}
+                  sessionId={sessionId}
+                  workspace={needsWorkspace(agent) ? workspace || "" : undefined}
+                  unattended={unattended}
+                  onUnattendedChange={agent !== "chat" ? toggleUnattended : undefined}
+                  prefill={composerPrefill}
+                  resetKey={sessionId}
+                  usage={usage}
+                  contextWindow={modelContextWindows[model]}
+                  contextBar={contextBar}
+                  placeholder={
+                    agent === "code"
+                      ? "Ask the coder to build, fix, or explain…  (drop or paste files)"
+                      : agent === "chat"
+                        ? "Ask anything…  (drop or paste files)"
+                        : "Ask CogniWork…  (drop or paste files)"
+                  }
+                  approvalSlot={
+                    !unattended && pendingPlan?.kind === "planreq" ? (
+                      <PlanCard item={pendingPlan} onRespond={respondPlan} />
+                    ) : !unattended && pendingDirReq?.kind === "dirreq" ? (
+                      <DirectoryRequestCard item={pendingDirReq} onRespond={respondDirectory} />
+                    ) : !unattended && pendingApproval?.kind === "approval" ? (
+                      <ApprovalCard item={pendingApproval} onApprove={approve} compact />
+                    ) : !unattended && pendingQuestion?.kind === "question" ? (
+                      <InboxItemCard
+                        item={{
+                          id: "live-question",
+                          session_id: sessionId,
+                          kind: "question",
+                          title: pendingQuestion.question,
+                          body: "",
+                          state: "pending",
+                          resolution: null,
+                          inbox: "default",
+                          created_at: "",
+                          resolved_at: null,
+                          options: pendingQuestion.options,
+                          allow_text: pendingQuestion.allow_text,
+                          multi: pendingQuestion.multi,
+                          header: pendingQuestion.header,
+                          questions: pendingQuestion.questions,
+                        }}
+                        onResolve={(_id, answer) => answerQuestion(answer)}
+                        compact
+                      />
+                    ) : sessionInbox[0] ? (
+                      <InboxItemCard item={sessionInbox[0]} onResolve={resolveSessionInbox} compact />
+                    ) : undefined
+                  }
+                />
+              </div>
+            </div>
           </div>
+          <RightRail
+            active={surface === "session" && agent !== "chat" && !railHidden}
+            sessionId={sessionId}
+            refreshKey={browserRefreshKey}
+            tools={items.filter((i): i is ToolItem => i.kind === "tool")}
+            toolNames={items.filter((i) => i.kind === "tool").map((i: any) => i.name)}
+            todo={todo}
+            running={running}
+            onPreviewChange={onArtifactPreview}
+            showArtifacts={agent === "cogniwork" || agent === "cowork"}
+            personaId={agent}
+            projectScoped={isProjectScoped(personaOf(agent))}
+            workspace={workspace || undefined}
+            branch={branch}
+            scratchPrimary={agent === "cogniwork" || agent === "cowork"}
+            openAccessKey={accessKey}
+            onOpenIntegrations={() => setSurface("integrations")}
+          />
         </div>
       )}
 

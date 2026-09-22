@@ -269,3 +269,62 @@ describe("New-session split button", () => {
     expect(within(menu).queryByText("Manage personas…")).toBeNull();
   });
 });
+
+describe("Dedicated Telegram section in Sidebar", () => {
+  const telegramSessions: SessionInfo[] = [
+    {
+      session_id: "tg-sess-1",
+      title: "Yashwant",
+      workspace: "",
+      agent: "cogniwork",
+      model: "gpt-5",
+      mode: "interactive",
+      updated_at: "2026-08-26T12:00:00Z",
+      messages: 5,
+      source: "telegram",
+      telegram_chat_id: "998877",
+      telegram_username: "Yashwant",
+      last_message: "Working on CogniOS...",
+      unread_count: 2,
+    },
+    {
+      session_id: "web-sess-1",
+      title: "Normal Web Session",
+      workspace: "",
+      agent: "cogniwork",
+      model: "gpt-5",
+      mode: "interactive",
+      updated_at: "2026-08-26T11:00:00Z",
+      messages: 3,
+      source: "web",
+    },
+  ];
+
+  it("renders Telegram section above Recent and separates Telegram chats from Web chats", async () => {
+    stubFetch([
+      { match: "/v1/personas", method: "GET", json: PERSONAS },
+      { match: "/v1/settings", method: "GET", json: { nav_layout: "flat" } },
+    ]);
+    render(<Sidebar {...baseProps} sessions={telegramSessions} />);
+
+    // Telegram header is present with unread badge count
+    const tgHeader = await screen.findByTestId("telegram-header");
+    expect(tgHeader).toBeTruthy();
+    expect(within(tgHeader).getByText("Telegram")).toBeTruthy();
+    expect(within(tgHeader).getByText("2")).toBeTruthy();
+
+    // Telegram chat row is rendered with username, last message, and unread count
+    const tgRow = screen.getByTestId("telegram-session-tg-sess-1");
+    expect(tgRow).toBeTruthy();
+    expect(within(tgRow).getByText("Yashwant")).toBeTruthy();
+    expect(within(tgRow).getByText("Working on CogniOS...")).toBeTruthy();
+    expect(within(tgRow).getByText("2")).toBeTruthy();
+
+    // Web chat is rendered under Recent
+    expect(screen.getByText("Normal Web Session")).toBeTruthy();
+
+    // Clicking Telegram chat calls onSelectSession
+    fireEvent.click(tgRow);
+    expect(baseProps.onSelectSession).toHaveBeenCalledWith("tg-sess-1", "", "cogniwork");
+  });
+});

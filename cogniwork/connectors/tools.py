@@ -26,19 +26,20 @@ _SCHEMA = {
             "Send a message to a connected chat (Slack or Telegram). `target` is the "
             "reply handle from an inbound message (e.g. 'telegram:12345' or 'slack:C0123', "
             "optionally with a ':<thread>' suffix) — or, for Slack, just the channel NAME "
-            "('#general' or 'general'; resolved against the connected workspaces). Use this to "
-            "actually reach a person — plain assistant text is not delivered anywhere."
+            "('#general' or 'general'; resolved against the connected workspaces). "
+            "If omitted in a Telegram/Slack session, it automatically defaults to the current chat. "
+            "Use this to actually reach a person — plain assistant text is not delivered anywhere."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "target": {
                     "type": "string",
-                    "description": "Destination handle 'platform:chat_id[:thread]', e.g. 'telegram:12345'.",
+                    "description": "Optional destination handle 'platform:chat_id[:thread]', e.g. 'telegram:12345'. Defaults to the current chat.",
                 },
                 "text": {"type": "string", "description": "The message text to send."},
             },
-            "required": ["target", "text"],
+            "required": ["text"],
         },
     },
 }
@@ -52,6 +53,24 @@ _SLACK_NAME = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
 def _slack_channel_name_like(chat_id: str) -> bool:
     return chat_id.startswith("#") or bool(_SLACK_NAME.match(chat_id))
+
+
+def _get_target(
+    passed_target: str | None,
+    default_target: str | Callable[[], str | None] | None,
+) -> str | None:
+    if passed_target and passed_target.strip():
+        return passed_target.strip()
+    if callable(default_target):
+        try:
+            val = default_target()
+            if val and str(val).strip():
+                return str(val).strip()
+        except Exception:
+            pass
+    elif isinstance(default_target, str) and default_target.strip():
+        return default_target.strip()
+    return None
 
 
 def _parse_or_coerce(target: str) -> tuple[str, str, str | None]:
@@ -136,13 +155,38 @@ def make_send_message_tool(
     secrets: SecretStore,
     *,
     senders: dict[str, Sender] | None = None,
+    default_target: str | Callable[[], str | None] | None = None,
 ) -> Callable[..., Any]:
     """Build the `send_message` tool bound to a SecretStore (and optional sender registry)."""
     senders = senders if senders is not None else DEFAULT_SENDERS
 
-    def send_message(target: str, text: str) -> dict[str, Any]:
+    def send_message(
+        arg1: str | None = None,
+        arg2: str | None = None,
+        *,
+        target: str | None = None,
+        text: str | None = None,
+    ) -> dict[str, Any]:
+        eff_target = target
+        eff_text = text
+
+        if arg1 is not None and arg2 is not None:
+            eff_target = arg1
+            eff_text = arg2
+        elif arg1 is not None and arg2 is None:
+            if eff_text is None:
+                eff_text = arg1
+            elif eff_target is None:
+                eff_target = arg1
+
+        resolved_target = _get_target(eff_target, default_target)
+        if not resolved_target:
+            return {"error": "no target specified and no default chat context available"}
+        if not eff_text:
+            return {"error": "text is required"}
+
         try:
-            platform, chat_id, thread_id = _parse_or_coerce(target)
+            platform, chat_id, thread_id = _parse_or_coerce(resolved_target)
         except ValueError as exc:
             return {"error": str(exc)}
         sender = senders.get(platform)
@@ -156,13 +200,14 @@ def make_send_message_tool(
         token = _resolve_token(secrets, platform, chat_id)
         if not token:
             return {"error": f"no bot token for {platform} — connect it first"}
+        out_text = eff_text
         if platform == "slack":
             from .attribution import sender_prefix
 
-            text = sender_prefix(secrets, chat_id) + text
-        result = sender(token, chat_id, text, thread_id)
+            out_text = sender_prefix(secrets, chat_id) + eff_text
+        result = sender(token, chat_id, out_text, thread_id)
         if result.ok:
-            return {"ok": True, "message_id": result.message_id, "target": target}
+            return {"ok": True, "message_id": result.message_id, "target": resolved_target}
         return {"error": result.error or "send failed"}
 
     send_message.__name__ = "send_message"
@@ -185,19 +230,20 @@ _FILE_SCHEMA = {
     "function": {
         "name": "send_file",
         "description": (
-            "Upload a file from the session's workspace into a connected chat (Slack). "
-            "`target` is the same handle send_message uses. Slack shows its own previews "
-            "for pdf/csv/images — send the actual file, not a screenshot of it. For .html "
-            "artifacts (which Slack can't preview) set as_screenshot=true to send a "
-            "rendered PNG instead. This is a DISTINCT permission from send_message: it "
-            "asks for approval even in threads where text replies are pre-approved."
+            "Upload a file from the session's workspace into a connected chat (Slack or Telegram). "
+            "`target` is the destination handle (e.g. 'telegram:12345' or 'slack:C0123'). "
+            "If omitted in a Telegram/Slack session, it automatically defaults to the current chat. "
+            "Slack and Telegram show native previews/downloads for files. For .html "
+            "artifacts set as_screenshot=true to send a rendered PNG preview instead. "
+            "This is a DISTINCT permission from send_message: it asks for approval even in "
+            "threads where text replies are pre-approved."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "target": {
                     "type": "string",
-                    "description": "Destination handle 'platform:chat_id[:thread]', e.g. 'slack:C0123:171234.5678'.",
+                    "description": "Optional destination handle 'platform:chat_id[:thread]', e.g. 'telegram:12345'. Defaults to the current chat.",
                 },
                 "path": {
                     "type": "string",
@@ -216,12 +262,12 @@ _FILE_SCHEMA = {
                     "description": "HTML only: render the page headless and send a PNG preview instead of the raw file.",
                 },
             },
-            "required": ["target", "path"],
+            "required": ["path"],
         },
     },
 }
 
-_MAX_FILE_BYTES = 50 * 1024 * 1024  # sanity cap well under Slack's limit
+_MAX_FILE_BYTES = 50 * 1024 * 1024  # sanity cap well under Slack's and Telegram's limit
 
 
 def _resolve_within(path: str, bases: list[Path]) -> Path | None:
@@ -270,6 +316,8 @@ def make_send_file_tool(
     roots: list | None = None,
     file_senders: dict[str, FileSender] | None = None,
     render_html: Callable[[Path], bytes] | None = None,
+    default_target: str | Callable[[], str | None] | None = None,
+    on_file_sent: Callable[[str, Path, str | None], None] | None = None,
 ) -> Callable[..., Any]:
     """Build the `send_file` tool. Same target grammar and token resolution as
     send_message, but a DIFFERENT tool name — standing send_message grants (e.g. a
@@ -281,14 +329,35 @@ def make_send_file_tool(
         bases.append(Path(workspace))
 
     def send_file(
-        target: str,
-        path: str,
+        arg1: str | None = None,
+        arg2: str | None = None,
         title: str | None = None,
         comment: str | None = None,
         as_screenshot: bool = False,
+        *,
+        target: str | None = None,
+        path: str | None = None,
     ) -> dict[str, Any]:
+        eff_target = target
+        eff_path = path
+
+        if arg1 is not None and arg2 is not None:
+            eff_target = arg1
+            eff_path = arg2
+        elif arg1 is not None and arg2 is None:
+            if eff_path is None:
+                eff_path = arg1
+            elif eff_target is None:
+                eff_target = arg1
+
+        resolved_target = _get_target(eff_target, default_target)
+        if not resolved_target:
+            return {"error": "no target specified and no default chat context available"}
+        if not eff_path:
+            return {"error": "path is required"}
+
         try:
-            platform, chat_id, thread_id = _parse_or_coerce(target)
+            platform, chat_id, thread_id = _parse_or_coerce(resolved_target)
         except ValueError as exc:
             return {"error": str(exc)}
         sender = file_senders.get(platform)
@@ -301,7 +370,7 @@ def make_send_file_tool(
                 return {"error": err}
         if not bases:
             return {"error": "no workspace folders available to read from"}
-        resolved = _resolve_within(path, bases)
+        resolved = _resolve_within(eff_path, bases)
         if resolved is None or not resolved.is_file():
             return {
                 "error": "path is outside the folders this session can access (or missing)"
@@ -322,16 +391,22 @@ def make_send_file_tool(
                 return {"error": "file is larger than 50 MB"}
             data = resolved.read_bytes()
             filename = resolved.name
+        out_comment = comment
         if platform == "slack" and comment:
             from .attribution import sender_prefix
 
-            comment = sender_prefix(secrets, chat_id) + comment
-        result = sender(token, chat_id, thread_id, filename, data, title, comment)
+            out_comment = sender_prefix(secrets, chat_id) + comment
+        result = sender(token, chat_id, thread_id, filename, data, title, out_comment)
         if result.ok:
+            if on_file_sent:
+                try:
+                    on_file_sent(platform, resolved, result.message_id)
+                except Exception:
+                    pass
             return {
                 "ok": True,
                 "file_id": result.message_id,
-                "target": target,
+                "target": resolved_target,
                 "filename": filename,
             }
         return {"error": result.error or "file send failed"}

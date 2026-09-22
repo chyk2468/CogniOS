@@ -7,21 +7,16 @@
 // glyphs that paint with `currentColor`, so ConnectorIcon / ConnectorBadge tint them with the
 // connector's brand color. Slack, Salesforce, Outlook, and Canva are no longer distributed by
 // the package (removed at the trademark holders' request), so their path data is vendored below in
-// the same format. Brands with no published monochrome mark (Attio, Apollo.io, Hunter,
-// Amplitude, Descript, Clay, Close, Docusign — whose current post-rebrand mark no icon pack
-// ships) and the non-brand utilities (email, browser, MCP, fallback plug) keep simple custom
-// glyphs. (Filename is `.tsx` because the entries are JSX — the spec's `registry.ts` can't hold
-// JSX.)
+// the same format. Brands with no published monochrome mark (Attio, Descript, Clay — whose
+// current mark no icon pack ships) and the non-brand utilities (email, browser, MCP, fallback plug)
+// keep simple custom glyphs. (Filename is `.tsx` because the entries are JSX — the spec's
+// `registry.ts` can't hold JSX.)
 
 import type { SimpleIcon } from "simple-icons";
 import {
-  siAsana,
   siBox,
-  siClickup,
-  siConfluence,
   siDatadog,
   siDiscord,
-  siDropbox,
   siFigma,
   siGithub,
   siGitlab,
@@ -30,16 +25,11 @@ import {
   siGoogledrive,
   siHubspot,
   siJira,
-  siLinear,
   siMixpanel,
   siNotion,
   siPagerduty,
-  siPosthog,
-  siQuickbooks,
-  siStripe,
   siTelegram,
   siWhatsapp,
-  siZendesk,
 } from "simple-icons";
 
 // `JSX` is global with the react-jsx runtime + @types/react.
@@ -126,26 +116,6 @@ const AttioLogo = strokeLogo(
   </>,
 );
 
-// monday.com's mark is three staggered capsule bars; no simple-icons mono mark exists.
-const MondayLogo = strokeLogo(
-  <>
-    <path d="M4.5 7.5h9M4.5 12h15M4.5 16.5h6.5" />
-  </>,
-);
-
-const AmplitudeLogo = strokeLogo(
-  <>
-    <path d="M2.5 13.5h4l3-8 4.5 13 3-8h4.5" />
-  </>,
-);
-
-const ApolloLogo = strokeLogo(
-  <>
-    <circle cx="10" cy="14" r="6" />
-    <path d="M14.5 9.5 21 3M16.5 3H21v4.5" />
-  </>,
-);
-
 const DescriptLogo = strokeLogo(
   <>
     <path d="M4 5.5h16M4 10h11M4 14.5h14M4 19h8" />
@@ -155,29 +125,6 @@ const DescriptLogo = strokeLogo(
 const ClayLogo = strokeLogo(
   <>
     <path d="M3 19a9 9 0 0 1 18 0zM1.5 19h21" />
-  </>,
-);
-
-const CloseLogo = strokeLogo(
-  <>
-    <ellipse cx="12" cy="12" rx="9" ry="3.8" />
-    <ellipse cx="12" cy="12" rx="9" ry="3.8" transform="rotate(60 12 12)" />
-    <ellipse cx="12" cy="12" rx="9" ry="3.8" transform="rotate(120 12 12)" />
-  </>,
-);
-
-const DocusignLogo = strokeLogo(
-  <>
-    <path d="M14.5 5.5 18.5 9.5 8 20H4v-4L14.5 5.5zM12.5 7.5l4 4" />
-    <path d="M4 21.5h16" />
-  </>,
-);
-
-const HunterLogo = strokeLogo(
-  <>
-    <circle cx="12" cy="12" r="7" />
-    <path d="M12 2.5V6M12 18v3.5M2.5 12H6M18 12h3.5" />
-    <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
   </>,
 );
 
@@ -192,13 +139,9 @@ export const FALLBACK: ConnectorRegistryEntry = { label: "Connector", logo: Plug
 
 export const CONNECTORS: Record<string, ConnectorRegistryEntry> = {
   // Real brand marks from simple-icons.
-  asana: brand(siAsana),
   box: brand(siBox),
-  clickup: brand(siClickup),
-  confluence: brand(siConfluence),
   datadog: brand(siDatadog),
   discord: brand(siDiscord),
-  dropbox: brand(siDropbox),
   figma: brand(siFigma),
   github: brand(siGithub),
   gitlab: brand(siGitlab),
@@ -207,16 +150,11 @@ export const CONNECTORS: Record<string, ConnectorRegistryEntry> = {
   google_drive: brand(siGoogledrive),
   hubspot: brand(siHubspot),
   jira: brand(siJira),
-  linear: brand(siLinear),
   mixpanel: brand(siMixpanel),
   notion: brand(siNotion),
   pagerduty: brand(siPagerduty),
-  posthog: brand(siPosthog),
-  quickbooks: brand(siQuickbooks),
-  stripe: brand(siStripe),
   telegram: brand(siTelegram),
   whatsapp: brand(siWhatsapp),
-  zendesk: brand(siZendesk),
   // Real brand marks vendored from simple-icons v9.
   slack: { label: "Slack", logo: pathLogo(SLACK_PATH) },
   salesforce: { label: "Salesforce", logo: pathLogo(SALESFORCE_PATH) },
@@ -224,14 +162,8 @@ export const CONNECTORS: Record<string, ConnectorRegistryEntry> = {
   canva: { label: "Canva", logo: pathLogo(CANVA_PATH) },
   // No published monochrome mark — custom glyphs, tinted with the real brand color.
   attio: { label: "Attio", logo: AttioLogo },
-  monday: { label: "monday.com", logo: MondayLogo },
   descript: { label: "Descript", logo: DescriptLogo },
   clay: { label: "Clay", logo: ClayLogo },
-  close: { label: "Close", logo: CloseLogo },
-  docusign: { label: "Docusign", logo: DocusignLogo },
-  amplitude: { label: "Amplitude", logo: AmplitudeLogo },
-  apollo: { label: "Apollo.io", logo: ApolloLogo },
-  hunter: { label: "Hunter", logo: HunterLogo },
   // Non-brand utilities.
   email: { label: "Email", logo: EmailLogo },
   browser: { label: "Browser", logo: BrowserLogo },

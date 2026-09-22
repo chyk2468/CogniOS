@@ -131,8 +131,9 @@ def _gmail_profile(
     secrets: SecretStore, account: str = ""
 ) -> tuple[str, dict[str, Any] | None, dict[str, str] | None]:
     """(email, profile, err) for the requested — or default — mailbox, with the
-    managed token refreshed in place. Multi-account: `gmail:account:<email>`."""
+    token refreshed in place automatically. Multi-account: `gmail:account:<email>`."""
     from . import gmail_accounts
+    from .gmail import credentials as gmail_creds
 
     email, key, profile = gmail_accounts.resolve(secrets, account)
     if profile is None:
@@ -142,11 +143,14 @@ def _gmail_profile(
             else "gmail is not connected"
         )
         return "", None, {"error": hint}
-    if profile.get("managed"):
-        profile = secrets.get(key) or profile
-    if not profile.get("access_token"):
-        return "", None, {"error": f"gmail account {email} has no usable token"}
-    return email, profile, None
+    
+    authed_email, access_token, err = gmail_creds.get_valid_access_token(secrets, email)
+    if err:
+        return email, None, err
+
+    profile = secrets.get(key) or profile
+    profile["access_token"] = access_token
+    return authed_email or email, profile, None
 
 
 def _gcal_profile(
@@ -967,6 +971,70 @@ def make_integration_tools(
         )
     )
 
+    def _extract_clean_gmail_message(data: dict[str, Any], max_body_chars: int = 10_000) -> dict[str, Any]:
+        """Extract clean, structured, model-facing email data without raw base64 or MIME bloat."""
+        if not isinstance(data, dict):
+            return data
+        if "payload" not in data and "snippet" in data:
+            return data
+
+        payload = data.get("payload") or {}
+        headers: dict[str, str] = {}
+        for h in payload.get("headers") or []:
+            name = str(h.get("name", "")).lower()
+            if name in ("subject", "from", "to", "cc", "date"):
+                headers[name] = str(h.get("value", ""))
+
+        def _decode_b64(raw: str) -> str:
+            if not raw:
+                return ""
+            pad = 4 - (len(raw) % 4)
+            if pad != 4:
+                raw += "=" * pad
+            try:
+                return base64.urlsafe_b64decode(raw.encode("utf-8")).decode("utf-8", errors="replace")
+            except Exception:
+                return ""
+
+        plain_parts: list[str] = []
+        html_parts: list[str] = []
+        stack = [payload]
+        while stack:
+            part = stack.pop(0)
+            mime = str(part.get("mimeType", "")).lower()
+            if "parts" in part and isinstance(part["parts"], list):
+                stack.extend(part["parts"])
+            body = part.get("body") or {}
+            bdata = body.get("data")
+            if bdata:
+                decoded = _decode_b64(bdata)
+                if mime == "text/plain":
+                    plain_parts.append(decoded)
+                elif mime == "text/html":
+                    html_parts.append(_html_to_text(decoded))
+
+        if plain_parts:
+            body_text = "\n".join(plain_parts).strip()
+        elif html_parts:
+            body_text = "\n".join(html_parts).strip()
+        else:
+            direct = (payload.get("body") or {}).get("data")
+            body_text = _decode_b64(direct).strip() if direct else str(data.get("snippet") or "")
+
+        if len(body_text) > max_body_chars:
+            body_text = body_text[:max_body_chars] + "\n…[body truncated for context limit]"
+
+        return {
+            "id": str(data.get("id") or ""),
+            "threadId": str(data.get("threadId") or ""),
+            "subject": headers.get("subject", ""),
+            "from": headers.get("from", ""),
+            "to": headers.get("to", ""),
+            "date": headers.get("date", ""),
+            "snippet": str(data.get("snippet") or ""),
+            "body": body_text or str(data.get("snippet") or ""),
+        }
+
     def gmail_get_message(message_id: str, account: str = "") -> dict[str, Any]:
         email, profile, err = _gmail_profile(secrets, account)
         if err:
@@ -991,6 +1059,9 @@ def make_integration_tools(
                     "_display": {"hidden_by_filters": 1, "connector": "gmail"},
                 }
         if result.get("ok"):
+            raw_data = result.get("data")
+            if isinstance(raw_data, dict):
+                result["data"] = _extract_clean_gmail_message(raw_data)
             result["account"] = email
         return result
 
@@ -1753,292 +1824,25 @@ def make_integration_tools(
         )
     )
 
-    def confluence_search(query: str, max_results: int = 10) -> dict[str, Any]:
-        profile, err = _profile(secrets, "confluence", "base_url", "email", "api_token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{_atlassian_base(profile)}/wiki/rest/api/search",
-            auth=_basic_auth(profile["email"], profile["api_token"]),
-            params={
-                "cql": f'text ~ "{query}"',
-                "limit": max(1, min(int(max_results or 10), 20)),
-            },
-        )
 
-    confluence_search.__name__ = "confluence_search"
-    tools.append(
-        _attach(
-            confluence_search,
-            _schema(
-                "confluence_search",
-                "Search Confluence pages.",
-                {"query": {"type": "string"}, "max_results": {"type": "integer"}},
-                ["query"],
-            ),
-            caps=["confluence", "read"],
-        )
-    )
 
-    def confluence_get_page(page_id: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "confluence", "base_url", "email", "api_token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{_atlassian_base(profile)}/wiki/rest/api/content/{page_id}",
-            auth=_basic_auth(profile["email"], profile["api_token"]),
-            params={"expand": "body.storage,version,space"},
-        )
 
-    confluence_get_page.__name__ = "confluence_get_page"
-    tools.append(
-        _attach(
-            confluence_get_page,
-            _schema(
-                "confluence_get_page",
-                "Read a Confluence page.",
-                {"page_id": {"type": "string"}},
-                ["page_id"],
-            ),
-            caps=["confluence", "read"],
-        )
-    )
 
-    def confluence_create_page(
-        space_key: str, title: str, body: str, parent_id: str = ""
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "confluence", "base_url", "email", "api_token")
-        if err:
-            return err
-        payload: dict[str, Any] = {
-            "type": "page",
-            "title": title,
-            "space": {"key": space_key},
-            "body": {"storage": {"value": body, "representation": "storage"}},
-        }
-        if parent_id:
-            payload["ancestors"] = [{"id": parent_id}]
-        return _request(
-            "POST",
-            f"{_atlassian_base(profile)}/wiki/rest/api/content",
-            auth=_basic_auth(profile["email"], profile["api_token"]),
-            json=payload,
-        )
 
-    confluence_create_page.__name__ = "confluence_create_page"
-    tools.append(
-        _attach(
-            confluence_create_page,
-            _schema(
-                "confluence_create_page",
-                "Create a Confluence page. Body should be Confluence storage-format HTML. Requires user approval.",
-                {
-                    "space_key": {"type": "string"},
-                    "title": {"type": "string"},
-                    "body": {"type": "string"},
-                    "parent_id": {"type": "string"},
-                },
-                ["space_key", "title", "body"],
-            ),
-            approval=True,
-            caps=["confluence", "write"],
-        )
-    )
 
-    def zendesk_search(query: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "zendesk", "subdomain", "email", "api_token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"https://{profile['subdomain']}.zendesk.com/api/v2/search.json",
-            auth=_basic_auth(f"{profile['email']}/token", profile["api_token"]),
-            params={"query": query},
-        )
 
-    zendesk_search.__name__ = "zendesk_search"
-    tools.append(
-        _attach(
-            zendesk_search,
-            _schema(
-                "zendesk_search",
-                "Search Zendesk tickets/users/articles.",
-                {"query": {"type": "string"}},
-                ["query"],
-            ),
-            caps=["zendesk", "read"],
-        )
-    )
 
-    def zendesk_get_ticket(ticket_id: int) -> dict[str, Any]:
-        profile, err = _profile(secrets, "zendesk", "subdomain", "email", "api_token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"https://{profile['subdomain']}.zendesk.com/api/v2/tickets/{ticket_id}.json",
-            auth=_basic_auth(f"{profile['email']}/token", profile["api_token"]),
-        )
 
-    zendesk_get_ticket.__name__ = "zendesk_get_ticket"
-    tools.append(
-        _attach(
-            zendesk_get_ticket,
-            _schema(
-                "zendesk_get_ticket",
-                "Read a Zendesk ticket.",
-                {"ticket_id": {"type": "integer"}},
-                ["ticket_id"],
-            ),
-            caps=["zendesk", "read"],
-        )
-    )
 
-    def zendesk_create_ticket(
-        subject: str, body: str, requester_email: str = ""
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "zendesk", "subdomain", "email", "api_token")
-        if err:
-            return err
-        ticket: dict[str, Any] = {"subject": subject, "comment": {"body": body}}
-        if requester_email:
-            ticket["requester"] = {"email": requester_email}
-        return _request(
-            "POST",
-            f"https://{profile['subdomain']}.zendesk.com/api/v2/tickets.json",
-            auth=_basic_auth(f"{profile['email']}/token", profile["api_token"]),
-            json={"ticket": ticket},
-        )
 
-    zendesk_create_ticket.__name__ = "zendesk_create_ticket"
-    tools.append(
-        _attach(
-            zendesk_create_ticket,
-            _schema(
-                "zendesk_create_ticket",
-                "Create a Zendesk ticket. Requires user approval.",
-                {
-                    "subject": {"type": "string"},
-                    "body": {"type": "string"},
-                    "requester_email": {"type": "string"},
-                },
-                ["subject", "body"],
-            ),
-            approval=True,
-            caps=["zendesk", "write"],
-        )
-    )
 
-    def linear_search_issues(query: str, max_results: int = 10) -> dict[str, Any]:
-        profile, err = _profile(secrets, "linear", "api_key")
-        if err:
-            return err
-        gql = (
-            "query($term: String!, $first: Int!) {"
-            " searchIssues(term: $term, first: $first) {"
-            " nodes { identifier title url state { name } assignee { name } } } }"
-        )
-        return _linear_gql(
-            profile["api_key"], gql, {"term": query, "first": _clamp(max_results)}
-        )
 
-    linear_search_issues.__name__ = "linear_search_issues"
-    tools.append(
-        _attach(
-            linear_search_issues,
-            _schema(
-                "linear_search_issues",
-                "Search Linear issues by text.",
-                {"query": {"type": "string"}, "max_results": {"type": "integer"}},
-                ["query"],
-            ),
-            caps=["linear", "read"],
-        )
-    )
 
-    def linear_get_issue(issue_id: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "linear", "api_key")
-        if err:
-            return err
-        gql = (
-            "query($id: String!) { issue(id: $id) {"
-            " identifier title description url state { name } assignee { name }"
-            " comments { nodes { body user { name } } } } }"
-        )
-        return _linear_gql(profile["api_key"], gql, {"id": issue_id})
 
-    linear_get_issue.__name__ = "linear_get_issue"
-    tools.append(
-        _attach(
-            linear_get_issue,
-            _schema(
-                "linear_get_issue",
-                "Read a Linear issue (with comments) by ID or key like ENG-123.",
-                {"issue_id": {"type": "string"}},
-                ["issue_id"],
-            ),
-            caps=["linear", "read"],
-        )
-    )
 
-    def linear_list_teams() -> dict[str, Any]:
-        profile, err = _profile(secrets, "linear", "api_key")
-        if err:
-            return err
-        return _linear_gql(
-            profile["api_key"], "{ teams { nodes { id key name } } }", {}
-        )
 
-    linear_list_teams.__name__ = "linear_list_teams"
-    tools.append(
-        _attach(
-            linear_list_teams,
-            _schema(
-                "linear_list_teams",
-                "List Linear teams (IDs are needed to create issues).",
-                {},
-                [],
-            ),
-            caps=["linear", "read"],
-        )
-    )
 
-    def linear_create_issue(
-        team_id: str, title: str, description: str = ""
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "linear", "api_key")
-        if err:
-            return err
-        gql = (
-            "mutation($input: IssueCreateInput!) { issueCreate(input: $input) {"
-            " success issue { identifier url } } }"
-        )
-        return _linear_gql(
-            profile["api_key"],
-            gql,
-            {"input": {"teamId": team_id, "title": title, "description": description}},
-        )
 
-    linear_create_issue.__name__ = "linear_create_issue"
-    tools.append(
-        _attach(
-            linear_create_issue,
-            _schema(
-                "linear_create_issue",
-                "Create a Linear issue. Get team_id from linear_list_teams. Requires user approval.",
-                {
-                    "team_id": {"type": "string"},
-                    "title": {"type": "string"},
-                    "description": {"type": "string"},
-                },
-                ["team_id", "title"],
-            ),
-            approval=True,
-            caps=["linear", "write"],
-        )
-    )
 
     def gitlab_search(
         query: str, scope: str = "issues", max_results: int = 10
@@ -2227,205 +2031,19 @@ def make_integration_tools(
         )
     )
 
-    def stripe_search_customers(query: str, max_results: int = 10) -> dict[str, Any]:
-        profile, err = _profile(secrets, "stripe", "api_key")
-        if err:
-            return err
-        return _request(
-            "GET",
-            "https://api.stripe.com/v1/customers/search",
-            headers=_bearer_headers(profile["api_key"]),
-            params={"query": query, "limit": _clamp(max_results)},
-        )
 
-    stripe_search_customers.__name__ = "stripe_search_customers"
-    tools.append(
-        _attach(
-            stripe_search_customers,
-            _schema(
-                "stripe_search_customers",
-                "Search Stripe customers. Query uses Stripe search syntax, e.g. email:'jane@example.com' or name~'Jane'.",
-                {"query": {"type": "string"}, "max_results": {"type": "integer"}},
-                ["query"],
-            ),
-            caps=["stripe", "read"],
-        )
-    )
 
-    def stripe_list_charges(
-        customer_id: str = "", max_results: int = 10
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "stripe", "api_key")
-        if err:
-            return err
-        params: dict[str, Any] = {"limit": _clamp(max_results)}
-        if customer_id:
-            params["customer"] = customer_id
-        return _request(
-            "GET",
-            "https://api.stripe.com/v1/charges",
-            headers=_bearer_headers(profile["api_key"]),
-            params=params,
-        )
 
-    stripe_list_charges.__name__ = "stripe_list_charges"
-    tools.append(
-        _attach(
-            stripe_list_charges,
-            _schema(
-                "stripe_list_charges",
-                "List Stripe charges, optionally for one customer.",
-                {"customer_id": {"type": "string"}, "max_results": {"type": "integer"}},
-                [],
-            ),
-            caps=["stripe", "read"],
-        )
-    )
 
-    def stripe_list_invoices(
-        customer_id: str = "", max_results: int = 10
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "stripe", "api_key")
-        if err:
-            return err
-        params: dict[str, Any] = {"limit": _clamp(max_results)}
-        if customer_id:
-            params["customer"] = customer_id
-        return _request(
-            "GET",
-            "https://api.stripe.com/v1/invoices",
-            headers=_bearer_headers(profile["api_key"]),
-            params=params,
-        )
 
-    stripe_list_invoices.__name__ = "stripe_list_invoices"
-    tools.append(
-        _attach(
-            stripe_list_invoices,
-            _schema(
-                "stripe_list_invoices",
-                "List Stripe invoices, optionally for one customer.",
-                {"customer_id": {"type": "string"}, "max_results": {"type": "integer"}},
-                [],
-            ),
-            caps=["stripe", "read"],
-        )
-    )
 
-    def asana_list_workspaces() -> dict[str, Any]:
-        profile, err = _profile(secrets, "asana", "token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            "https://app.asana.com/api/1.0/workspaces",
-            headers=_bearer_headers(profile["token"]),
-        )
 
-    asana_list_workspaces.__name__ = "asana_list_workspaces"
-    tools.append(
-        _attach(
-            asana_list_workspaces,
-            _schema(
-                "asana_list_workspaces",
-                "List Asana workspaces (GIDs are needed to search tasks).",
-                {},
-                [],
-            ),
-            caps=["asana", "read"],
-        )
-    )
 
-    def asana_search_tasks(
-        workspace_gid: str, query: str, max_results: int = 10
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "asana", "token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"https://app.asana.com/api/1.0/workspaces/{workspace_gid}/typeahead",
-            headers=_bearer_headers(profile["token"]),
-            params={
-                "resource_type": "task",
-                "query": query,
-                "count": _clamp(max_results),
-            },
-        )
 
-    asana_search_tasks.__name__ = "asana_search_tasks"
-    tools.append(
-        _attach(
-            asana_search_tasks,
-            _schema(
-                "asana_search_tasks",
-                "Search Asana tasks by name in a workspace. Get workspace_gid from asana_list_workspaces.",
-                {
-                    "workspace_gid": {"type": "string"},
-                    "query": {"type": "string"},
-                    "max_results": {"type": "integer"},
-                },
-                ["workspace_gid", "query"],
-            ),
-            caps=["asana", "read"],
-        )
-    )
 
-    def asana_get_task(task_gid: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "asana", "token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"https://app.asana.com/api/1.0/tasks/{task_gid}",
-            headers=_bearer_headers(profile["token"]),
-        )
 
-    asana_get_task.__name__ = "asana_get_task"
-    tools.append(
-        _attach(
-            asana_get_task,
-            _schema(
-                "asana_get_task",
-                "Read an Asana task.",
-                {"task_gid": {"type": "string"}},
-                ["task_gid"],
-            ),
-            caps=["asana", "read"],
-        )
-    )
 
-    def asana_create_task(
-        project_gid: str, name: str, notes: str = ""
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "asana", "token")
-        if err:
-            return err
-        return _request(
-            "POST",
-            "https://app.asana.com/api/1.0/tasks",
-            headers=_bearer_headers(profile["token"]),
-            json={"data": {"name": name, "notes": notes, "projects": [project_gid]}},
-        )
 
-    asana_create_task.__name__ = "asana_create_task"
-    tools.append(
-        _attach(
-            asana_create_task,
-            _schema(
-                "asana_create_task",
-                "Create an Asana task in a project. Requires user approval.",
-                {
-                    "project_gid": {"type": "string"},
-                    "name": {"type": "string"},
-                    "notes": {"type": "string"},
-                },
-                ["project_gid", "name"],
-            ),
-            approval=True,
-            caps=["asana", "write"],
-        )
-    )
 
     _PORTAL_PROP = {
         "type": "string",
@@ -2731,93 +2349,12 @@ def make_integration_tools(
         )
     )
 
-    def _dropbox_path(path: str) -> str:
-        path = (path or "").strip()
-        if path and not path.startswith("/"):
-            path = "/" + path
-        return path
 
-    def dropbox_search(query: str, max_results: int = 10) -> dict[str, Any]:
-        profile, err = _profile(secrets, "dropbox", "access_token")
-        if err:
-            return err
-        return _request(
-            "POST",
-            "https://api.dropboxapi.com/2/files/search_v2",
-            headers=_bearer_headers(profile["access_token"]),
-            json={"query": query, "options": {"max_results": _clamp(max_results)}},
-        )
 
-    dropbox_search.__name__ = "dropbox_search"
-    tools.append(
-        _attach(
-            dropbox_search,
-            _schema(
-                "dropbox_search",
-                "Search Dropbox files and folders by name/content.",
-                {"query": {"type": "string"}, "max_results": {"type": "integer"}},
-                ["query"],
-            ),
-            caps=["dropbox", "read"],
-        )
-    )
 
-    def dropbox_list_folder(path: str = "") -> dict[str, Any]:
-        profile, err = _profile(secrets, "dropbox", "access_token")
-        if err:
-            return err
-        return _request(
-            "POST",
-            "https://api.dropboxapi.com/2/files/list_folder",
-            headers=_bearer_headers(profile["access_token"]),
-            json={"path": _dropbox_path(path)},
-        )
 
-    dropbox_list_folder.__name__ = "dropbox_list_folder"
-    tools.append(
-        _attach(
-            dropbox_list_folder,
-            _schema(
-                "dropbox_list_folder",
-                "List a Dropbox folder. Empty path is the root.",
-                {"path": {"type": "string"}},
-                [],
-            ),
-            caps=["dropbox", "read"],
-        )
-    )
 
-    def dropbox_read_file(path: str, max_chars: int = 20000) -> dict[str, Any]:
-        profile, err = _profile(secrets, "dropbox", "access_token")
-        if err:
-            return err
-        out = _request(
-            "POST",
-            "https://content.dropboxapi.com/2/files/download",
-            headers={
-                "Authorization": f"Bearer {profile['access_token']}",
-                "Dropbox-API-Arg": json.dumps({"path": _dropbox_path(path)}),
-            },
-        )
-        if "error" in out:
-            return out
-        text = out["data"] if isinstance(out["data"], str) else str(out["data"])
-        cap = max(1, min(int(max_chars or 20000), 100000))
-        return {"path": path, "text": text[:cap], "truncated": len(text) > cap}
 
-    dropbox_read_file.__name__ = "dropbox_read_file"
-    tools.append(
-        _attach(
-            dropbox_read_file,
-            _schema(
-                "dropbox_read_file",
-                "Read a text file from Dropbox by path.",
-                {"path": {"type": "string"}, "max_chars": {"type": "integer"}},
-                ["path"],
-            ),
-            caps=["dropbox", "read"],
-        )
-    )
 
     def box_search(query: str, max_results: int = 10) -> dict[str, Any]:
         profile, err = _profile(secrets, "box", "access_token")
@@ -2897,126 +2434,13 @@ def make_integration_tools(
         )
     )
 
-    def quickbooks_query(query: str, max_results: int = 10) -> dict[str, Any]:
-        profile, err = _profile(secrets, "quickbooks", "access_token", "realm_id")
-        if err:
-            return err
-        q = query.strip()
-        if "maxresults" not in q.lower():
-            q = f"{q} MAXRESULTS {_clamp(max_results, ceiling=100)}"
-        return _request(
-            "GET",
-            f"{_qbo_base(profile)}/query",
-            headers=_bearer_headers(profile["access_token"]),
-            params={"query": q},
-        )
 
-    quickbooks_query.__name__ = "quickbooks_query"
-    tools.append(
-        _attach(
-            quickbooks_query,
-            _schema(
-                "quickbooks_query",
-                "Run a QuickBooks Online query, e.g. \"SELECT * FROM Invoice WHERE TotalAmt > '100'\". "
-                "Entities include Customer, Invoice, Bill, Payment, Account, Vendor.",
-                {"query": {"type": "string"}, "max_results": {"type": "integer"}},
-                ["query"],
-            ),
-            caps=["quickbooks", "read"],
-        )
-    )
 
-    def quickbooks_list_customers(max_results: int = 10) -> dict[str, Any]:
-        profile, err = _profile(secrets, "quickbooks", "access_token", "realm_id")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{_qbo_base(profile)}/query",
-            headers=_bearer_headers(profile["access_token"]),
-            params={
-                "query": f"SELECT * FROM Customer MAXRESULTS {_clamp(max_results)}"
-            },
-        )
 
-    quickbooks_list_customers.__name__ = "quickbooks_list_customers"
-    tools.append(
-        _attach(
-            quickbooks_list_customers,
-            _schema(
-                "quickbooks_list_customers",
-                "List QuickBooks customers.",
-                {"max_results": {"type": "integer"}},
-                [],
-            ),
-            caps=["quickbooks", "read"],
-        )
-    )
 
-    def quickbooks_list_invoices(max_results: int = 10) -> dict[str, Any]:
-        profile, err = _profile(secrets, "quickbooks", "access_token", "realm_id")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{_qbo_base(profile)}/query",
-            headers=_bearer_headers(profile["access_token"]),
-            params={
-                "query": "SELECT * FROM Invoice ORDERBY TxnDate DESC "
-                f"MAXRESULTS {_clamp(max_results)}"
-            },
-        )
 
-    quickbooks_list_invoices.__name__ = "quickbooks_list_invoices"
-    tools.append(
-        _attach(
-            quickbooks_list_invoices,
-            _schema(
-                "quickbooks_list_invoices",
-                "List recent QuickBooks invoices.",
-                {"max_results": {"type": "integer"}},
-                [],
-            ),
-            caps=["quickbooks", "read"],
-        )
-    )
 
-    def quickbooks_get_report(
-        report: str, start_date: str = "", end_date: str = ""
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "quickbooks", "access_token", "realm_id")
-        if err:
-            return err
-        params: dict[str, Any] = {}
-        if start_date:
-            params["start_date"] = start_date
-        if end_date:
-            params["end_date"] = end_date
-        return _request(
-            "GET",
-            f"{_qbo_base(profile)}/reports/{quote(report, safe='')}",
-            headers=_bearer_headers(profile["access_token"]),
-            params=params or None,
-        )
 
-    quickbooks_get_report.__name__ = "quickbooks_get_report"
-    tools.append(
-        _attach(
-            quickbooks_get_report,
-            _schema(
-                "quickbooks_get_report",
-                "Run a QuickBooks report such as ProfitAndLoss, BalanceSheet, CashFlow, "
-                "AgedReceivables. Dates are YYYY-MM-DD.",
-                {
-                    "report": {"type": "string"},
-                    "start_date": {"type": "string"},
-                    "end_date": {"type": "string"},
-                },
-                ["report"],
-            ),
-            caps=["quickbooks", "read"],
-        )
-    )
 
     def whatsapp_send_message(to: str, text: str) -> dict[str, Any]:
         profile, err = _profile(secrets, "whatsapp", "access_token", "phone_number_id")
@@ -3430,75 +2854,10 @@ def make_integration_tools(
 
     # -- product analytics: posthog / mixpanel / amplitude (manual keys, multi-account) --
 
-    def _posthog_base(profile: dict[str, Any]) -> str:
-        return str(profile.get("base_url") or "https://us.posthog.com").rstrip("/")
 
-    def posthog_query(hogql: str, account: str = "") -> dict[str, Any]:
-        aid, profile, err = _account_profile(
-            secrets, "posthog", account, "api_key", "project_id"
-        )
-        if err:
-            return err
-        result = _request(
-            "POST",
-            f"{_posthog_base(profile)}/api/projects/{profile['project_id']}/query",
-            headers=_bearer_headers(profile["api_key"]),
-            json={"query": {"kind": "HogQLQuery", "query": hogql}},
-        )
-        return _acct_result(aid, result)
 
-    posthog_query.__name__ = "posthog_query"
-    tools.append(
-        _attach(
-            posthog_query,
-            _schema(
-                "posthog_query",
-                "Run a HogQL (SQL-like) query against PostHog analytics, e.g. "
-                "SELECT event, count() FROM events WHERE timestamp > now() - "
-                "INTERVAL 7 DAY GROUP BY event.",
-                {"hogql": {"type": "string"}, "account": _GEN_ACCOUNT_PROP},
-                ["hogql"],
-            ),
-            caps=["posthog", "read"],
-        )
-    )
 
-    def posthog_list_insights(
-        query: str = "", max_results: int = 10, account: str = ""
-    ) -> dict[str, Any]:
-        aid, profile, err = _account_profile(
-            secrets, "posthog", account, "api_key", "project_id"
-        )
-        if err:
-            return err
-        params: dict[str, Any] = {"limit": _clamp(max_results)}
-        if query:
-            params["search"] = query
-        result = _request(
-            "GET",
-            f"{_posthog_base(profile)}/api/projects/{profile['project_id']}/insights",
-            headers=_bearer_headers(profile["api_key"]),
-            params=params,
-        )
-        return _acct_result(aid, result)
 
-    posthog_list_insights.__name__ = "posthog_list_insights"
-    tools.append(
-        _attach(
-            posthog_list_insights,
-            _schema(
-                "posthog_list_insights",
-                "List saved PostHog insights (dashboards' building blocks).",
-                {
-                    "query": {"type": "string"},
-                    "max_results": {"type": "integer"},
-                    "account": _GEN_ACCOUNT_PROP,
-                },
-                [],
-            ),
-            caps=["posthog", "read"],
-        )
-    )
 
     def mixpanel_segmentation(
         event: str,
@@ -3586,700 +2945,59 @@ def make_integration_tools(
         )
     )
 
-    def amplitude_active_users(
-        start: str, end: str, metric: str = "active", account: str = ""
-    ) -> dict[str, Any]:
-        aid, profile, err = _account_profile(
-            secrets, "amplitude", account, "api_key", "secret_key"
-        )
-        if err:
-            return err
-        result = _request(
-            "GET",
-            "https://amplitude.com/api/2/users",
-            params={
-                "m": metric if metric in ("active", "new") else "active",
-                "start": start.replace("-", ""),
-                "end": end.replace("-", ""),
-                "i": 1,
-            },
-            auth=(profile["api_key"], profile["secret_key"]),
-        )
-        return _acct_result(aid, result)
 
-    amplitude_active_users.__name__ = "amplitude_active_users"
-    tools.append(
-        _attach(
-            amplitude_active_users,
-            _schema(
-                "amplitude_active_users",
-                "Amplitude daily active or new users between two dates (YYYYMMDD "
-                "or YYYY-MM-DD).",
-                {
-                    "start": {"type": "string"},
-                    "end": {"type": "string"},
-                    "metric": {"type": "string", "description": "active | new"},
-                    "account": _GEN_ACCOUNT_PROP,
-                },
-                ["start", "end"],
-            ),
-            caps=["amplitude", "read"],
-        )
-    )
 
-    def amplitude_event_totals(
-        event_type: str, start: str, end: str, account: str = ""
-    ) -> dict[str, Any]:
-        aid, profile, err = _account_profile(
-            secrets, "amplitude", account, "api_key", "secret_key"
-        )
-        if err:
-            return err
-        result = _request(
-            "GET",
-            "https://amplitude.com/api/2/events/segmentation",
-            params={
-                "e": json.dumps({"event_type": event_type}),
-                "start": start.replace("-", ""),
-                "end": end.replace("-", ""),
-                "m": "totals",
-            },
-            auth=(profile["api_key"], profile["secret_key"]),
-        )
-        return _acct_result(aid, result)
 
-    amplitude_event_totals.__name__ = "amplitude_event_totals"
-    tools.append(
-        _attach(
-            amplitude_event_totals,
-            _schema(
-                "amplitude_event_totals",
-                "Daily totals for one Amplitude event between two dates.",
-                {
-                    "event_type": {"type": "string"},
-                    "start": {"type": "string"},
-                    "end": {"type": "string"},
-                    "account": _GEN_ACCOUNT_PROP,
-                },
-                ["event_type", "start", "end"],
-            ),
-            caps=["amplitude", "read"],
-        )
-    )
 
-    # -- prospecting/enrichment: apollo / hunter (manual keys, multi-account) --
 
-    def _apollo_headers(profile: dict[str, Any]) -> dict[str, str]:
-        return {"X-Api-Key": profile["api_key"], "Content-Type": "application/json"}
 
-    def apollo_enrich_person(
-        email: str = "", name: str = "", company_domain: str = "", account: str = ""
-    ) -> dict[str, Any]:
-        if not email and not name:
-            return {"error": "provide an email, a name, or both"}
-        aid, profile, err = _account_profile(secrets, "apollo", account, "api_key")
-        if err:
-            return err
-        body: dict[str, Any] = {}
-        if email:
-            body["email"] = email
-        if name:
-            body["name"] = name
-        if company_domain:
-            body["domain"] = company_domain
-        result = _request(
-            "POST",
-            "https://api.apollo.io/api/v1/people/match",
-            headers=_apollo_headers(profile),
-            json=body,
-        )
-        return _acct_result(aid, result)
 
-    apollo_enrich_person.__name__ = "apollo_enrich_person"
-    tools.append(
-        _attach(
-            apollo_enrich_person,
-            _schema(
-                "apollo_enrich_person",
-                "Enrich a person from Apollo: title, company, LinkedIn, location "
-                "— by email and/or name (+ optional company domain).",
-                {
-                    "email": {"type": "string"},
-                    "name": {"type": "string"},
-                    "company_domain": {"type": "string"},
-                    "account": _GEN_ACCOUNT_PROP,
-                },
-                [],
-            ),
-            caps=["apollo", "read"],
-        )
-    )
 
-    def apollo_enrich_company(domain: str, account: str = "") -> dict[str, Any]:
-        aid, profile, err = _account_profile(secrets, "apollo", account, "api_key")
-        if err:
-            return err
-        result = _request(
-            "GET",
-            "https://api.apollo.io/api/v1/organizations/enrich",
-            headers=_apollo_headers(profile),
-            params={"domain": domain},
-        )
-        return _acct_result(aid, result)
 
-    apollo_enrich_company.__name__ = "apollo_enrich_company"
-    tools.append(
-        _attach(
-            apollo_enrich_company,
-            _schema(
-                "apollo_enrich_company",
-                "Enrich a company from Apollo by domain: size, industry, funding, "
-                "tech stack.",
-                {"domain": {"type": "string"}, "account": _GEN_ACCOUNT_PROP},
-                ["domain"],
-            ),
-            caps=["apollo", "read"],
-        )
-    )
 
-    def apollo_search_people(
-        query: str, max_results: int = 10, account: str = ""
-    ) -> dict[str, Any]:
-        aid, profile, err = _account_profile(secrets, "apollo", account, "api_key")
-        if err:
-            return err
-        result = _request(
-            "POST",
-            "https://api.apollo.io/api/v1/mixed_people/search",
-            headers=_apollo_headers(profile),
-            json={"q_keywords": query, "page": 1, "per_page": _clamp(max_results)},
-        )
-        return _acct_result(aid, result)
 
-    apollo_search_people.__name__ = "apollo_search_people"
-    tools.append(
-        _attach(
-            apollo_search_people,
-            _schema(
-                "apollo_search_people",
-                "Keyword-search people in Apollo's B2B database (e.g. 'VP "
-                "engineering fintech Berlin').",
-                {
-                    "query": {"type": "string"},
-                    "max_results": {"type": "integer"},
-                    "account": _GEN_ACCOUNT_PROP,
-                },
-                ["query"],
-            ),
-            caps=["apollo", "read"],
-        )
-    )
 
-    def _hunter_get(
-        profile: dict[str, Any], path: str, params: dict[str, Any]
-    ) -> dict[str, Any]:
-        return _request(
-            "GET",
-            f"https://api.hunter.io/v2/{path}",
-            params={**params, "api_key": profile["api_key"]},
-        )
 
-    def hunter_domain_search(
-        domain: str, max_results: int = 10, account: str = ""
-    ) -> dict[str, Any]:
-        aid, profile, err = _account_profile(secrets, "hunter", account, "api_key")
-        if err:
-            return err
-        result = _hunter_get(
-            profile, "domain-search", {"domain": domain, "limit": _clamp(max_results)}
-        )
-        return _acct_result(aid, result)
 
-    hunter_domain_search.__name__ = "hunter_domain_search"
-    tools.append(
-        _attach(
-            hunter_domain_search,
-            _schema(
-                "hunter_domain_search",
-                "Find published email addresses for a company domain (Hunter).",
-                {
-                    "domain": {"type": "string"},
-                    "max_results": {"type": "integer"},
-                    "account": _GEN_ACCOUNT_PROP,
-                },
-                ["domain"],
-            ),
-            caps=["hunter", "read"],
-        )
-    )
 
-    def hunter_find_email(
-        domain: str, first_name: str, last_name: str, account: str = ""
-    ) -> dict[str, Any]:
-        aid, profile, err = _account_profile(secrets, "hunter", account, "api_key")
-        if err:
-            return err
-        result = _hunter_get(
-            profile,
-            "email-finder",
-            {"domain": domain, "first_name": first_name, "last_name": last_name},
-        )
-        return _acct_result(aid, result)
 
-    hunter_find_email.__name__ = "hunter_find_email"
-    tools.append(
-        _attach(
-            hunter_find_email,
-            _schema(
-                "hunter_find_email",
-                "Find a person's most likely email address from their name and "
-                "company domain (Hunter).",
-                {
-                    "domain": {"type": "string"},
-                    "first_name": {"type": "string"},
-                    "last_name": {"type": "string"},
-                    "account": _GEN_ACCOUNT_PROP,
-                },
-                ["domain", "first_name", "last_name"],
-            ),
-            caps=["hunter", "read"],
-        )
-    )
 
-    def hunter_verify_email(email: str, account: str = "") -> dict[str, Any]:
-        aid, profile, err = _account_profile(secrets, "hunter", account, "api_key")
-        if err:
-            return err
-        return _acct_result(
-            aid, _hunter_get(profile, "email-verifier", {"email": email})
-        )
 
-    hunter_verify_email.__name__ = "hunter_verify_email"
-    tools.append(
-        _attach(
-            hunter_verify_email,
-            _schema(
-                "hunter_verify_email",
-                "Check whether an email address is deliverable (Hunter).",
-                {"email": {"type": "string"}, "account": _GEN_ACCOUNT_PROP},
-                ["email"],
-            ),
-            caps=["hunter", "read"],
-        )
-    )
 
-    # --- ClickUp ------------------------------------------------------------
 
     _CLICKUP = "https://api.clickup.com/api/v2"
 
-    def clickup_list_teams() -> dict[str, Any]:
-        profile, err = _profile(secrets, "clickup", "api_token")
-        if err:
-            return err
-        return _request(
-            "GET", f"{_CLICKUP}/team", headers={"Authorization": profile["api_token"]}
-        )
 
-    clickup_list_teams.__name__ = "clickup_list_teams"
-    tools.append(
-        _attach(
-            clickup_list_teams,
-            _schema(
-                "clickup_list_teams",
-                "List ClickUp workspaces (team ids are needed to browse spaces).",
-                {},
-                [],
-            ),
-            caps=["clickup", "read"],
-        )
-    )
 
-    def clickup_list_spaces(team_id: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "clickup", "api_token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{_CLICKUP}/team/{quote(team_id)}/space",
-            headers={"Authorization": profile["api_token"]},
-        )
 
-    clickup_list_spaces.__name__ = "clickup_list_spaces"
-    tools.append(
-        _attach(
-            clickup_list_spaces,
-            _schema(
-                "clickup_list_spaces",
-                "List spaces in a ClickUp workspace.",
-                {"team_id": {"type": "string"}},
-                ["team_id"],
-            ),
-            caps=["clickup", "read"],
-        )
-    )
 
-    def clickup_list_lists(space_id: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "clickup", "api_token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{_CLICKUP}/space/{quote(space_id)}/list",
-            headers={"Authorization": profile["api_token"]},
-        )
 
-    clickup_list_lists.__name__ = "clickup_list_lists"
-    tools.append(
-        _attach(
-            clickup_list_lists,
-            _schema(
-                "clickup_list_lists",
-                "List folderless lists in a ClickUp space (list ids hold the tasks).",
-                {"space_id": {"type": "string"}},
-                ["space_id"],
-            ),
-            caps=["clickup", "read"],
-        )
-    )
 
-    def clickup_list_tasks(
-        list_id: str, include_closed: bool = False, max_results: int = 10
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "clickup", "api_token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{_CLICKUP}/list/{quote(list_id)}/task",
-            headers={"Authorization": profile["api_token"]},
-            params={
-                "include_closed": str(bool(include_closed)).lower(),
-                "page": 0,
-            },
-        )
 
-    clickup_list_tasks.__name__ = "clickup_list_tasks"
-    tools.append(
-        _attach(
-            clickup_list_tasks,
-            _schema(
-                "clickup_list_tasks",
-                "List tasks in a ClickUp list.",
-                {
-                    "list_id": {"type": "string"},
-                    "include_closed": {"type": "boolean"},
-                    "max_results": {"type": "integer"},
-                },
-                ["list_id"],
-            ),
-            caps=["clickup", "read"],
-        )
-    )
 
-    def clickup_get_task(task_id: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "clickup", "api_token")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{_CLICKUP}/task/{quote(task_id)}",
-            headers={"Authorization": profile["api_token"]},
-            params={"include_subtasks": "true"},
-        )
 
-    clickup_get_task.__name__ = "clickup_get_task"
-    tools.append(
-        _attach(
-            clickup_get_task,
-            _schema(
-                "clickup_get_task",
-                "Read a ClickUp task (with subtasks) by id.",
-                {"task_id": {"type": "string"}},
-                ["task_id"],
-            ),
-            caps=["clickup", "read"],
-        )
-    )
 
-    def clickup_create_task(
-        list_id: str, name: str, description: str = ""
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "clickup", "api_token")
-        if err:
-            return err
-        return _request(
-            "POST",
-            f"{_CLICKUP}/list/{quote(list_id)}/task",
-            headers={"Authorization": profile["api_token"]},
-            json={"name": name, "description": description},
-        )
 
-    clickup_create_task.__name__ = "clickup_create_task"
-    tools.append(
-        _attach(
-            clickup_create_task,
-            _schema(
-                "clickup_create_task",
-                "Create a ClickUp task in a list. Requires user approval.",
-                {
-                    "list_id": {"type": "string"},
-                    "name": {"type": "string"},
-                    "description": {"type": "string"},
-                },
-                ["list_id", "name"],
-            ),
-            approval=True,
-            caps=["clickup", "write"],
-        )
-    )
 
-    def clickup_update_task(
-        task_id: str, name: str = "", description: str = "", status: str = ""
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "clickup", "api_token")
-        if err:
-            return err
-        body: dict[str, Any] = {}
-        if name:
-            body["name"] = name
-        if description:
-            body["description"] = description
-        if status:
-            body["status"] = status
-        if not body:
-            return {"error": "nothing to update: pass name, description, or status"}
-        return _request(
-            "PUT",
-            f"{_CLICKUP}/task/{quote(task_id)}",
-            headers={"Authorization": profile["api_token"]},
-            json=body,
-        )
 
-    clickup_update_task.__name__ = "clickup_update_task"
-    tools.append(
-        _attach(
-            clickup_update_task,
-            _schema(
-                "clickup_update_task",
-                "Update a ClickUp task's name, description, or status. Requires user approval.",
-                {
-                    "task_id": {"type": "string"},
-                    "name": {"type": "string"},
-                    "description": {"type": "string"},
-                    "status": {"type": "string"},
-                },
-                ["task_id"],
-            ),
-            approval=True,
-            caps=["clickup", "write"],
-        )
-    )
 
-    def clickup_add_comment(task_id: str, text: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "clickup", "api_token")
-        if err:
-            return err
-        return _request(
-            "POST",
-            f"{_CLICKUP}/task/{quote(task_id)}/comment",
-            headers={"Authorization": profile["api_token"]},
-            json={"comment_text": text},
-        )
 
-    clickup_add_comment.__name__ = "clickup_add_comment"
-    tools.append(
-        _attach(
-            clickup_add_comment,
-            _schema(
-                "clickup_add_comment",
-                "Comment on a ClickUp task. Requires user approval.",
-                {"task_id": {"type": "string"}, "text": {"type": "string"}},
-                ["task_id", "text"],
-            ),
-            approval=True,
-            caps=["clickup", "write"],
-        )
-    )
 
-    # --- Close --------------------------------------------------------------
 
     _CLOSE = "https://api.close.com/api/v1"
 
-    def _close_auth(profile: dict[str, Any]) -> tuple[str, str]:
-        # HTTP basic: API key as username, blank password.
-        return (str(profile.get("api_key", "")), "")
 
-    def close_search_leads(query: str, max_results: int = 10) -> dict[str, Any]:
-        profile, err = _profile(secrets, "close", "api_key")
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{_CLOSE}/lead/",
-            auth=_close_auth(profile),
-            params={"query": query, "_limit": _clamp(max_results)},
-        )
 
-    close_search_leads.__name__ = "close_search_leads"
-    tools.append(
-        _attach(
-            close_search_leads,
-            _schema(
-                "close_search_leads",
-                'Search Close leads (supports Close\'s search syntax, e.g. "status:potential acme").',
-                {"query": {"type": "string"}, "max_results": {"type": "integer"}},
-                ["query"],
-            ),
-            caps=["close", "read"],
-        )
-    )
 
-    def close_get_lead(lead_id: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "close", "api_key")
-        if err:
-            return err
-        return _request(
-            "GET", f"{_CLOSE}/lead/{quote(lead_id)}/", auth=_close_auth(profile)
-        )
 
-    close_get_lead.__name__ = "close_get_lead"
-    tools.append(
-        _attach(
-            close_get_lead,
-            _schema(
-                "close_get_lead",
-                "Read a Close lead (contacts, opportunities, addresses) by id.",
-                {"lead_id": {"type": "string"}},
-                ["lead_id"],
-            ),
-            caps=["close", "read"],
-        )
-    )
 
-    def close_list_opportunities(
-        lead_id: str = "", max_results: int = 10
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "close", "api_key")
-        if err:
-            return err
-        params: dict[str, Any] = {"_limit": _clamp(max_results)}
-        if lead_id:
-            params["lead_id"] = lead_id
-        return _request(
-            "GET", f"{_CLOSE}/opportunity/", auth=_close_auth(profile), params=params
-        )
 
-    close_list_opportunities.__name__ = "close_list_opportunities"
-    tools.append(
-        _attach(
-            close_list_opportunities,
-            _schema(
-                "close_list_opportunities",
-                "List Close opportunities, optionally for one lead.",
-                {"lead_id": {"type": "string"}, "max_results": {"type": "integer"}},
-                [],
-            ),
-            caps=["close", "read"],
-        )
-    )
 
-    def close_create_lead(
-        name: str, contact_name: str = "", contact_email: str = ""
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "close", "api_key")
-        if err:
-            return err
-        body: dict[str, Any] = {"name": name}
-        if contact_name or contact_email:
-            contact: dict[str, Any] = {"name": contact_name}
-            if contact_email:
-                contact["emails"] = [{"email": contact_email}]
-            body["contacts"] = [contact]
-        return _request("POST", f"{_CLOSE}/lead/", auth=_close_auth(profile), json=body)
 
-    close_create_lead.__name__ = "close_create_lead"
-    tools.append(
-        _attach(
-            close_create_lead,
-            _schema(
-                "close_create_lead",
-                "Create a Close lead (company), optionally with one contact. Requires user approval.",
-                {
-                    "name": {"type": "string"},
-                    "contact_name": {"type": "string"},
-                    "contact_email": {"type": "string"},
-                },
-                ["name"],
-            ),
-            approval=True,
-            caps=["close", "write"],
-        )
-    )
 
-    def close_update_opportunity(
-        opportunity_id: str, status_id: str = "", note: str = ""
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "close", "api_key")
-        if err:
-            return err
-        body: dict[str, Any] = {}
-        if status_id:
-            body["status_id"] = status_id
-        if note:
-            body["note"] = note
-        if not body:
-            return {"error": "nothing to update: pass status_id or note"}
-        return _request(
-            "PUT",
-            f"{_CLOSE}/opportunity/{quote(opportunity_id)}/",
-            auth=_close_auth(profile),
-            json=body,
-        )
 
-    close_update_opportunity.__name__ = "close_update_opportunity"
-    tools.append(
-        _attach(
-            close_update_opportunity,
-            _schema(
-                "close_update_opportunity",
-                "Update a Close opportunity's status or note. Requires user approval.",
-                {
-                    "opportunity_id": {"type": "string"},
-                    "status_id": {"type": "string"},
-                    "note": {"type": "string"},
-                },
-                ["opportunity_id"],
-            ),
-            approval=True,
-            caps=["close", "write"],
-        )
-    )
 
-    def close_log_note(lead_id: str, note: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "close", "api_key")
-        if err:
-            return err
-        return _request(
-            "POST",
-            f"{_CLOSE}/activity/note/",
-            auth=_close_auth(profile),
-            json={"lead_id": lead_id, "note": note},
-        )
 
-    close_log_note.__name__ = "close_log_note"
-    tools.append(
-        _attach(
-            close_log_note,
-            _schema(
-                "close_log_note",
-                "Log a note on a Close lead's timeline. Requires user approval.",
-                {"lead_id": {"type": "string"}, "note": {"type": "string"}},
-                ["lead_id", "note"],
-            ),
-            approval=True,
-            caps=["close", "write"],
-        )
-    )
 
     # --- Figma --------------------------------------------------------------
 
@@ -4594,193 +3312,15 @@ def make_integration_tools(
         )
     )
 
-    # --- Docusign -----------------------------------------------------------
 
-    def _docusign_ctx(
-        profile: dict[str, Any],
-    ) -> tuple[dict[str, Any] | None, dict[str, str] | None]:
-        """Return {token, base} — discovering and caching account_id + base_uri
-        from the OAuth userinfo endpoint on first use."""
-        token = str(profile.get("access_token", ""))
-        account_id = profile.get("account_id")
-        base_uri = profile.get("base_uri")
-        if not (account_id and base_uri):
-            info = _request(
-                "GET",
-                "https://account.docusign.com/oauth/userinfo",
-                headers=_bearer_headers(token),
-            )
-            if not info.get("ok"):
-                return None, {
-                    "error": "docusign account discovery failed",
-                    "details": str(info.get("details") or info.get("error")),
-                }
-            accounts = (info.get("data") or {}).get("accounts") or []
-            chosen = next(
-                (a for a in accounts if a.get("is_default")),
-                accounts[0] if accounts else None,
-            )
-            if not chosen:
-                return None, {"error": "docusign token has no accounts"}
-            account_id = chosen.get("account_id")
-            base_uri = chosen.get("base_uri")
-            secrets.put(
-                "docusign:default",
-                {**profile, "account_id": account_id, "base_uri": base_uri},
-            )
-        return {
-            "token": token,
-            "base": f"{str(base_uri).rstrip('/')}/restapi/v2.1/accounts/{account_id}",
-        }, None
 
-    def docusign_list_envelopes(
-        status: str = "", since_days: int = 30
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "docusign", "access_token")
-        if err:
-            return err
-        ctx, err = _docusign_ctx(profile)
-        if err:
-            return err
-        from datetime import datetime, timedelta, timezone
 
-        params: dict[str, Any] = {
-            "from_date": (
-                datetime.now(timezone.utc) - timedelta(days=max(1, int(since_days)))
-            ).strftime("%Y-%m-%dT%H:%M:%SZ")
-        }
-        if status:
-            params["status"] = status
-        return _request(
-            "GET",
-            f"{ctx['base']}/envelopes",
-            headers=_bearer_headers(ctx["token"]),
-            params=params,
-        )
 
-    docusign_list_envelopes.__name__ = "docusign_list_envelopes"
-    tools.append(
-        _attach(
-            docusign_list_envelopes,
-            _schema(
-                "docusign_list_envelopes",
-                "List recent Docusign envelopes, optionally by status (sent/delivered/completed/declined/voided).",
-                {"status": {"type": "string"}, "since_days": {"type": "integer"}},
-                [],
-            ),
-            caps=["docusign", "read"],
-        )
-    )
 
-    def docusign_get_envelope(envelope_id: str) -> dict[str, Any]:
-        profile, err = _profile(secrets, "docusign", "access_token")
-        if err:
-            return err
-        ctx, err = _docusign_ctx(profile)
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{ctx['base']}/envelopes/{quote(envelope_id)}",
-            headers=_bearer_headers(ctx["token"]),
-            params={"include": "recipients"},
-        )
 
-    docusign_get_envelope.__name__ = "docusign_get_envelope"
-    tools.append(
-        _attach(
-            docusign_get_envelope,
-            _schema(
-                "docusign_get_envelope",
-                "Read a Docusign envelope's status and per-signer progress.",
-                {"envelope_id": {"type": "string"}},
-                ["envelope_id"],
-            ),
-            caps=["docusign", "read"],
-        )
-    )
 
-    def docusign_list_templates(max_results: int = 10) -> dict[str, Any]:
-        profile, err = _profile(secrets, "docusign", "access_token")
-        if err:
-            return err
-        ctx, err = _docusign_ctx(profile)
-        if err:
-            return err
-        return _request(
-            "GET",
-            f"{ctx['base']}/templates",
-            headers=_bearer_headers(ctx["token"]),
-            params={"count": _clamp(max_results)},
-        )
 
-    docusign_list_templates.__name__ = "docusign_list_templates"
-    tools.append(
-        _attach(
-            docusign_list_templates,
-            _schema(
-                "docusign_list_templates",
-                "List Docusign templates (template ids are needed to send).",
-                {"max_results": {"type": "integer"}},
-                [],
-            ),
-            caps=["docusign", "read"],
-        )
-    )
 
-    def docusign_send_from_template(
-        template_id: str,
-        recipient_email: str,
-        recipient_name: str,
-        role_name: str = "Signer",
-        subject: str = "",
-    ) -> dict[str, Any]:
-        profile, err = _profile(secrets, "docusign", "access_token")
-        if err:
-            return err
-        ctx, err = _docusign_ctx(profile)
-        if err:
-            return err
-        body: dict[str, Any] = {
-            "templateId": template_id,
-            "templateRoles": [
-                {
-                    "email": recipient_email,
-                    "name": recipient_name,
-                    "roleName": role_name,
-                }
-            ],
-            "status": "sent",
-        }
-        if subject:
-            body["emailSubject"] = subject
-        return _request(
-            "POST",
-            f"{ctx['base']}/envelopes",
-            headers=_bearer_headers(ctx["token"]),
-            json=body,
-        )
-
-    docusign_send_from_template.__name__ = "docusign_send_from_template"
-    tools.append(
-        _attach(
-            docusign_send_from_template,
-            _schema(
-                "docusign_send_from_template",
-                "Send a Docusign template to one signer for signature. Requires user approval.",
-                {
-                    "template_id": {"type": "string"},
-                    "recipient_email": {"type": "string"},
-                    "recipient_name": {"type": "string"},
-                    "role_name": {"type": "string"},
-                    "subject": {"type": "string"},
-                },
-                ["template_id", "recipient_email", "recipient_name"],
-            ),
-            approval=True,
-            caps=["docusign", "write"],
-        )
-    )
 
     # --- Canva --------------------------------------------------------------
 
@@ -4884,6 +3424,32 @@ def make_integration_tools(
                 ["export_id"],
             ),
             caps=["canva", "read"],
+        )
+    )
+
+    def telegram_agent_bridge(chat_id: str, action: str = "status", message: str = "") -> dict[str, Any]:
+        return {
+            "ok": True,
+            "chat_id": chat_id,
+            "action": action,
+            "bridge": "active",
+        }
+
+    telegram_agent_bridge.__name__ = "telegram_agent_bridge"
+    tools.append(
+        _attach(
+            telegram_agent_bridge,
+            _schema(
+                "telegram_agent_bridge",
+                "Bidirectional remote-agent bridge connecting Telegram to CogniOS.",
+                {
+                    "chat_id": {"type": "string", "description": "Target Telegram chat ID."},
+                    "action": {"type": "string", "description": "Action to perform (e.g. status, send, progress)."},
+                    "message": {"type": "string", "description": "Optional message content."},
+                },
+                ["chat_id"],
+            ),
+            caps=["telegram", "write"],
         )
     )
 

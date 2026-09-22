@@ -228,25 +228,32 @@ body {
 /* ---------- main ---------- */
 .main {
   position: relative;
-  display: grid;
-  grid-template-rows: 48px minmax(0, 1fr);
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   overflow: hidden;
   background: var(--paper);   /* plain paper, matching the mock (was a dotted graph texture) */
 }
-.main.rail-open {
-  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+.main-content-column {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 .main-topbar {
   position: relative;
-  grid-column: 1;
-  grid-row: 1;
   width: 100%;
   min-width: 0;
   height: 48px;
+  flex: 0 0 48px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -306,13 +313,12 @@ body {
 }
 .main-workspace {
   position: relative;
-  grid-column: 1 / -1;
-  grid-row: 2;
   display: flex;
+  flex-direction: column;
   align-items: stretch;
   min-height: 0;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
   overflow: hidden;
 }
 .main-chat {
@@ -323,6 +329,15 @@ body {
   flex: 1 1 auto;
   overflow: hidden;
 }
+.main-chat-viewport {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
 .main-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -330,7 +345,117 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 24px clamp(16px, 5vw, 48px) 24px;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE / Edge */
 }
+.main-scroll::-webkit-scrollbar {
+  display: none !important; /* Chrome / Safari / Edge / WebView2 */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Minimalist chat scrollbar overlay matching reference design */
+.chat-scrollbar-container {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  pointer-events: none;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 16px 4px 16px 0;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chat-scrollbar-container.is-active,
+.chat-scrollbar-container:hover,
+.chat-scrollbar-container.is-dragging {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-scrollbar-track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chat-scrollbar-markers,
+.chat-scrollbar-ticks {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  bottom: 0;
+  width: 20px;
+  pointer-events: none;
+  overflow: hidden;
+  user-select: none;
+}
+
+.chat-scrollbar-marker,
+.chat-scrollbar-tick {
+  position: absolute;
+  right: 0;
+  display: block;
+  height: 1px;
+  background-color: color-mix(in srgb, var(--ink, #ffffff) 22%, transparent);
+  border-radius: 0.5px;
+  flex-shrink: 0;
+}
+
+.chat-scrollbar-dots {
+  position: absolute;
+  bottom: 4px;
+  right: 1px;
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  height: 4px;
+  margin-top: 1px;
+  padding-right: 1px;
+  flex-shrink: 0;
+}
+
+.chat-scrollbar-dot {
+  display: block;
+  width: 1.5px;
+  height: 1.5px;
+  border-radius: 50%;
+  background-color: color-mix(in srgb, var(--ink, #ffffff) 26%, transparent);
+}
+
+.chat-scrollbar-thumb {
+  position: absolute;
+  right: 0px;
+  width: 5px;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--ink, #ffffff) 38%, transparent);
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  transition: background-color 0.15s ease, width 0.15s ease, opacity 0.2s ease;
+}
+
+.chat-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--ink, #ffffff) 55%, transparent);
+  width: 6px;
+}
+
+.chat-scrollbar-thumb.is-dragging {
+  cursor: grabbing;
+  background-color: color-mix(in srgb, var(--ink, #ffffff) 65%, transparent);
+  width: 6px;
+}
+
 .composer-wrap {
   width: 100%;
   min-width: 0;
@@ -799,14 +924,16 @@ button.btn.danger { color: var(--accent); }
   width: var(--rail-w);
   max-width: var(--rail-w);
   min-width: 0;
+  height: 100%;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   background: var(--glass-soft);
   border-left: 1px solid var(--line);
-  padding: 18px 16px;
+  padding: 10px 14px 18px;
   backdrop-filter: blur(12px);
   z-index: 5;
+  box-sizing: border-box;
 }
 /* An open artifact widens the rail into a reading panel (Codex-style) — the chat stays visible
    and usable beside it; Back returns to the normal-width Progress/Artifacts list. */
@@ -819,11 +946,217 @@ button.btn.danger { color: var(--accent); }
   background: var(--paper);
   backdrop-filter: none;
 }
-.main.rail-open:has(.right-rail.artifact-mode) {
-  grid-template-columns: minmax(0, 1fr) min(var(--artifact-rail-w), 100%);
-}
 .artifact-head { display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+
+/* Rail Top Icon Tabs */
+.rail-nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  margin-bottom: 14px;
+  user-select: none;
+  min-height: 32px;
+}
+
+.rail-nav-tab {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 0;
+  position: relative;
+  white-space: nowrap;
+}
+
+.rail-nav-tab:hover {
+  color: var(--ink);
+  background: var(--glass-soft);
+}
+
+.rail-nav-tab.active {
+  color: var(--ink);
+  background: var(--paper);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.rail-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.rail-tab-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 0 4px;
+  height: 15px;
+  line-height: 15px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.rail-tab-dot-running {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ok, #10b981);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+  animation: rail-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes rail-pulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.rail-tab-content {
+  min-width: 0;
+}
+
+.rail-tab-pane {
+  min-width: 0;
+}
+
+.rail-tab-pane.hidden {
+  display: none !important;
+}
+
+.rail-pane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 24px;
+  margin-bottom: 10px;
+}
+
+.rail-pane-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.rail-pane-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rail-pane-body {
+  min-width: 0;
+}
+
+.rail-progress-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rail-subhead {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  margin-bottom: 7px;
+}
+
+.rail-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rail-tool-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  line-height: 1.35;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.rail-tool-item.running {
+  border-color: var(--accent);
+  background: var(--accentSoft, rgba(99, 102, 241, 0.06));
+}
+
+.rail-tool-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.rail-tool-item.running .rail-tool-ico {
+  color: var(--accent);
+}
+
+.rail-tool-details {
+  min-width: 0;
+}
+
+.rail-tool-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  color: var(--ink);
+  font-size: 11.5px;
+}
+
+.rail-tool-obj {
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 2px;
+}
+
+.rail-tool-status-tag {
+  font-size: 9.5px;
+  color: var(--faint);
+  font-family: var(--font-mono, monospace);
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--glass-soft);
+}
+
+.rail-pill-running {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--accentSoft, rgba(99, 102, 241, 0.12));
+  color: var(--accent);
+}
+
 .rail-section { border-bottom: 1px solid var(--line); padding: 11px 0; min-width: 0; }
+.rail-tab-pane .rail-section { border-bottom: 0; padding-top: 0; }
 .rail-section-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; min-height: 24px; }
 .rail-section-toggle { flex: 1; display: flex; gap: 8px; align-items: center; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); user-select: none; border: 0; background: transparent; padding: 0; text-align: left; }
 .rail-chev { color: var(--faint); flex: none; }
@@ -2018,11 +2351,13 @@ html[data-ui-style="glassmorphism"] .right-rail:not(.artifact-mode) {
   background: var(--glass-background);
   backdrop-filter: var(--glass-filter);
   -webkit-backdrop-filter: var(--glass-filter);
-  border: 1px solid var(--glass-border);
+  border: 0;
   border-left: 1px solid var(--glass-border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--glass-shadow);
-  overflow: hidden;
+  border-radius: 0;
+  box-shadow: none;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 html[data-ui-style="glassmorphism"] .page-subnav {

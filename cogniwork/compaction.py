@@ -147,8 +147,8 @@ def _turn_starts(messages: list[dict[str, Any]], *, start: int) -> tuple[list[in
 def pick_boundary(messages: list[dict[str, Any]], *, keep_tokens: int) -> int | None:
     """The canonical index where the verbatim tail begins: the earliest turn start whose
     suffix fits the keep budget. Prefers user-message boundaries; falls back to iteration
-    (assistant) boundaries when the newest turn alone exceeds the budget (a giant tool
-    loop). None when there is nothing meaningful to summarize."""
+    (assistant) boundaries only when necessary. Never discards active turn context if earlier
+    completed turns can be compacted."""
     start = 1 if messages and messages[0].get("role") == "system" else 0
     users, assistants = _turn_starts(messages, start=start)
 
@@ -160,12 +160,15 @@ def pick_boundary(messages: list[dict[str, Any]], *, keep_tokens: int) -> int | 
 
     boundary = _fit(users)
     if boundary is None and users:
-        # The newest user turn alone blows the budget — cut inside it at an iteration
-        # boundary, keeping at least the most recent assistant step.
-        inside = [i for i in assistants if i > users[-1]]
-        boundary = _fit(inside)
-        if boundary is None:
-            boundary = inside[-1] if inside else users[-1]
+        # If multiple user turns exist, compact everything prior to the latest active turn
+        if len(users) > 1:
+            boundary = users[-1]
+        else:
+            # Single large turn: cut inside at an iteration boundary
+            inside = [i for i in assistants if i > users[-1]]
+            boundary = _fit(inside)
+            if boundary is None:
+                boundary = inside[-1] if inside else users[-1]
     if boundary is None:
         boundary = _fit(assistants) or (assistants[-1] if assistants else None)
     # A boundary at (or before) the first real message summarizes nothing — skip.
@@ -182,11 +185,13 @@ _ARTIFACT_HINTS = ("artifact", "publish", "deploy")
 
 def _iter_tool_calls(span: list[dict[str, Any]]):
     """(name, args, result_content) for every tool call in the span, in order."""
-    results = {
+    tool_results: list[Any] = [m.get("content") for m in span if m.get("role") == "tool"]
+    results_by_id = {
         m.get("tool_call_id"): m.get("content")
         for m in span
-        if m.get("role") == "tool"
+        if m.get("role") == "tool" and m.get("tool_call_id")
     }
+    tool_res_idx = 0
     for msg in span:
         if msg.get("role") != "assistant":
             continue
@@ -196,7 +201,15 @@ def _iter_tool_calls(span: list[dict[str, Any]]):
                 args = json.loads(fn.get("arguments") or "{}")
             except (ValueError, TypeError):
                 args = {}
-            yield str(fn.get("name") or ""), args, results.get(tc.get("id"))
+            tcid = tc.get("id")
+            if tcid and tcid in results_by_id:
+                res = results_by_id[tcid]
+            elif tool_res_idx < len(tool_results):
+                res = tool_results[tool_res_idx]
+                tool_res_idx += 1
+            else:
+                res = None
+            yield str(fn.get("name") or ""), args, res
 
 
 def _result_status(result: Any) -> str:
@@ -218,11 +231,21 @@ def _result_status(result: Any) -> str:
 
 def extract_working_state(span: list[dict[str, Any]]) -> str:
     """The mechanical block appended to the summary by CODE, from the span's tool-call
-    records: files written, recent commands (+ exit status), artifacts, tools used."""
+    records: files written, recent commands (+ exit status), artifacts, tools used,
+    and active connector workflow state (Gmail, email, calendar searches & fetches)."""
     files: list[str] = []
     commands: list[str] = []
     artifacts: list[str] = []
     tools: list[str] = []
+
+    # Connector workflow tracking
+    connector_searches: list[dict[str, Any]] = []
+    connector_fetched_items: list[dict[str, Any]] = []
+    discovered_ids: list[str] = []
+    fetched_ids: list[str] = []
+    active_provider = ""
+    active_query = ""
+
     for name, args, result in _iter_tool_calls(span):
         if name and name not in tools:
             tools.append(name)
@@ -238,6 +261,66 @@ def extract_working_state(span: list[dict[str, Any]]) -> str:
             location = args.get("url") or args.get("path") or args.get("title")
             if location:
                 artifacts.append(str(location))
+
+        # Connector tracking: Gmail / Email / Search tools
+        if "search" in lowered and ("gmail" in lowered or "email" in lowered or "mail" in lowered):
+            active_provider = "gmail" if "gmail" in lowered else "email"
+            q = str(args.get("query") or args.get("q") or "")
+            if q:
+                active_query = q
+            if isinstance(result, str):
+                try:
+                    res_obj = json.loads(result)
+                except Exception:
+                    res_obj = {}
+            elif isinstance(result, dict):
+                res_obj = result
+            else:
+                res_obj = {}
+
+            if isinstance(res_obj, dict):
+                data = res_obj.get("data") if isinstance(res_obj.get("data"), dict) else res_obj
+                msgs = data.get("messages") or []
+                if isinstance(msgs, list):
+                    ids = [str(m.get("id")) for m in msgs if isinstance(m, dict) and m.get("id")]
+                    if ids:
+                        discovered_ids = ids
+                        connector_searches.append({
+                            "provider": active_provider,
+                            "query": q,
+                            "count": len(ids),
+                            "ids": ids,
+                        })
+
+        if ("get_message" in lowered or "read_email" in lowered or "read_message" in lowered) and (
+            "gmail" in lowered or "email" in lowered or "mail" in lowered
+        ):
+            mid = str(args.get("message_id") or args.get("id") or args.get("uid") or "")
+            if mid and mid not in fetched_ids:
+                fetched_ids.append(mid)
+
+            if isinstance(result, str):
+                try:
+                    res_obj = json.loads(result)
+                except Exception:
+                    res_obj = {}
+            elif isinstance(result, dict):
+                res_obj = result
+            else:
+                res_obj = {}
+
+            if isinstance(res_obj, dict) and res_obj.get("ok"):
+                item_data = res_obj.get("data") if isinstance(res_obj.get("data"), dict) else res_obj
+                if isinstance(item_data, dict):
+                    subj = item_data.get("subject") or ""
+                    sender = item_data.get("from") or ""
+                    snippet = item_data.get("snippet") or ""
+                    connector_fetched_items.append({
+                        "id": mid,
+                        "subject": subj,
+                        "from": sender,
+                        "snippet": snippet[:150] if snippet else "",
+                    })
 
     def _dedupe_recent_first(items: list[str], limit: int) -> list[str]:
         seen: list[str] = []
@@ -261,6 +344,27 @@ def extract_working_state(span: list[dict[str, Any]]) -> str:
     if made:
         lines.append("Artifacts produced:")
         lines += [f"- {a}" for a in made]
+
+    # Preserve connector workflow state
+    if discovered_ids or fetched_ids or active_provider:
+        pending_ids = [mid for mid in discovered_ids if mid not in fetched_ids]
+        status = "completed" if (discovered_ids and not pending_ids) else "in_progress"
+        lines.append("Active connector workflow state:")
+        lines.append(f"- Provider: {active_provider or 'gmail'}")
+        lines.append("- Operation: message_summary")
+        if active_query:
+            lines.append(f"- Search Query: {active_query}")
+        lines.append(f"- Expected Count: {len(discovered_ids)}")
+        lines.append(f"- Discovered Message IDs: {', '.join(discovered_ids) if discovered_ids else 'none'}")
+        lines.append(f"- Fetched Message IDs: {', '.join(fetched_ids) if fetched_ids else 'none'}")
+        lines.append(f"- Pending Message IDs: {', '.join(pending_ids) if pending_ids else 'none'}")
+        lines.append(f"- Status: {status}")
+
+        if connector_fetched_items:
+            lines.append("Fetched email excerpts (preserved across compaction):")
+            for item in connector_fetched_items[-10:]:
+                lines.append(f"  - [{item['id']}] Subject: \"{item['subject']}\" | From: {item['from']} | Snippet: {item['snippet']}")
+
     if tools:
         lines.append("Tools used in the summarized span: " + ", ".join(sorted(tools)))
     return "\n".join(lines) if len(lines) > 1 else ""

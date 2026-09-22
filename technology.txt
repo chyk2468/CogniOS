@@ -1,0 +1,1117 @@
+================================================================================
+                               COGNIOS TECHNOLOGY STACK
+================================================================================
+Documenting every technology, framework, library, package, tool, model, API,
+database, platform, runtime, and development dependency across CogniOS.
+================================================================================
+
+--------------------------------------------------------------------------------
+1. PROJECT OVERVIEW
+--------------------------------------------------------------------------------
+* Project Name:
+  - CogniOS (Product / Desktop Operating Environment)
+  - CogniWork (Backend Agent Platform & Turn Engine Runtime; Python package name: `cogniwork`)
+  - CogniOS Action Flow / System Space (`cognios-action-flow` interactive web visualization)
+
+* Project Purpose:
+  CogniOS is a local-first AI operating environment and AI coworker agent system.
+  Unlike conventional chat bots, CogniOS is designed to deliver finished, concrete
+  work—creating and editing files, managing Git repositories, executing terminal
+  commands, searching the web, transcribing speech offline with Moonshine Tiny,
+  integrating with 34+ external SaaS platforms (Slack, GitHub, Jira, Notion, Linear,
+  HubSpot, etc.), scheduling automations via self-wake tools, maintaining persistent
+  memory across global and workspace scopes, and executing multi-iteration agent loops
+  with granular permission and approval gates. All computation, secrets, and data
+  remain on the user's local machine, interacting only with user-configured model
+  providers and connected services.
+
+* Architecture Type:
+  - Hybrid Desktop Client / Local Agent Server Architecture (Local-First Sidecar Pattern)
+  - Frontend Layer:
+    * React 18 single-page application with custom Liquid Glass design system, bundled with Vite.
+    * Desktop Shell: Tauri 2.0 (Rust) hosting the webview and supervising the local Python server sidecar.
+    * Interactive Visualization Layer: `cognios-action-flow` built on TanStack Start, React 19, and Nitro.
+  - Backend Server Layer:
+    * FastAPI + Uvicorn asynchronous REST API and WebSocket server listening on `127.0.0.1:8765`.
+    * Authentication & session control via sidecar token (`X-CogniOS-Token`) and SQLite user session cookies (`ow_session`).
+    * Terminal UI alternative: `cognios` CLI powered by Textual.
+  - Core Agent Engine Layer:
+    * `TurnEngine` in `cogniwork/engine.py` orchestrating multi-turn tool loops with `PermissionEngine`.
+    * Provider-agnostic LLM client built on `aisuite` alongside native SDKs (OpenAI, Anthropic, Google GenAI, Bedrock, Vertex).
+    * Algorithmic Context Compaction Engine managing token budgets dynamically.
+    * Persistent SQLite Memory Store with keyword and workspace/global scoping.
+    * Offline Speech-to-Text (STT) powered by Useful Sensors Moonshine Tiny via PyTorch & Transformers (plus `ocw-stt` Rust crate).
+
+--------------------------------------------------------------------------------
+2. FRONTEND TECHNOLOGIES
+--------------------------------------------------------------------------------
+* Core Frameworks & View Libraries:
+  - React 18.3.1 (Used directly in `surfaces/gui`) - Declarative UI rendering for the desktop client.
+  - React DOM 18.3.1 (Used directly in `surfaces/gui`) - DOM renderer for React 18.
+  - React 19.2.0 (Used directly in `cognios-action-flow`) - Next-generation React framework runtime.
+  - React DOM 19.2.0 (Used directly in `cognios-action-flow`) - DOM renderer for React 19.
+  - TanStack Start 1.168.32 (Used directly in `cognios-action-flow`) - Full-stack React framework with SSR and streaming.
+  - Tauri 2.0 / @tauri-apps/cli 2.11.2 (Used directly in `surfaces/gui`) - Native multi-platform desktop container.
+
+* Languages:
+  - TypeScript 5.5.3 (Used directly in `surfaces/gui`) - Statically typed frontend codebase.
+  - TypeScript 5.8.3 (Used directly in `cognios-action-flow`) - Statically typed full-stack codebase.
+  - JavaScript (ES Modules, ECMAScript 2022+).
+  - HTML5 & CSS3.
+
+* Styling & Design System:
+  - Tailwind CSS 3.4.19 (Used directly in `surfaces/gui`) - Utility-first styling framework.
+  - Tailwind CSS 4.2.1 (Used directly in `cognios-action-flow`) - Modern high-performance engine for Tailwind.
+  - @tailwindcss/vite 4.2.1 (Used directly in `cognios-action-flow`) - First-party Tailwind CSS Vite integration.
+  - Autoprefixer 10.5.2 (Used directly in `surfaces/gui`) - CSS vendor prefix parser.
+  - PostCSS 8.5.16 (Used directly in `surfaces/gui`) - Tool for transforming styles with JS plugins.
+  - Tailwind Merge 3.5.0 (Used directly in `cognios-action-flow`) - Utility to merge Tailwind classes without style conflicts.
+  - Class Variance Authority (CVA) 0.7.1 (Used directly in `cognios-action-flow`) - Type-safe UI component variants.
+  - clsx 2.1.1 (Used directly in `cognios-action-flow`) - Utility for constructing `className` strings conditionally.
+  - Liquid Glass Design System (`liquid-glass.css`, `styles.css`) - Custom glassmorphic CSS shaders, fluid surfaces, dark mode palette.
+
+* UI & Headless Component Libraries:
+  - Radix UI Primitives (Used directly in `cognios-action-flow`):
+    * @radix-ui/react-accordion ^1.2.12 - Interactive collapsible accordion components.
+    * @radix-ui/react-alert-dialog ^1.1.15 - Modal dialog for critical alerts and confirmations.
+    * @radix-ui/react-aspect-ratio ^1.1.8 - Displays content within a desired ratio.
+    * @radix-ui/react-avatar ^1.1.11 - User and persona avatar rendering.
+    * @radix-ui/react-checkbox ^1.3.3 - Accessible custom checkbox element.
+    * @radix-ui/react-collapsible ^1.1.12 - Expandable panel primitive.
+    * @radix-ui/react-context-menu ^2.2.16 - Custom right-click context menus.
+    * @radix-ui/react-dialog ^1.1.15 - Accessible modal dialog windows.
+    * @radix-ui/react-dropdown-menu ^2.1.16 - Dropdown menu overlays.
+    * @radix-ui/react-hover-card ^1.1.15 - Card popup on hover for rich previews.
+    * @radix-ui/react-label ^2.1.8 - Accessible form labels.
+    * @radix-ui/react-menubar ^1.1.16 - Desktop-style horizontal menubars.
+    * @radix-ui/react-navigation-menu ^1.2.14 - Accessible navigation header components.
+    * @radix-ui/react-popover ^1.1.15 - Floating popover container.
+    * @radix-ui/react-progress ^1.1.8 - Visual progress bars for streaming and task progress.
+    * @radix-ui/react-radio-group ^1.3.8 - Set of checkable radio buttons.
+    * @radix-ui/react-scroll-area ^1.2.10 - Custom styled scrollbars with native behavior.
+    * @radix-ui/react-select ^2.2.6 - Customizable select dropdown menu.
+    * @radix-ui/react-separator ^1.1.8 - Visual divider element.
+    * @radix-ui/react-slider ^1.3.6 - Interactive range input slider.
+    * @radix-ui/react-slot ^1.2.4 - Polymorphic component slot utility.
+    * @radix-ui/react-switch ^1.2.6 - Toggle switch control.
+    * @radix-ui/react-tabs ^1.1.13 - Layered tabbed interface views.
+    * @radix-ui/react-toggle ^1.1.10 - Two-state toggle button.
+    * @radix-ui/react-toggle-group ^1.1.11 - Group of two-state toggle buttons.
+    * @radix-ui/react-tooltip ^1.2.8 - Floating popup tooltip component.
+  - cmdk 1.1.1 (Used directly in `cognios-action-flow`) - Fast, composable command palette component.
+  - vaul 1.1.2 (Used directly in `cognios-action-flow`) - Unstyled drawer component for React.
+  - react-resizable-panels 4.6.5 (Used directly in `cognios-action-flow`) - Resizable split-pane layout system.
+  - input-otp 1.4.2 (Used directly in `cognios-action-flow`) - One-time password input component.
+  - react-day-picker 9.14.0 (Used directly in `cognios-action-flow`) - Flexible date picker component.
+  - Sonner 2.0.7 (Used directly in `cognios-action-flow`) - Opinionated toast notification library.
+
+* Icons:
+  - Lucide React 0.575.0 (Used directly in `cognios-action-flow`) - Clean, consistent iconography.
+  - Simple Icons 16.26.0 (Used directly in `surfaces/gui`) - Official brand SVG icons for third-party SaaS connectors.
+
+* Markdown & Document Rendering:
+  - react-markdown 10.1.0 (Used directly in `surfaces/gui`) - Markdown renderer for chat transcripts and tool outputs.
+  - remark-gfm 4.0.1 (Used directly in `surfaces/gui`) - GitHub Flavored Markdown plugin (tables, strikethrough, tasklists).
+  - pdfjs-dist 4.10.38 (Used directly in `surfaces/gui`) - Mozilla PDF.js client for rendering and previewing PDF attachments.
+  - xlsx (SheetJS) 0.18.5 (Used directly in `surfaces/gui`) - Spreadsheet parser and data table extractor.
+
+* Animation & Layout:
+  - Embla Carousel React 8.6.0 (Used directly in `cognios-action-flow`) - Fluid touch and pointer carousel library.
+  - tw-animate-css 1.3.4 (Used directly in `cognios-action-flow`) - CSS animation classes for Tailwind.
+
+* Charts & Metrics:
+  - Recharts 2.15.4 (Used directly in `cognios-action-flow`) - Composable charting library built on React components and SVG.
+
+* State Management & Data Fetching:
+  - @tanstack/react-query 5.101.1 (Used directly in `cognios-action-flow`) - Asynchronous state management, server cache, mutations.
+  - React Context & Hooks (`surfaces/gui`) - Custom state stores for active sessions, stream gating, approval gates, roots.
+  - WebSocket Streaming Client - Real-time two-way messaging between GUI and local server over `/ws/session/{id}` and `/ws/events`.
+
+* Routing:
+  - React Router DOM 7.18.2 (Used directly in `surfaces/gui`) - Declarative client-side routing (`/chat`, `/inbox`, `/audit`, etc.).
+  - @tanstack/react-router 1.170.18 (Used directly in `cognios-action-flow`) - Type-safe routing system with code splitting.
+  - @tanstack/router-plugin 1.168.23 (Used directly in `cognios-action-flow`) - Vite plugin for TanStack Router file-based route generation.
+
+* Forms & Schema Validation:
+  - React Hook Form 7.71.2 (Used directly in `cognios-action-flow`) - Performant, flexible forms with easy validation.
+  - Zod 3.24.2 (Used directly in `cognios-action-flow`) - TypeScript-first schema declaration and validation library.
+  - @hookform/resolvers 5.2.2 (Used directly in `cognios-action-flow`) - Validation resolver bridging Zod with React Hook Form.
+  - date-fns 4.1.0 (Used directly in `cognios-action-flow`) - Modular date manipulation library.
+
+* Build Tools & Bundlers:
+  - Vite 5.4.0 (Used directly in `surfaces/gui`) - Next-generation frontend build tool and dev server.
+  - Vite 8.2.0 (Used directly in `cognios-action-flow`) - High performance bundler.
+  - @vitejs/plugin-react 4.3.1 / 5.2.0 - Babel/SWC based Fast Refresh plugin for React.
+  - vite-tsconfig-paths 6.0.2 (Used directly in `cognios-action-flow`) - Resolves TypeScript path mappings in Vite.
+  - Nitro 3.0.260603-beta (Used directly in `cognios-action-flow`) - Next-generation server engine for universal deployment.
+  - Bun (`bun.lock`, `bunfig.toml` in `cognios-action-flow`) - Fast all-in-one JavaScript runtime, bundler, and package manager.
+
+* Frontend Testing Frameworks:
+  - Vitest 2.1.9 (Used directly in `surfaces/gui`) - Vite-native unit and integration test runner.
+  - Playwright 1.61.1 / @playwright/test (Used directly in `surfaces/gui`) - End-to-end hermetic and live browser testing.
+  - @testing-library/react 16.3.2 (Used directly in `surfaces/gui`) - Simple and complete React DOM testing utilities.
+  - @testing-library/dom 10.4.1 (Used directly in `surfaces/gui`) - DOM testing utilities.
+  - jsdom 25.0.1 (Used directly in `surfaces/gui`) - Pure-JavaScript implementation of web standards for testing.
+
+* Frontend Authentication Package:
+  - @clerk/clerk-react 5.61.9 (Present in `surfaces/gui/package.json` as dependency; currently unused in favor of local SQLite auth).
+
+--------------------------------------------------------------------------------
+3. BACKEND TECHNOLOGIES
+--------------------------------------------------------------------------------
+* Backend Languages & Runtimes:
+  - Python 3.10+ (Core agent platform, server, tools, connectors, memory, STT).
+  - Rust 1.77+ (edition 2021) - Native desktop shell (`surfaces/gui/src-tauri`) and STT engine crate (`stt/`).
+
+* Web Frameworks & Server Infrastructure:
+  - FastAPI 0.141.1 (`fastapi>=0.110`) - Modern, high-performance web framework for building REST APIs and WebSockets.
+  - Starlette 1.6.0 - Lightweight ASGI framework/toolkit on which FastAPI is built.
+  - Uvicorn 0.52.1 (`uvicorn[standard]>=0.27`) - Lightning-fast ASGI web server implementation.
+  - AnyIO 4.14.2 - Asynchronous networking and concurrency library supporting asyncio.
+  - Textual 8.2.8 (`textual>=1.0`) - Terminal User Interface (TUI) framework for Python, powering the `cognios` CLI.
+  - Rich 15.0.0 - Terminal formatting, syntax highlighting, and progress display.
+
+* APIs & Communication Protocols:
+  - RESTful HTTP API (Under `/v1/*` endpoints).
+  - WebSocket Protocol (`websockets>=13`, locked at 16.1.1):
+    * Real-time session turn loop, streaming tokens, approvals (`/ws/session/{id}`).
+    * Global event bus for server-wide notifications (`/ws/events`).
+    * Managed Slack Relay client transport (`relay_client.py`).
+  - Server-Sent Events (SSE) (`sse-starlette==3.4.8`, `httpx-sse==0.4.3`).
+  - HTTP Clients:
+    * HTTPX 0.28.1 (`httpx>=0.27`) - Next-generation async and sync HTTP client with HTTP/2 support.
+    * Aiohttp 3.14.3 (`aiohttp>=3.9`, in `[messaging]` extra) - Async HTTP client/server used by Slack Bolt Socket Mode.
+    * Requests 2.34.2 - Synchronous HTTP library.
+    * Ureq 2.12 (Rust crate in `stt/Cargo.toml`) - Minimal, blocking HTTP client with JSON support.
+  - Model Context Protocol (MCP) 1.29.0 (`mcp>=1.1,<2`):
+    * Full client implementation supporting stdio and streamable-http transports.
+    * MCP OAuth flow (`/mcp/oauth/callback`) and dynamic tool discovery.
+
+* Authentication, Security & Cryptography:
+  - Argon2id (`argon2-cffi==25.1.0`, `argon2-cffi-bindings==25.1.0`) - Memory-hard, state-of-the-art password hashing.
+  - TOTP 2FA (`pyotp==2.10.0`) - Time-based One-Time Password algorithm for two-factor authentication.
+  - QR Code (`qrcode==8.2`, `pillow==12.3.0`) - QR code generation for mobile authenticator enrollment.
+  - Cryptography (`cryptography==50.0.0`) - Symmetric Fernet/AES encryption for stored secrets, tokens, TOTP secrets.
+  - Timing-Safe Digest Verification (`secrets.compare_digest`) - Sidecar token validation preventing timing attacks.
+  - Rate Limiting (`cogniwork/auth/rate_limit.py`) - Multi-tier rate limiting for login, TOTP, and password reset.
+  - PyJWT 2.13.0 - JSON Web Token implementation.
+
+* Background Services, Automation & Scheduling:
+  - Cron Automation (`croniter==6.2.4`) - Cron expression parser and next-fire calculator for scheduled agent triggers.
+  - Self-Wake Toolset (`cogniwork/selfwake.py`) - Tools (`sleep_for`, `sleep_until`, `wake_on`) for background event scheduling.
+  - Process Watchdog (`cogniwork/server/run.py`) - Sidecar lifecycle supervisor monitoring parent PID.
+
+--------------------------------------------------------------------------------
+4. AI / ML TECHNOLOGIES
+--------------------------------------------------------------------------------
+* Machine Learning Frameworks & Libraries:
+  - PyTorch (`torch` in `pyproject.toml`) - Deep learning tensor library used for local speech recognition inference.
+  - Hugging Face Transformers (`transformers>=4.48.0`) - State-of-the-art model architectures and processor pipelines.
+  - SoundFile (`soundfile` in `pyproject.toml`) - Audio file I/O library based on libsndfile.
+  - NumPy (`numpy`) - High-performance numerical computing for audio array manipulation.
+  - SafeTensors (`safetensors`) - Fast and secure tensor serialization format.
+
+* ML Models Actually Used in the Project:
+  - Moonshine Tiny (Useful Sensors):
+    * Model Architecture: `MoonshineForConditionalGeneration` (Encoder-Decoder transformer).
+    * Model Size: ~27 Million parameters (~108 MB `model.safetensors`).
+    * Parameters: 6 encoder layers, 6 decoder layers, 8 attention heads, hidden size 288, intermediate size 1152, vocab size 32768, RoPE theta 10000.0, GELU encoder activation, SiLU decoder activation.
+    * Location: Bundled locally in `stt/moonshine-tiny/`.
+    * Function: Real-time, local, offline English speech-to-text (STT) transcription directly from microphone or audio file without sending audio to the cloud.
+
+* LLM Providers & Models Supported (Integrated via Matrix & Adapters):
+  - OpenAI:
+    * Native Responses API provider (`OpenAIResponsesProvider` in `cogniwork/providers/openai_responses.py`).
+    * Native Chat Completions provider (`OpenAIProvider` in `cogniwork/providers/openai_provider.py`).
+    * Models: GPT-5.6 Sol (`gpt-5.6-sol`), GPT-5.6 Terra (`gpt-5.6-terra`), GPT-5.6 Luna (`gpt-5.6-luna`), GPT-5.5 (`gpt-5.5`).
+  - Anthropic:
+    * Native Messages API provider (`AnthropicProvider` in `cogniwork/providers/anthropic_provider.py`) with extended thinking and prompt caching.
+    * Models: Claude Fable 5 (`claude-fable-5`), Claude Opus 4.8 (`claude-opus-4-8`), Claude Sonnet 4.6 (`claude-sonnet-4-6`), Claude Haiku 4.5 (`claude-haiku-4-5`).
+  - Google Gemini:
+    * Native Google GenAI SDK provider (`GeminiProvider` in `cogniwork/providers/gemini_provider.py`) with thought signature preservation.
+    * Models: Gemini 3.1 Pro Preview (`gemini-3.1-pro-preview`), Gemini 3.6 Flash (`gemini-3.6-flash`), Gemini 2.5 Pro (`gemini-2.5-pro`), Gemini 2.5 Flash (`gemini-2.5-flash`).
+  - AWS Bedrock:
+    * `BedrockProvider` (`cogniwork/providers/bedrock_provider.py`) using `boto3` Converse API and native Anthropic Bedrock SDK.
+    * Models: Claude Sonnet 4.6, Claude Haiku 4.5, Amazon Nova 2 Pro (`amazon.nova-2-pro-v1:0`), Llama 4 Maverick (`meta.llama4-maverick-17b-instruct-v1:0`), Mistral Large 3 (`mistral.mistral-large-3-v1:0`), NVIDIA Nemotron Super 3 120B (`nvidia.nemotron-super-3-120b`).
+  - Google Cloud Vertex AI:
+    * `VertexProvider` (`cogniwork/providers/vertex_provider.py`) supporting ADC, service accounts, and API keys.
+    * Models: Gemini 3.1 Pro, Gemini 3.6 Flash, Claude Sonnet 4.6, Claude Haiku 4.5, Llama 4 Maverick MaaS, Qwen3 Coder MaaS.
+  - Direct OpenAI-Compatible Providers (Custom endpoints via `OpenAIProvider`):
+    * Meta Model API: Muse Spark 1.1 (`meta:muse-spark-1.1`).
+    * Z AI (Zhipu AI): GLM-5.2 (`zai:glm-5.2`).
+    * DeepSeek: DeepSeek V4 Flash (`deepseek:deepseek-v4-flash`), DeepSeek V4 Pro (`deepseek:deepseek-v4-pro`).
+    * Moonshot AI: Kimi K2.6 (`kimi:kimi-k2.6`), Kimi K2.7 Code, Kimi K3.
+    * MiniMax: MiniMax M2.5 (`minimax:MiniMax-M2.5`).
+    * Alibaba Cloud (DashScope): Qwen3 Max (`qwen:qwen3-max`), Qwen3 Coder.
+    * xAI: Grok 4.3 (`xai:grok-4.3`).
+    * Mistral AI: Mistral Large (`mistral:mistral-large-latest`).
+  - Multi-Model Aggregators & Resellers:
+    * Together AI (`together:*` - GLM-5.2, Kimi K3, DeepSeek V4 Pro, Llama 4 Maverick, Inkling).
+    * Fireworks AI (`fireworks:*` - GLM-5.2, Kimi K2.6, DeepSeek V4 Pro, Llama 4 Maverick).
+    * OpenRouter (`openrouter:*` - GLM-5.2, Kimi K2.6, DeepSeek V4 Pro, Llama 4 Maverick).
+  - Local Open-Weight Models:
+    * Ollama (`ollama:*` - `qwen3-coder:30b`, Llama, etc., served locally at `http://localhost:11434/v1`).
+
+* Agent Frameworks & Architectures:
+  - CogniWork TurnEngine (`cogniwork/engine.py`):
+    * Stateful turn lifecycle orchestrating LLM tool requests, execution, error handling, token metering.
+    * PermissionEngine (`cogniwork/permissions.py`) with 5 operating modes (`discuss`, `plan`, `interactive`, `auto`, `custom`).
+    * Concurrent read execution and ordered write execution.
+    * Durable turn resume and interruptible cancellation tokens.
+  - aisuite (`andrewyng/aisuite@1b4bbf303ec21968230b1ec869a144d054e9b3c4`):
+    * Unified multi-provider chat completion, tool definition, and tool-calling library.
+  - Model Context Protocol (MCP):
+    * Dynamic discovery and execution of third-party tools via MCP servers.
+  - Persona Framework (`cogniwork/personas/`):
+    * Builtin markdown personas (`code.md`, `chat.md`, `cogniwork.md`, `myhelper.md`) with YAML frontmatter.
+  - Subagent Isolation (`cogniwork/tools/subagent.py`):
+    * `explore` tool spawning isolated child agent execution environments for research.
+
+* Context & Memory Management (RAG & Compaction):
+  - Algorithmic Context Compaction (`cogniwork/compaction.py`):
+    * Dynamic token budget calculation and automatic context shrinking when approaching context limits.
+    * LLM-driven structured summarization.
+    * Mechanical preservation of recent user messages and tool states while shedding voluminous stale tool results.
+  - Scoped Persistent Memory Store (`cogniwork/memory/`):
+    * SQLite-backed persistent memory facts (`remember`, `memory_read`, `memory_update`, `memory_forget`).
+    * Scoped by `global` (user-wide) or `workspace` (project-wide).
+    * Automatic injection of relevant memory items into system prompt context before turn execution.
+  - Multimodal Document Support (`cogniwork/pdf_support.py`):
+    * Pure-Python PDF text extraction via `pypdf>=5`.
+    * PDF page rasterization and rendering via `pypdfium2>=4` (BSD PDFium engine) for models lacking native PDF support.
+
+--------------------------------------------------------------------------------
+5. PYTHON PACKAGES
+--------------------------------------------------------------------------------
+Complete list of all 116 Python packages detected and locked in `uv.lock` and `pyproject.toml`:
+
+Package Name                     Version       Usage Location              Purpose
+------------------------------------------------------------------------------------------------------------------------
+aiohappyeyeballs                 2.7.1         Direct dep of aiohttp       Happy Eyeballs algorithm for IPv4/IPv6 connections
+aiohttp                          3.14.3        cogniwork/connectors        Async HTTP client used by Slack Bolt in Socket Mode
+aiosignal                        1.4.0         Direct dep of aiohttp       Signal management for async callbacks
+aisuite                          0.1.14        cogniwork/providers         Unified multi-provider LLM interface (git pinned)
+annotated-doc                    0.0.5         Docstring parser dep        Docstring extraction and typing metadata
+annotated-types                  0.8.0         Pydantic dep                Reusable type annotations for Python typing
+anthropic                        0.121.0       cogniwork/providers         Official Anthropic Python SDK (Claude Messages API)
+anyio                            4.14.2        FastAPI / Starlette dep     Structured concurrency and async networking library
+argon2-cffi                      25.1.0        cogniwork/auth/passwords    Argon2 password hashing algorithm bindings
+argon2-cffi-bindings             25.1.0        argon2-cffi dep             CFFI bindings for Argon2 reference implementation
+async-timeout                    5.0.1         aiohttp dep                 Timeout context manager for asyncio operations
+attrs                            26.1.0        aiohttp / jsonschema        Classes without boilerplate dataclass helper
+backports-asyncio-runner         1.2.0         Asyncio compatibility       Runner backport for older Python environments
+boto3                            1.43.70       cogniwork/providers         AWS SDK for Python (Bedrock Converse & Anthropic)
+botocore                         1.43.70       boto3 dep                   Low-level core functionality for AWS SDK
+brotli                           1.2.0         HTTP compression dep        Brotli compression algorithm library
+brotlicffi                       1.2.0.1       HTTP compression dep        CFFI-based Brotli bindings
+certifi                          2026.7.22     cogniwork/server, packaging Mozilla CA bundle for validated TLS/SSL certificates
+cffi                             2.1.1         argon2 / cryptography       Foreign Function Interface for Python calling C code
+charset-normalizer               3.5.0         requests / aiohttp          Character encoding detection library
+click                            8.4.2         uvicorn / textual dep       Composable command line interface toolkit
+cogniwork                        0.0.0         Root package                CogniOS backend agent platform & runtime
+colorama                         0.4.6         CLI formatting dep          Cross-platform colored terminal text
+croniter                         6.2.4         cogniwork/subscriptions     Cron expression parser for scheduling agent runs
+cryptography                     50.0.0        cogniwork/auth, secrets     Cryptographic primitives (Fernet/AES token encryption)
+ddgs                             9.14.4        cogniwork/web/providers     DuckDuckGo Search library (keyless default search)
+distro                           1.9.0         Platform detection          OS platform and distribution information
+docstring-parser                 0.18.0        cogniwork/tools/registry    Parse Python docstrings into tool definitions
+exceptiongroup                   1.3.1         anyio / pytest dep          Backport of ExceptionGroup for Python < 3.11
+fake-useragent                   2.2.0         cogniwork/web/fetch         Generates random browser User-Agent headers
+fastapi                          0.141.1       cogniwork/server/app        High-performance web API framework
+frozenlist                       1.8.0         aiohttp dep                 Frozen list data structure for async operations
+google-auth                      2.56.3        cogniwork/providers/vertex  Google Cloud authentication (ADC / Service Account)
+google-genai                     2.18.0        cogniwork/providers/gemini  Official Google GenAI SDK (Gemini 2.5/3.x models)
+greenlet                         3.5.5         SQLAlchemy / async dep      Lightweight in-process concurrent coroutines
+h11                              0.16.0        uvicorn / httpcore dep      Pure-Python HTTP/1.1 protocol implementation
+h2                               4.4.1         HTTP/2 protocol dep         Pure-Python HTTP/2 state machine implementation
+hpack                            4.2.0         h2 dep                      HTTP/2 header compression (HPACK) implementation
+httpcore                         1.0.9         httpx dep                   Minimal low-level HTTP client implementation
+httpcore2                        2.10.0        HTTP client dep             Next-generation low-level HTTP transport
+httptools                        0.8.0         uvicorn dep                 Fast C-based HTTP parser bindings for uvicorn
+httpx                            0.28.1        cogniwork/connectors, web   Next-gen async and sync HTTP client
+httpx-sse                        0.4.3         cogniwork/mcp               Server-Sent Events (SSE) support for HTTPX
+httpx2                           2.10.0        HTTP client dep             Alternative extended HTTPX client engine
+httpx2-jsfetch                   1.0           HTTP client dep             JS fetch adapter for Python HTTP clients
+hyperframe                       6.1.0         h2 dep                      HTTP/2 framing layer implementation
+idna                             3.18          httpx / urllib3 dep         Internationalized Domain Names in Applications (IDNA)
+iniconfig                        2.3.0         pytest dep                  Fast INI configuration file parser
+jiter                            0.16.0        pydantic / openai dep       Fast JSON parser implemented in Rust
+jmespath                         1.1.0         boto3 dep                   JSON query language for extracting AWS response data
+jsonschema                       4.26.0        mcp / connectors            JSON Schema validation for tool parameter schemas
+jsonschema-specifications        2025.9.1      jsonschema dep              JSON Schema meta-schemas and specifications
+linkify-it-py                    2.1.0         markdown-it dep             Link recognition library for markdown parsing
+lxml                             6.1.1         cogniwork/web/fetch         High-performance XML and HTML processing library
+markdown-it-py                   4.2.0         rich / textual dep          Markdown parser in Python conforming to CommonMark
+mcp                              1.29.0        cogniwork/mcp               Official Model Context Protocol (MCP) SDK
+mdit-py-plugins                  0.6.1         markdown-it dep             Plugins for markdown-it-py parser
+mdurl                            0.1.2         markdown-it dep             URL utilities for Markdown parsing
+multidict                        6.7.1         aiohttp dep                 Multi-value dictionary data structure
+openai                           3.0.0         cogniwork/providers         Official OpenAI Python SDK (Responses & Chat APIs)
+packaging                        26.3          pytest / build dep          Core utilities for Python package version handling
+pillow                           12.3.0        cogniwork/auth/totp, QR     Python Imaging Library for image/QR rendering
+platformdirs                     4.11.2        cogniwork/secrets, state    Determines OS-specific configuration directories
+playwright                       1.62.0        cogniwork/connectors        Automated headless/headed browser control
+pluggy                           1.6.0         pytest dep                  Plugin management and hook system
+primp                            1.3.1         HTTP scraping dep           HTTP client with impersonation features
+propcache                        0.5.2         aiohttp dep                 Fast property caching for Python objects
+pyasn1                           0.6.4         google-auth dep             ASN.1 types and codecs for authentication
+pyasn1-modules                   0.4.2         google-auth dep             Collection of ASN.1 modules for cryptography
+pycparser                        3.0           cffi dep                    C parser in pure Python
+pydantic                         2.13.4        cogniwork/server, config    Data validation and settings management using types
+pydantic-core                    2.46.4        pydantic dep                High-performance Rust core validation engine
+pydantic-settings                2.15.0        pydantic dep                Settings management support for Pydantic v2
+pyee                             13.0.1        playwright dep              Event emitter library for Python
+pygments                         2.20.0        textual / rich dep          Generic syntax highlighter for code snippets
+pyjwt                            2.13.0        cogniwork/auth              JSON Web Token encoder and decoder
+pyotp                            2.10.0        cogniwork/auth/totp         Python One-Time Password library for TOTP 2FA
+pypdf                            6.15.0        cogniwork/pdf_support       Pure-Python PDF text extraction and manipulation
+pypdfium2                        5.12.1        cogniwork/pdf_support       PDFium-based PDF rasterization and rendering
+pytest                           9.1.1         tests/                      Testing framework for backend test suite
+pytest-asyncio                   1.4.0         tests/                      Asyncio support for pytest test runners
+python-dateutil                  2.9.0.post0   botocore / scheduler dep    Extensions to the standard Python datetime module
+python-dotenv                    1.2.2         cogniwork/secrets           Loads environment variables from `.env` files
+python-multipart                 0.0.32        cogniwork/server            Multipart form data parser for FastAPI file uploads
+python-telegram-bot              22.8          cogniwork/connectors        Telegram Bot API wrapper for inbound/outbound chat
+pywin32                          312           packaging, windows          Python extensions for Windows Win32 API calls
+pyyaml                           6.0.3         cogniwork/personas          YAML parser for persona frontmatter manifests
+qrcode                           8.2           cogniwork/auth/totp         QR code image generator for authenticator apps
+referencing                      0.37.0        jsonschema dep              JSON Schema referencing and resolution
+requests                         2.34.2        cogniwork/connectors        Standard HTTP library for API communications
+rich                             15.0.0        textual dep                 Terminal rich text, formatting, and tables
+rpds-py                          0.30.0        jsonschema dep              Rust-backed persistent data structures
+s3transfer                       0.19.2        boto3 dep                   Amazon S3 data transfer manager
+six                              1.17.0        python-dateutil dep         Python 2 and 3 compatibility utilities
+slack-bolt                       1.30.0        cogniwork/connectors/slack  Framework for building Slack apps in Python
+slack-sdk                        3.43.0        slack-bolt dep              Official Slack developer kit for Web & RTM APIs
+sniffio                          1.3.1         anyio / httpcore dep        Sniff out which async library is running
+socksio                          1.0.0         httpx dep                   SOCKS proxy protocol implementation
+soundfile                        0.13.1        cogniwork/stt/engine        Audio file read/write wrapper for libsndfile
+sse-starlette                    3.4.8         cogniwork/server            Server-Sent Events streaming plugin for Starlette
+starlette                        1.6.0         FastAPI dep                 Lightweight ASGI framework
+tenacity                         9.1.4         cogniwork/connectors        Retrying library for resilient API calls
+textual                          8.2.8         cogniwork/tui               Terminal UI framework for rapid CLI development
+tomli                            2.4.1         cogniwork/config            Fast TOML parser for Python < 3.11
+torch                            2.6.0         cogniwork/stt/engine        PyTorch deep learning inference engine
+tqdm                             4.70.0        transformers dep            Progress bar library for Python
+transformers                     4.48.3        cogniwork/stt/engine        Hugging Face state-of-the-art ML models
+truststore                       0.10.4        TLS dep                     Uses native OS trust stores for TLS validation
+typing-extensions                4.16.0        FastAPI / Pydantic dep      Backport of new typing features to older Python
+typing-inspection                0.4.4         Docstring dep               Runtime inspection utilities for Python types
+tzdata                           2026.3        cogniwork/scheduler         IANA Timezone Database for Windows zoneinfo
+uc-micro-py                      2.0.0         markdown-it dep             Micro Unicode character database for linkify
+urllib3                          2.7.0         requests / botocore dep     HTTP library with connection pooling and SSL
+uvicorn                          0.52.1        cogniwork/server            Lightning-fast ASGI web server
+uvloop                           0.22.1        uvicorn dep (Linux/macOS)   Fast libuv-based event loop implementation
+watchfiles                       1.2.0         uvicorn dep                 File watcher for server auto-reloading
+websockets                       16.1.1        cogniwork/server, relay     WebSocket client and server library
+yarl                             1.24.5        aiohttp dep                 Yet another URL library for async networking
+
+--------------------------------------------------------------------------------
+6. NPM / NODE PACKAGES
+--------------------------------------------------------------------------------
+Complete list of all direct and dev dependencies from `surfaces/gui/package.json`
+and `cognios-action-flow/package.json`:
+
+* Surfaces GUI (`surfaces/gui/package.json`):
+  Package Name                  Version         Scope           Purpose
+  ------------------------------------------------------------------------------------------------------
+  @clerk/clerk-react            ^5.61.9         Dependency      React SDK for Clerk user authentication (unused)
+  pdfjs-dist                    ^4.10.38        Dependency      Mozilla PDF parser and rendering engine
+  react                         ^18.3.1         Dependency      Core React UI component library
+  react-dom                     ^18.3.1         Dependency      DOM renderer for React
+  react-markdown                ^10.1.0         Dependency      Renders Markdown content safely in React
+  react-router-dom              ^7.18.2         Dependency      Client-side declarative routing
+  remark-gfm                    ^4.0.1          Dependency      GitHub Flavored Markdown plugin for react-markdown
+  simple-icons                  ^16.26.0        Dependency      SVG brand icons for third-party SaaS connectors
+  xlsx                          ^0.18.5         Dependency      SheetJS spreadsheet parser and data reader
+  @playwright/test              ^1.61.1         DevDependency   End-to-end browser testing framework
+  @tauri-apps/cli               ^2.11.2         DevDependency   Tauri command line interface for desktop bundling
+  @testing-library/dom          ^10.4.1         DevDependency   DOM query utilities for UI unit tests
+  @testing-library/react        ^16.3.2         DevDependency   React testing utilities for component tests
+  @types/react                  ^18.3.3         DevDependency   TypeScript type declarations for React
+  @types/react-dom              ^18.3.0         DevDependency   TypeScript type declarations for React DOM
+  @vitejs/plugin-react          ^4.3.1          DevDependency   Vite plugin providing React Fast Refresh
+  autoprefixer                  ^10.5.2         DevDependency   PostCSS plugin to parse CSS and add vendor prefixes
+  jsdom                         ^25.0.1         DevDependency   JavaScript DOM environment for Vitest unit tests
+  postcss                       ^8.5.16         DevDependency   CSS post-processor tool
+  tailwindcss                   ^3.4.19         DevDependency   Tailwind CSS utility framework v3
+  typescript                    ^5.5.3          DevDependency   TypeScript compiler and language tools
+  vite                          ^5.4.0          DevDependency   Frontend dev server and production bundler
+  vitest                        ^2.1.9          DevDependency   Fast Vite-native unit test runner
+
+* Action Flow Visualization (`cognios-action-flow/package.json`):
+  Package Name                  Version         Scope           Purpose
+  ------------------------------------------------------------------------------------------------------
+  @hookform/resolvers           ^5.2.2          Dependency      Validation resolvers for React Hook Form (Zod)
+  @radix-ui/react-accordion     ^1.2.12         Dependency      Accessible accordion component primitive
+  @radix-ui/react-alert-dialog  ^1.1.15         Dependency      Accessible alert dialog modal primitive
+  @radix-ui/react-aspect-ratio  ^1.1.8          Dependency      Maintains component aspect ratio
+  @radix-ui/react-avatar        ^1.1.11         Dependency      Avatar rendering primitive with fallback
+  @radix-ui/react-checkbox      ^1.3.3          Dependency      Accessible checkbox component primitive
+  @radix-ui/react-collapsible   ^1.1.12         Dependency      Collapsible content section primitive
+  @radix-ui/react-context-menu  ^2.2.16         Dependency      Accessible context menu primitive
+  @radix-ui/react-dialog        ^1.1.15         Dependency      Modal dialog component primitive
+  @radix-ui/react-dropdown-menu ^2.1.16         Dependency      Dropdown menu component primitive
+  @radix-ui/react-hover-card    ^1.1.15         Dependency      Hover card popup primitive
+  @radix-ui/react-label         ^2.1.8          Dependency      Accessible label component primitive
+  @radix-ui/react-menubar       ^1.1.16         Dependency      Desktop menubar navigation primitive
+  @radix-ui/react-navigation-menu ^1.2.14       Dependency      Accessible navigation menu primitive
+  @radix-ui/react-popover       ^1.1.15         Dependency      Popover overlay component primitive
+  @radix-ui/react-progress      ^1.1.8          Dependency      Progress bar component primitive
+  @radix-ui/react-radio-group   ^1.3.8          Dependency      Radio button group primitive
+  @radix-ui/react-scroll-area   ^1.2.10         Dependency      Custom styled scrollable container primitive
+  @radix-ui/react-select        ^2.2.6          Dependency      Accessible select dropdown primitive
+  @radix-ui/react-separator     ^1.1.8          Dependency      Horizontal/vertical separator primitive
+  @radix-ui/react-slider        ^1.3.6          Dependency      Numeric range slider primitive
+  @radix-ui/react-slot          ^1.2.4          Dependency      Slot primitive for component composition
+  @radix-ui/react-switch        ^1.2.6          Dependency      Accessible toggle switch primitive
+  @radix-ui/react-tabs          ^1.1.13         Dependency      Tabbed interface component primitive
+  @radix-ui/react-toggle        ^1.1.10         Dependency      Two-state toggle button primitive
+  @radix-ui/react-toggle-group  ^1.1.11         Dependency      Toggle group component primitive
+  @radix-ui/react-tooltip       ^1.2.8          Dependency      Accessible tooltip component primitive
+  @tailwindcss/vite             ^4.2.1          Dependency      Tailwind CSS v4 official Vite plugin
+  @tanstack/react-query         ^5.101.1        Dependency      Async state and server-cache manager
+  @tanstack/react-router        1.170.18        Dependency      Type-safe routing system for React
+  @tanstack/react-start         1.168.32        Dependency      Full-stack React framework with SSR
+  @tanstack/router-plugin       1.168.23        Dependency      TanStack Router code generation plugin
+  class-variance-authority      ^0.7.1          Dependency      Variant-based component styling utility
+  clsx                          ^2.1.1          Dependency      Class name concatenation utility
+  cmdk                          ^1.1.1          Dependency      Fast command palette component
+  date-fns                      ^4.1.0          Dependency      Modern date utility library
+  embla-carousel-react          ^8.6.0          Dependency      Carousel component for React
+  input-otp                     ^1.4.2          Dependency      One-time password input component
+  lucide-react                  ^0.575.0        Dependency      Iconography library for React
+  react                         ^19.2.0         Dependency      Core React UI framework v19
+  react-day-picker              ^9.14.0         Dependency      Date picker component
+  react-dom                     ^19.2.0         Dependency      React DOM renderer v19
+  react-hook-form               ^7.71.2         Dependency      Form state management and validation
+  react-resizable-panels        ^4.6.5          Dependency      Split resizable panels layout library
+  recharts                      ^2.15.4         Dependency      SVG chart visualization library
+  sonner                        ^2.0.7          Dependency      Toast notification manager
+  tailwind-merge                ^3.5.0          Dependency      Merges Tailwind CSS classes safely
+  tailwindcss                   ^4.2.1          Dependency      Tailwind CSS styling engine v4
+  tw-animate-css                ^1.3.4          Dependency      Tailwind animation utilities
+  vaul                          ^1.1.2          Dependency      Drawer component for React
+  vite-tsconfig-paths           ^6.0.2          Dependency      TypeScript path resolver for Vite
+  zod                           ^3.24.2         Dependency      TypeScript schema validation library
+  @eslint/js                    ^9.32.0         DevDependency   ESLint JavaScript rules configuration
+  @lovable.dev/vite-tanstack-config ^2.13.1     DevDependency   Lovable build presets for TanStack Start
+  @types/node                   ^22.16.5        DevDependency   TypeScript type declarations for Node.js
+  @types/react                  ^19.2.0         DevDependency   TypeScript type declarations for React 19
+  @types/react-dom              ^19.2.0         DevDependency   TypeScript type declarations for React DOM 19
+  @vitejs/plugin-react          ^5.2.0          DevDependency   React Fast Refresh plugin for Vite 8
+  eslint                        ^9.32.0         DevDependency   JavaScript/TypeScript linter
+  eslint-config-prettier        ^10.1.1         DevDependency   Turns off ESLint rules that conflict with Prettier
+  eslint-plugin-prettier        ^5.2.6          DevDependency   Runs Prettier as an ESLint rule
+  eslint-plugin-react-hooks     ^5.2.0          DevDependency   ESLint rules for React Hooks
+  eslint-plugin-react-refresh   ^0.4.20         DevDependency   ESLint plugin for React Fast Refresh
+  globals                       ^15.15.0        DevDependency   Global identifiers library for ESLint
+  nitro                         3.0.260603-beta DevDependency   Universal server engine for TanStack Start
+  prettier                      ^3.7.3          DevDependency   Code formatter
+  typescript                    ^5.8.3          DevDependency   TypeScript compiler
+  typescript-eslint             ^8.56.1         DevDependency   TypeScript tooling for ESLint
+  vite                          ^8.2.0          DevDependency   Next-gen frontend build tool v8
+
+--------------------------------------------------------------------------------
+7. JAVA / MAVEN / GRADLE DEPENDENCIES
+--------------------------------------------------------------------------------
+* Status: NONE DETECTED.
+* Notes:
+  This project does not contain any Java source code, JVM runtimes, `pom.xml` (Maven),
+  or `build.gradle` / `build.gradle.kts` (Gradle) build files. CogniOS is entirely built
+  using Python, TypeScript/JavaScript, and Rust.
+
+--------------------------------------------------------------------------------
+8. DATABASES AND STORAGE
+--------------------------------------------------------------------------------
+* SQLite 3:
+  - SQLite is the primary, embedded local relational database engine used for all persistent
+    application state.
+  - File Location: `{state_dir}/cogniwork.db` (Default on Windows: `%APPDATA%\cogniwork\cogniwork.db`;
+    on macOS/Linux: `~/.config/cogniwork/cogniwork.db`).
+  - Database Schema & Tables:
+    * `memories` — Stores persistent agent memory facts with fields `id`, `scope` (`global` vs `workspace`),
+      `key`, `content`, `summary`, `workspace`, `session_id`, `created_at`.
+    * `sessions` — Registry of conversation sessions, titles, models, timestamps.
+    * `workspaces` — Registry of authorized workspace root directories and project trust settings.
+    * `users` — Local single-owner account table with `full_name`, `username`, `email`, `password_hash`,
+      `favorite_pet_answer_hash`, `totp_enabled`, `totp_secret_encrypted`.
+    * `auth_sessions` — Active user sessions with `id`, `user_id`, `expires_at`, `last_activity`.
+    * `auth_recovery_tokens` — Secure state tokens for password reset flow.
+    * `auth_pending_logins` — Temporary tokens during two-step 2FA sign-in.
+    * `auth_totp_setup` — Temporary tokens during 2FA enrollment.
+    * `audit_events` — Audit logs capturing all agent actions, tool executions, and system events.
+    * `inbox_items` — Parked user approval requests for unattended agent runs.
+    * `channel_subscriptions` — Event listeners and recurring scheduled automations.
+
+* Alembic / SQLAlchemy:
+  - Used for database schema migration documentation and headless migrations (`alembic.ini`,
+    `alembic/env.py`, `alembic/versions/edb11258dadb_create_auth_tables.py`).
+
+* JSONL (JSON Lines) File Storage:
+  - File Location: `{state_dir}/conversations/{session_id}.jsonl`.
+  - Append-only persistent storage of full conversation turns, user inputs, assistant outputs,
+    tool call definitions, tool results, and thought logs.
+
+* Structured File Storage:
+  - `{state_dir}/secrets.json` — Local JSON secret store (filesystem permissions `0600`) holding
+    encrypted model API keys and third-party connector tokens.
+  - `{state_dir}/memory-settings.json` — User configuration for memory injection and rules.
+  - `{state_dir}/sidecar-{port}.token` — Per-launch transient secret token for FastAPI sidecar auth.
+  - `{workspace}/.cogniwork/config.toml` — Workspace-level agent configuration overrides.
+  - `{state_dir}/config.toml` — Global agent configuration.
+
+* SafeTensors Binary Storage:
+  - `stt/moonshine-tiny/model.safetensors` — 108 MB binary weights for the Moonshine Tiny STT model.
+
+--------------------------------------------------------------------------------
+9. APIS AND EXTERNAL SERVICES
+--------------------------------------------------------------------------------
+* Large Language Model (LLM) Provider APIs:
+  - OpenAI API (`https://api.openai.com/v1`, Responses API & Chat Completions API)
+  - Anthropic API (`https://api.anthropic.com/v1/messages`)
+  - Google Gemini API (`https://generativelanguage.googleapis.com/v1beta/models`)
+  - AWS Bedrock API (`bedrock-runtime` Converse & Anthropic endpoints)
+  - Google Cloud Vertex AI API (`https://aiplatform.googleapis.com/v1`)
+  - DeepSeek API (`https://api.deepseek.com`)
+  - Z AI (Zhipu GLM) API (`https://api.z.ai/api/paas/v4`, `https://open.bigmodel.cn/api/paas/v4`)
+  - Moonshot AI (Kimi) API (`https://api.moonshot.ai/v1`, `https://api.moonshot.cn/v1`)
+  - MiniMax API (`https://api.minimax.io/v1`)
+  - Alibaba Cloud DashScope (Qwen) API (`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`)
+  - xAI (Grok) API (`https://api.x.ai/v1`)
+  - Mistral AI API (`https://api.mistral.ai/v1`)
+  - Meta Model API (`https://api.meta.ai/v1`)
+  - Together AI API (`https://api.together.xyz/v1`)
+  - Fireworks AI API (`https://api.fireworks.ai/inference/v1`)
+  - OpenRouter API (`https://openrouter.ai/api/v1`)
+  - Ollama Local Server API (`http://localhost:11434/v1`)
+
+* Search & Web APIs:
+  - DuckDuckGo Search API (via `ddgs` library; default keyless web search provider)
+  - Tavily Search API (`https://api.tavily.com`)
+  - Brave Search API (`https://api.search.brave.com`)
+  - Direct HTTP scraping & fetching (`httpx`, `lxml`, `fake-useragent`)
+
+* Shippable Third-Party SaaS Connector APIs (20 Functional Integrations):
+  - Slack API (Web API, Events API, Socket Mode, Managed OAuth, Relay Client)
+  - Telegram Bot API (`https://api.telegram.org`)
+  - GitHub API (REST API `api.github.com`, GraphQL API, Git over HTTPS)
+  - Google Workspace APIs (Gmail API, Google Calendar API, Google Drive API)
+  - Microsoft Graph API (Outlook Mail & Calendar)
+  - Atlassian Jira REST API
+  - GitLab REST API
+  - Discord Bot API (`https://discord.com/api`)
+  - HubSpot CRM API (`https://api.hubapi.com`)
+  - Box Content API
+  - WhatsApp Business Cloud API (Meta Graph API)
+  - Canva Connect API
+  - Figma REST API (`https://api.figma.com/v1`)
+  - Attio CRM API
+  - Mixpanel Ingestion API
+  - SMTP & IMAP Mail Protocols
+  - Notion API (`https://api.notion.com/v1`)
+  - Standard Browser Automation via Playwright
+  - Third-party MCP Servers over stdio / HTTP
+
+* Placeholder Connector Stubs (UI visible, pending integration):
+  - Datadog, Salesforce, Descript, Clay, PagerDuty
+
+* Distribution & Auto-Update Endpoints:
+  - CogniOS Update Manifest (`https://download.cognios.com/latest.json`)
+  - GitHub Releases (`https://github.com/andrewyng/cognios/releases`)
+
+--------------------------------------------------------------------------------
+10. DEVOPS / DEPLOYMENT
+--------------------------------------------------------------------------------
+* Desktop Packaging & Bundle Generation:
+  - PyInstaller (`packaging/cognios-server.spec`):
+    * Builds standalone onedir bundle of `cognios-server` sidecar executable with all Python libraries.
+    * Staged into Tauri's `resources` slot at `<install>/sidecar/` to eliminate venv requirements at runtime.
+  - Tauri Bundler (`surfaces/gui/src-tauri`):
+    * Packages the native desktop application for Windows and macOS.
+    * Produces NSIS `.exe` installers and `.msi` installers on Windows.
+    * Produces `.app` application bundles and `.dmg` disk images on macOS.
+  - Windows Packaging Script (`packaging/build_windows.ps1`):
+    * PowerShell automation script orchestrating PyInstaller freeze, sidecar staging, and Tauri release build.
+  - macOS Packaging & Notarization Script (`packaging/build_dmg.sh`):
+    * Bash script handling PyInstaller freeze, Mach-O codesigning, hardened runtime, Apple `notarytool` submission, `stapler` stapling, and `hdiutil` compressed DMG creation.
+  - Minisign Cryptographic Signatures:
+    * Used by Tauri updater plugin for verifying auto-update package integrity.
+
+* Action Flow Web Deployment:
+  - Cloudflare Wrangler (`.wrangler` directory present in `cognios-action-flow`).
+  - Nitro universal deployment engine.
+  - Lovable deployment integration (`.lovable/project.json`).
+
+* Local Developer Tooling & Launchers:
+  - `start_cognios.bat` — Windows automated development launcher (checks prerequisites, kills stale port bindings on 8765/1420, boots server and Vite UI).
+  - `packaging/setup_dev_env.sh` — Bash bootstrap script initializing Python venv and core/messaging/dev packages.
+  - `packaging/make_update_manifest.py` — Script to generate Tauri auto-update manifests for releases.
+
+* Containerization Status:
+  - No Dockerfile or docker-compose.yml in repository (CogniOS is strictly architected as a local-first desktop application and sidecar binary).
+
+--------------------------------------------------------------------------------
+11. DEVELOPMENT TOOLS
+--------------------------------------------------------------------------------
+* Version Control & Hosting:
+  - Git
+  - GitHub (`https://github.com/andrewyng/cognios`)
+
+* Package Managers:
+  - pip (Python package installer)
+  - uv (High performance Python package manager / resolver generating `uv.lock`)
+  - npm (Node.js package manager generating `package-lock.json`)
+  - bun (Fast JavaScript package manager generating `bun.lock`)
+  - Cargo (Rust package manager and build tool generating `Cargo.lock`)
+
+* Compilers & Build Tools:
+  - CPython 3.10+
+  - Node.js 20+
+  - rustc / Cargo (Rust stable 1.77+)
+  - MSVC C++ Build Tools (`link.exe` on Windows)
+  - TypeScript Compiler (`tsc`)
+  - Vite (v5 in GUI, v8 in Action Flow)
+
+* Code Quality, Linters & Formatters:
+  - Ruff (Python linter and code formatter; cache at `.ruff_cache`)
+  - Black (Python code formatter entrypoint in `alembic.ini`)
+  - ESLint (v9 with `@eslint/js`, `typescript-eslint`, `eslint-plugin-react-hooks`, `eslint-plugin-prettier`)
+  - Prettier (v3 code formatter with `.prettierrc`, `.prettierignore`)
+
+* Testing Suites:
+  - Pytest (v9 test runner with `pytest-asyncio` running ~90 test suites in `tests/`)
+  - Vitest (v2 unit test runner in `surfaces/gui`)
+  - Playwright (v1.61 end-to-end browser test runner for hermetic and live tests)
+  - Testing Library (`@testing-library/react`, `@testing-library/dom`)
+
+* Shells & Environments:
+  - Windows PowerShell (v5.1+)
+  - Windows Command Prompt (cmd.exe)
+  - Bash (macOS / Linux / Git Bash / WSL)
+
+--------------------------------------------------------------------------------
+12. OPERATING SYSTEM / RUNTIME
+--------------------------------------------------------------------------------
+* Supported Operating Systems:
+  - Microsoft Windows:
+    * Windows 10 and Windows 11 (64-bit x86_64).
+    * Windows WebView2 / Evergreen Bootstrapper runtime for Tauri GUI.
+    * Target triple: `x86_64-pc-windows-msvc`.
+  - Apple macOS:
+    * macOS 12.0+ (Monterey, Ventura, Sonoma, Sequoia).
+    * Native Apple Silicon (`aarch64-apple-darwin`) and Intel (`x86_64-apple-darwin`).
+  - Linux:
+    * Ubuntu / Debian / Fedora / Arch Linux (x86_64 and aarch64).
+    * Runs headless server, CLI TUI, and desktop.
+
+* Runtimes & Minimum Versions:
+  - Python Runtime: Python >= 3.10 required (supports 3.10, 3.11, 3.12, 3.13, 3.14).
+  - Node.js Runtime: Node.js >= 20.0.0.
+  - Rust Runtime: Rust >= 1.77.0 (Edition 2021).
+  - Bun Runtime: Bun >= 1.0 (for `cognios-action-flow`).
+
+* Audio & Hardware Acceleration:
+  - CPAL 0.15.3 (Cross-Platform Audio Library in Rust) for low-latency audio capture from microphone.
+  - PyTorch CPU inference by default (`torch_dtype = "float32"`).
+  - Optional CUDA GPU acceleration when PyTorch CUDA wheels are available.
+
+--------------------------------------------------------------------------------
+13. CONFIGURATION AND ENVIRONMENT
+--------------------------------------------------------------------------------
+* State Directory Resolution:
+  - Windows: `%APPDATA%\cogniwork` (falls back to legacy `%APPDATA%\coworker`).
+  - macOS / Linux: `~/.config/cogniwork` (falls back to legacy `~/.config/coworker`).
+  - Override Variable: `COGNIWORK_STATE_DIR` (legacy: `COWORKER_STATE_DIR`).
+
+* Configuration Files:
+  - Global Configuration: `{state_dir}/config.toml`
+  - Workspace Configuration: `{workspace}/.cogniwork/config.toml`
+  - Key Configuration Options:
+    * `model` — Default model ID (e.g. `gpt-5.5`, `claude-fable-5`, `gemini-3.6-flash`).
+    * `mode` — Default permission mode (`plan`, `interactive`, `auto`, `custom`, `discuss`).
+    * `max_iterations` — Maximum model<->tool iterations per turn (default: 12).
+    * `allowed_commands` — Command prefixes auto-approved without user prompt (e.g. `ls`, `git status`, `pytest`).
+    * `auto_allow` — List of tool names auto-approved in `custom` mode.
+    * `host` — Server bind address (default: `127.0.0.1`).
+    * `port` — Server port (default: `8765`).
+
+* Verified Runtime Environment Variables (Names only — No secret values):
+  - Server & State:
+    * `COGNIWORK_STATE_DIR` / `COWORKER_STATE_DIR`
+    * `COGNIWORK_API_TOKEN` / `COWORKER_API_TOKEN`
+    * `COGNIWORK_PORT`
+    * `COGNIWORK_EXIT_WITH_PARENT` / `COWORKER_EXIT_WITH_PARENT`
+    * `COGNIWORK_PARENT_PID` / `COWORKER_PARENT_PID`
+    * `COGNIWORK_AUTH_DISABLED` / `COWORKER_AUTH_DISABLED`
+    * `COGNIWORK_DEBUG_INJECT`
+    * `COGNIWORK_EXPERIMENTAL`
+    * `COGNIWORK_LIVE_VISION`
+    * `COGNIWORK_SERVER_BIN` / `COWORKER_SERVER_BIN`
+    * `COGNIWORK_MOONSHINE_MODEL_PATH` / `COWORKER_MOONSHINE_MODEL_PATH`
+    * `SSL_CERT_FILE`
+  - Frontend (Vite):
+    * `VITE_COGNIWORK_HTTP`
+    * `VITE_COGNIWORK_WS`
+    * `VITE_COGNIWORK_API_TOKEN`
+    * `CI`
+  - LLM Provider Authentication:
+    * `OPENAI_API_KEY`
+    * `ANTHROPIC_API_KEY`
+    * `GEMINI_API_KEY` / `GOOGLE_API_KEY`
+    * `AWS_BEARER_TOKEN_BEDROCK`
+    * `ZAI_API_KEY`
+    * `DEEPSEEK_API_KEY`
+    * `MOONSHOT_API_KEY`
+    * `MINIMAX_API_KEY`
+    * `DASHSCOPE_API_KEY`
+    * `XAI_API_KEY`
+    * `MISTRAL_API_KEY`
+    * `META_API_KEY`
+    * `TOGETHER_API_KEY`
+    * `FIREWORKS_API_KEY`
+    * `OPENROUTER_API_KEY`
+  - Web Search Providers:
+    * `TAVILY_API_KEY`
+    * `BRAVE_API_KEY`
+  - Build & Signing:
+    * `TAURI_SIGNING_PRIVATE_KEY`
+    * `APPLE_SIGNING_IDENTITY`
+    * `APPLE_CERTIFICATE`
+    * `APPLE_CERTIFICATE_PASSWORD`
+    * `NOTARYTOOL_API_KEY_PATH`
+    * `NOTARYTOOL_API_KEY_ID`
+    * `NOTARYTOOL_API_ISSUER_ID`
+    * `OCW_SKIP_NOTARIZE`
+    * `OCW_NOTARY_ENV`
+    * `OCW_UPDATER_ENV`
+
+--------------------------------------------------------------------------------
+14. ARCHITECTURE / TECHNOLOGY FLOW
+--------------------------------------------------------------------------------
+The complete system interaction flow operates as follows:
+
+1. User Interaction:
+   - The user launches the CogniOS desktop app (Tauri shell wrapping a React 18 frontend).
+   - Voice Input (optional): Microphone audio is captured via Rust `cpal` in `ocw-stt`, processed by PyTorch & Transformers running Moonshine Tiny, and converted into text transcripts instantly and offline.
+   - Text Input: The user submits a prompt via the Composer interface.
+
+2. Transport & Authentication Layer:
+   - React UI sends a WebSocket message (`user_message`) over `ws://127.0.0.1:8765/ws/session/{id}`.
+   - FastAPI server (`cogniwork/server/app.py`) validates the per-launch `X-CogniOS-Token` and optional `ow_session` cookie.
+
+3. Session Management & Engine Initialization:
+   - `SessionManager` (`cogniwork/server/manager.py`) resolves the active session, acquires the session turn lock (`claim_turn`), and invokes `TurnEngine.run()` (`cogniwork/engine.py`).
+
+4. Context Preparation & Memory Retrieval:
+   - `agent.py` queries `SQLiteMemoryStore` (`cogniwork/memory/`) for durable facts matching global and workspace scopes.
+   - Relevant memories, active persona instructions (`cogniwork/personas/`), workspace directory trees, and loaded skills are injected into the system prompt.
+   - If previous history exceeds token thresholds, `compaction.py` algorithmically summarizes older turns and compacts context.
+
+5. Model Inference:
+   - `TurnEngine` calls `ProviderRouter` (`cogniwork/providers/router.py`), selecting the requested model client (OpenAI, Anthropic, Gemini, Bedrock, Vertex, or OpenAI-compatible endpoint).
+   - The provider streams response tokens and tool call proposals back to `TurnEngine`.
+
+6. Permission & Tool Execution Loop:
+   - If the model requests tool calls (e.g. `write_file`, `run_shell`, `web_search`, `mcp__*`, connector calls):
+     * `PermissionEngine` (`cogniwork/permissions.py`) evaluates the tool risk against current mode (`discuss`, `plan`, `interactive`, `auto`, `custom`).
+     * If user approval is required, a `PERMISSION_REQUIRED` event is pushed over WebSocket to the UI (or parked in `inbox_items` SQLite table if unattended).
+     * Upon user approval, `TurnEngine` executes tools (concurrently for read operations, sequentially for write operations).
+     * Tool results are appended to the conversation history.
+   - The loop repeats until the model finishes or reaches `max_iterations`.
+
+7. Persistence & Event Emission:
+   - Full conversation events, tool executions, and tokens are written to `{state_dir}/conversations/{session_id}.jsonl`.
+   - Session metadata is updated in `cogniwork.db`.
+   - Real-time `TURN_END` event is broadcast to the UI to finalize the transcript view.
+
+Summary Pipeline:
+`Voice (CPAL/Moonshine) / Text (React) → WebSocket / REST → FastAPI Server → TurnEngine → SQLite Memory Store → aisuite / Native LLM SDKs → Model API → PermissionEngine → Tool Execution (Files/Shell/MCP/Connectors) → SQLite & JSONL Storage → Real-time UI Transcript`
+
+--------------------------------------------------------------------------------
+15. COMPLETE TECHNOLOGY INVENTORY
+--------------------------------------------------------------------------------
+Alphabetical list containing every unique technology, framework, library, package,
+model, tool, runtime, and dependency detected across the entire CogniOS project:
+
+ 1. @clerk/clerk-react (5.61.9)
+ 2. @eslint/js (9.32.0)
+ 3. @hookform/resolvers (5.2.2)
+ 4. @lovable.dev/vite-tanstack-config (2.13.1)
+ 5. @playwright/test (1.61.1)
+ 6. @radix-ui/react-accordion (1.2.12)
+ 7. @radix-ui/react-alert-dialog (1.1.15)
+ 8. @radix-ui/react-aspect-ratio (1.1.8)
+ 9. @radix-ui/react-avatar (1.1.11)
+10. @radix-ui/react-checkbox (1.3.3)
+11. @radix-ui/react-collapsible (1.1.12)
+12. @radix-ui/react-context-menu (2.2.16)
+13. @radix-ui/react-dialog (1.1.15)
+14. @radix-ui/react-dropdown-menu (2.1.16)
+15. @radix-ui/react-hover-card (1.1.15)
+16. @radix-ui/react-label (2.1.8)
+17. @radix-ui/react-menubar (1.1.16)
+18. @radix-ui/react-navigation-menu (1.2.14)
+19. @radix-ui/react-popover (1.1.15)
+20. @radix-ui/react-progress (1.1.8)
+21. @radix-ui/react-radio-group (1.3.8)
+22. @radix-ui/react-scroll-area (1.2.10)
+23. @radix-ui/react-select (2.2.6)
+24. @radix-ui/react-separator (1.1.8)
+25. @radix-ui/react-slider (1.3.6)
+26. @radix-ui/react-slot (1.2.4)
+27. @radix-ui/react-switch (1.2.6)
+28. @radix-ui/react-tabs (1.1.13)
+29. @radix-ui/react-toggle (1.1.10)
+30. @radix-ui/react-toggle-group (1.1.11)
+31. @radix-ui/react-tooltip (1.2.8)
+32. @tailwindcss/vite (4.2.1)
+33. @tanstack/react-query (5.101.1)
+34. @tanstack/react-router (1.170.18)
+35. @tanstack/react-start (1.168.32)
+36. @tanstack/router-plugin (1.168.23)
+37. @tauri-apps/cli (2.11.2)
+38. @testing-library/dom (10.4.1)
+39. @testing-library/react (16.3.2)
+40. @types/node (22.16.5)
+41. @types/react (18.3.3 / 19.2.0)
+42. @types/react-dom (18.3.0 / 19.2.0)
+43. @vitejs/plugin-react (4.3.1 / 5.2.0)
+44. aiohappyeyeballs (2.7.1)
+45. aiohttp (3.14.3)
+46. aiosignal (1.4.0)
+47. aisuite (0.1.14)
+48. Alembic (Database Migrations)
+49. Alibaba DashScope / Qwen API
+50. Amazon Bedrock API
+52. annotated-doc (0.0.5)
+53. annotated-types (0.8.0)
+54. anthropic (0.121.0)
+55. Anthropic Claude Messages API
+56. anyio (4.14.2)
+58. Apple codesign & notarytool
+59. argon2-cffi (25.1.0)
+60. argon2-cffi-bindings (25.1.0)
+62. async-timeout (5.0.1)
+63. Attio API
+64. attrs (26.1.0)
+65. Autoprefixer (10.5.2)
+66. backports-asyncio-runner (1.2.0)
+67. Black Code Formatter
+68. boto3 (1.43.70)
+69. botocore (1.43.70)
+70. Box API
+71. Brave Search API
+72. brotli (1.2.0)
+73. brotlicffi (1.2.0.1)
+74. Bun (1.0+)
+75. Canva API
+76. Cargo (Rust Build Tool)
+77. certifi (2026.7.22)
+78. cffi (2.1.1)
+79. charset-normalizer (3.5.0)
+80. class-variance-authority (0.7.1)
+81. click (8.4.2)
+84. Cloudflare Wrangler
+85. clsx (2.1.1)
+86. cmdk (1.1.1)
+87. CogniOS Action Flow
+88. CogniWork Engine (TurnEngine)
+89. colorama (0.4.6)
+91. cpal (Rust crate 0.15.3)
+92. croniter (6.2.4)
+93. cryptography (50.0.0)
+94. date-fns (4.1.0)
+95. ddgs (9.14.4)
+96. DeepSeek API
+97. Discord Bot API
+98. distro (1.9.0)
+100. docstring-parser (0.18.0)
+102. DuckDuckGo Search
+103. embla-carousel-react (8.6.0)
+104. eslint (9.32.0)
+105. eslint-config-prettier (10.1.1)
+106. eslint-plugin-prettier (5.2.6)
+107. eslint-plugin-react-hooks (5.2.0)
+108. eslint-plugin-react-refresh (0.4.20)
+109. exceptiongroup (1.3.1)
+110. fake-useragent (2.2.0)
+111. FastAPI (0.141.1)
+112. Figma API
+113. Fireworks AI API
+114. frozenlist (1.8.0)
+115. Git
+116. GitHub API
+117. GitLab API
+118. globals (15.15.0)
+119. Google Auth (2.56.3)
+120. Google Calendar API
+121. Google Cloud Vertex AI API
+122. Google Drive API
+123. Google GenAI (2.18.0)
+124. Google Gemini API
+125. Gmail API
+126. greenlet (3.5.5)
+127. h11 (0.16.0)
+128. h2 (4.4.1)
+129. hpack (4.2.0)
+130. httpcore (1.0.9)
+131. httpcore2 (2.10.0)
+132. httptools (0.8.0)
+133. httpx (0.28.1)
+134. httpx-sse (0.4.3)
+135. httpx2 (2.10.0)
+136. httpx2-jsfetch (1.0)
+137. HubSpot API
+139. hyperframe (6.1.0)
+140. idna (3.18)
+141. iniconfig (2.3.0)
+142. input-otp (1.4.2)
+143. Jira API
+144. jiter (0.16.0)
+145. jmespath (1.1.0)
+146. jsdom (25.0.1)
+147. JSONL (JSON Lines Storage)
+148. jsonschema (4.26.0)
+149. jsonschema-specifications (2025.9.1)
+151. linkify-it-py (2.1.0)
+152. Liquid Glass Design System
+153. Lovable
+154. Lucide React (0.575.0)
+155. lxml (6.1.1)
+156. markdown-it-py (4.2.0)
+157. mcp (1.29.0)
+158. mdit-py-plugins (0.6.1)
+159. mdurl (0.1.2)
+160. Meta Model API (Muse Spark)
+161. Microsoft Graph / Outlook API
+162. Minisign
+163. MiniMax API
+164. Mistral AI API
+165. Mixpanel API
+166. Model Context Protocol (MCP)
+168. Moonshine Tiny Model (Useful Sensors STT)
+169. Moonshot AI / Kimi API
+170. multidict (6.7.1)
+171. Nitro (3.0.260603-beta)
+172. Node.js (20+)
+173. Notion API
+174. npm
+175. NumPy
+176. ocw-stt (Rust crate)
+177. Ollama
+178. OpenAI API
+179. OpenAI Python SDK (3.0.0)
+180. OpenRouter API
+181. packaging (26.3)
+182. pdfjs-dist (4.10.38)
+183. Pillow (12.3.0)
+184. pip
+185. platformdirs (4.11.2)
+186. Playwright (1.62.0 / 1.61.1)
+187. pluggy (1.6.0)
+188. PostCSS (8.5.16)
+190. Prettier (3.7.3)
+191. primp (1.3.1)
+192. propcache (0.5.2)
+193. pyasn1 (0.6.4)
+194. pyasn1-modules (0.4.2)
+195. pycparser (3.0)
+196. Pydantic (2.13.4)
+197. pydantic-core (2.46.4)
+198. pydantic-settings (2.15.0)
+199. pyee (13.0.1)
+200. Pygments (2.20.0)
+201. PyInstaller
+202. PyJWT (2.13.0)
+203. pyotp (2.10.0)
+204. pypdf (6.15.0)
+205. pypdfium2 (5.12.1)
+206. pytest (9.1.1)
+207. pytest-asyncio (1.4.0)
+208. Python (3.10+)
+209. python-dateutil (2.9.0.post0)
+210. python-dotenv (1.2.2)
+211. python-multipart (0.0.32)
+212. python-telegram-bot (22.8)
+213. PyTorch (torch 2.6.0)
+214. pywin32 (312)
+215. PyYAML (6.0.3)
+217. qrcode (8.2)
+218. React (18.3.1 / 19.2.0)
+219. React DOM (18.3.1 / 19.2.0)
+220. react-day-picker (9.14.0)
+221. react-hook-form (7.71.2)
+222. react-markdown (10.1.0)
+223. react-resizable-panels (4.6.5)
+224. react-router-dom (7.18.2)
+225. Recharts (2.15.4)
+226. referencing (0.37.0)
+227. remark-gfm (4.0.1)
+228. requests (2.34.2)
+229. Rich (15.0.0)
+230. rpds-py (0.30.0)
+231. Ruff
+232. Rust (1.77+)
+233. s3transfer (0.19.2)
+234. SafeTensors
+235. serde (Rust crate 1.0)
+236. serde_json (Rust crate 1.0)
+237. sha2 (Rust crate 0.10)
+238. Simple Icons (16.26.0)
+239. six (1.17.0)
+240. Slack API / Socket Mode
+241. slack-bolt (1.30.0)
+242. slack-sdk (3.43.0)
+243. sniffio (1.3.1)
+244. socksio (1.0.0)
+245. Sonner (2.0.7)
+246. SoundFile (0.13.1)
+247. SQLite 3
+248. sse-starlette (3.4.8)
+249. Starlette (1.6.0)
+251. Tailwind CSS (3.4.19 / 4.2.1)
+252. tailwind-merge (3.5.0)
+253. TanStack Query (5.101.1)
+254. TanStack Router (1.170.18)
+255. TanStack Start (1.168.32)
+256. Tauri (2.0 / 2.11.2)
+257. tauri-build (Rust crate 2.0)
+258. tauri-plugin-autostart (Rust crate 2.0)
+259. tauri-plugin-dialog (Rust crate 2.0)
+260. tauri-plugin-single-instance (Rust crate 2.0)
+261. tauri-plugin-updater (Rust crate 2.0)
+262. Tavily Search API
+263. Telegram Bot API
+264. tenacity (9.1.4)
+265. Testing Library React / DOM
+266. Textual (8.2.8)
+267. Together AI API
+268. tomli (2.4.1)
+269. tqdm (4.70.0)
+270. Transformers (Hugging Face 4.48.3)
+271. truststore (0.10.4)
+272. tw-animate-css (1.3.4)
+273. TypeScript (5.5.3 / 5.8.3)
+274. typescript-eslint (8.56.1)
+275. tzdata (2026.3)
+276. uc-micro-py (2.0.0)
+277. ureq (Rust crate 2.12)
+278. urllib3 (2.7.0)
+279. uv (Package Manager)
+280. uvicorn (0.52.1)
+281. uvloop (0.22.1)
+282. uuid (Rust crate 1.0)
+283. vaul (1.1.2)
+284. Vite (5.4.0 / 8.2.0)
+285. vite-tsconfig-paths (6.0.2)
+286. Vitest (2.1.9)
+287. watchfiles (1.2.0)
+288. WebSockets (16.1.1)
+289. WhatsApp Cloud API
+290. xAI / Grok API
+291. xlsx / SheetJS (0.18.5)
+292. yarl (1.24.5)
+293. Z AI (GLM) API
+295. Zod (3.24.2)
+================================================================================

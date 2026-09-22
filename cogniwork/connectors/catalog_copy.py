@@ -47,13 +47,6 @@ ABOUT: dict[str, str] = {
     "meetings and answer pipeline questions, and log notes as you work.",
     "google_drive": "Search, browse, and read files across your Drive. "
     "Multiple accounts connect side by side.",
-    "monday": "Work with your monday.com boards — read items, summarize and "
-    "aggregate board data, create items, and post updates. One-click sign-in "
-    "runs entirely on this computer against monday.com's own agent service; agents "
-    "get a small curated set of its tools, never the full catalog.",
-    "asana": "Keep up with your Asana work — search and read tasks and "
-    "projects, create tasks, and comment. Connects with a personal access "
-    "token from the Asana developer console.",
 }
 
 # What connecting actually grants, as short honest bullets. Write powers always
@@ -104,26 +97,6 @@ ACCESS: dict[str, list[str]] = {
         "Reads and searches issues your account can see.",
         "Creates, updates, and transitions issues; comments as you.",
     ],
-    "monday": [
-        "Reads boards, items, and updates your account can see.",
-        "Creates items, changes item values, and posts updates as you.",
-    ],
-    "asana": [
-        "Reads and searches tasks your account can see.",
-        "Creates tasks as you.",
-    ],
-    "confluence": [
-        "Reads and searches spaces and pages your account can see.",
-        "Creates pages as you.",
-    ],
-    "zendesk": [
-        "Reads and searches tickets your agent account can see.",
-        "Creates tickets as you.",
-    ],
-    "linear": [
-        "Reads and searches issues your account can see.",
-        "Creates issues as you.",
-    ],
     "gitlab": [
         "Reads issues and merge requests within your token's scope.",
         "Creates issues (needs the api scope; read_api stays read-only).",
@@ -132,18 +105,11 @@ ACCESS: dict[str, list[str]] = {
         "Reads channels the bot can see.",
         "Sends messages as the bot.",
     ],
-    "stripe": [
-        "Reads customers, charges, and invoices — read-only.",
-        "A restricted read-only key means write access isn't even possible.",
-    ],
     "hubspot": [
         "Reads contacts, companies, deals, and tickets.",
         "Read & write adds: log notes and tasks, update records, create "
         "contacts — never delete.",
         "Properties you hide are stripped before an agent ever sees a record.",
-    ],
-    "dropbox": [
-        "Reads file names and contents — read-only.",
     ],
     "box": [
         "Reads file names and contents — read-only.",
@@ -151,17 +117,6 @@ ACCESS: dict[str, list[str]] = {
     "whatsapp": [
         "Sends messages from your Cloud API number.",
         "Outbound only — it cannot read your chats.",
-    ],
-    "quickbooks": [
-        "Reads customers, invoices, and reports — read-only.",
-    ],
-    "docusign": [
-        "Reads envelopes and their signing status.",
-        "Sends documents for signature as you.",
-    ],
-    "clickup": [
-        "Reads and searches tasks and docs your account can see.",
-        "Creates and updates tasks, and comments, as you.",
     ],
     "google_drive": [
         "Reads and searches your files — read-only.",
@@ -174,10 +129,6 @@ ACCESS: dict[str, list[str]] = {
         "Reads design files and comments; exports assets.",
         "Comments as you — never edits a design.",
     ],
-    "close": [
-        "Reads leads, contacts, and opportunities.",
-        "Creates leads, updates opportunities, and logs notes as you.",
-    ],
     "notion": [
         "Reads only the pages and databases shared with the connection.",
         "Creates pages — never edits or deletes existing ones.",
@@ -186,21 +137,8 @@ ACCESS: dict[str, list[str]] = {
         "Reads objects, records, lists, and notes.",
         "Logs notes — records are never created or changed.",
     ],
-    "posthog": [
-        "Runs read-only queries on the connected project: events, funnels, "
-        "insights.",
-    ],
     "mixpanel": [
         "Runs read-only queries on the connected project.",
-    ],
-    "amplitude": [
-        "Runs read-only chart queries: active users, event totals.",
-    ],
-    "apollo": [
-        "Searches and enriches people and companies, using your Apollo " "credits.",
-    ],
-    "hunter": [
-        "Finds and verifies email addresses, using your Hunter quota.",
     ],
 }
 

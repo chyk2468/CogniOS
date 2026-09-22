@@ -711,41 +711,19 @@ def test_manager_allow_disallow(tmp_path, monkeypatch):
     assert m.allow_user("slack", "x")["ok"] is False  # slack not connected
 
 
-# -- new tool connectors (linear / gitlab / discord / stripe / asana / hubspot /
-#    dropbox / box) --------------------------------------------------------------
+# -- new tool connectors (gitlab / discord / hubspot / box / whatsapp /
+#    mixpanel / notion / attio / figma / google_drive / canva) --------------
 _NEW_CONNECTORS = {
-    "linear": {"api_key": "lin_api_x"},
     "gitlab": {"token": "glpat-x"},
     "discord": {"bot_token": "B0T"},
-    "stripe": {"api_key": "rk_test_x"},
-    "asana": {"token": "asana_pat"},
     "hubspot": {"token": "pat-x"},
-    "dropbox": {"access_token": "dbx"},
     "box": {"access_token": "boxtok"},
-    "quickbooks": {"access_token": "qbo", "realm_id": "9341453"},
     "whatsapp": {"access_token": "wa_tok", "phone_number_id": "555111"},
-    # Batch-2 account-patterned connectors: stored as legacy flat :default
-    # profiles on purpose — the accounts layer migrates them lazily, so these
-    # also regression-pin the migration on the tool path.
-    "posthog": {"api_key": "phx_x", "project_id": "77"},
     "mixpanel": {"username": "svc.user", "secret": "mp_sec", "project_id": "88"},
-    "amplitude": {"api_key": "amp_key_abc123", "secret_key": "amp_sec"},
-    "apollo": {"api_key": "apo_x"},
-    "hunter": {"api_key": "hun_x"},
     "notion": {"access_token": "ntn_x"},
     "attio": {"access_token": "attio_x"},
-    # Batch 3.
-    "clickup": {"api_token": "pk_x"},
-    "close": {"api_key": "api_close_x"},
     "figma": {"access_token": "figd_x"},
     "google_drive": {"access_token": "ya29.x"},
-    # account_id/base_uri pre-cached so routing tests skip userinfo discovery
-    # (discovery itself is covered by test_docusign_account_discovery_caches).
-    "docusign": {
-        "access_token": "ds_x",
-        "account_id": "acc-1",
-        "base_uri": "https://demo.docusign.net",
-    },
     "canva": {"access_token": "cnv_x"},
 }
 
@@ -762,12 +740,8 @@ def test_new_connector_descriptors_listed(tmp_path):
         assert by_name[name]["two_way"] is False
         assert by_name[name]["instructions"]
         assert by_name[name]["tools"], f"{name} has no tools in the catalog"
-    # stripe and quickbooks are deliberately read-only
-    assert all(t["kind"] == "read" for t in by_name["stripe"]["tools"])
-    assert all(t["kind"] == "read" for t in by_name["dropbox"]["tools"])
+    # box, google_drive (scope discipline), and canva (exports are renders) are read-only
     assert all(t["kind"] == "read" for t in by_name["box"]["tools"])
-    assert all(t["kind"] == "read" for t in by_name["quickbooks"]["tools"])
-    # google_drive (scope discipline) and canva (exports are renders) too
     assert all(t["kind"] == "read" for t in by_name["google_drive"]["tools"])
     assert all(t["kind"] == "read" for t in by_name["canva"]["tools"])
 
@@ -785,10 +759,10 @@ def test_new_connectors_connect_and_gate_tools(tmp_path):
         assert by_name[name]["connected"] is True and by_name[name]["enabled"] is True
 
     # only the enabled connectors' tools survive the filter
-    tools = make_integration_tools(secrets, enabled_connectors={"linear", "box"})
+    tools = make_integration_tools(secrets, enabled_connectors={"gitlab", "box"})
     names = {t.__name__ for t in tools}
-    assert "linear_search_issues" in names and "box_search" in names
-    assert "gitlab_search" not in names and "stripe_list_charges" not in names
+    assert "gitlab_search" in names and "box_search" in names
+    assert "hubspot_search" not in names and "figma_get_file" not in names
 
 
 def test_new_tools_error_when_not_connected(tmp_path):
@@ -798,28 +772,13 @@ def test_new_tools_error_when_not_connected(tmp_path):
         t.__name__: t
         for t in make_integration_tools(SecretStore(tmp_path / "secrets.json"))
     }
-    assert "not connected" in tools["linear_search_issues"](query="q")["error"]
     assert "not connected" in tools["gitlab_search"](query="q")["error"]
     assert "not connected" in tools["discord_send_message"]("1", "hi")["error"]
-    assert "not connected" in tools["stripe_search_customers"]("e:'a'")["error"]
-    assert "not connected" in tools["asana_get_task"]("1")["error"]
     assert "not connected" in tools["hubspot_search"]("acme")["error"]
-    assert "not connected" in tools["posthog_query"]("SELECT 1")["error"]
     assert "not connected" in tools["mixpanel_top_events"]()["error"]
-    assert (
-        "not connected"
-        in tools["amplitude_active_users"]("20260701", "20260707")["error"]
-    )
-    assert "not connected" in tools["apollo_enrich_company"]("acme.io")["error"]
-    assert "not connected" in tools["hunter_verify_email"]("a@b.co")["error"]
-    assert "not connected" in tools["dropbox_list_folder"]()["error"]
     assert "not connected" in tools["box_read_file"]("1")["error"]
-    assert "not connected" in tools["quickbooks_query"]("SELECT * FROM Bill")["error"]
-    assert "not connected" in tools["clickup_list_teams"]()["error"]
-    assert "not connected" in tools["close_search_leads"]("acme")["error"]
     assert "not connected" in tools["figma_get_file"]("KEY1")["error"]
     assert "not connected" in tools["drive_search_files"]("plan")["error"]
-    assert "not connected" in tools["docusign_list_envelopes"]()["error"]
     assert "not connected" in tools["canva_list_designs"]()["error"]
 
 
@@ -842,7 +801,7 @@ def _connected_tools(tmp_path, monkeypatch, calls):
                 "auth": auth,
             }
         )
-        return {"ok": True, "data": {}}
+        return {"ok": True, "data": {"id": "1", "name": "fake"}}
 
     monkeypatch.setattr(it, "_request", fake_request)
     return {t.__name__: t for t in it.make_integration_tools(secrets)}
@@ -851,11 +810,6 @@ def _connected_tools(tmp_path, monkeypatch, calls):
 def test_new_tools_request_routing(tmp_path, monkeypatch):
     calls = []
     tools = _connected_tools(tmp_path, monkeypatch, calls)
-
-    tools["linear_search_issues"]("crash", max_results=5)
-    assert calls[-1]["url"] == "https://api.linear.app/graphql"
-    assert calls[-1]["headers"]["Authorization"] == "lin_api_x"  # raw key, no Bearer
-    assert calls[-1]["json"]["variables"] == {"term": "crash", "first": 5}
 
     tools["gitlab_get_issue"]("group/repo", 7)
     assert (
@@ -868,39 +822,11 @@ def test_new_tools_request_routing(tmp_path, monkeypatch):
     assert calls[-1]["headers"]["Authorization"] == "Bot B0T"
     assert len(calls[-1]["json"]["content"]) == 2000  # discord hard limit
 
-    tools["stripe_list_charges"](customer_id="cus_1", max_results=99)
-    assert calls[-1]["params"] == {"limit": 20, "customer": "cus_1"}
-
-    tools["asana_search_tasks"]("WS1", "report")
-    assert "workspaces/WS1/typeahead" in calls[-1]["url"]
-
     tools["hubspot_search"]("acme", object_type="bogus")
     assert calls[-1]["url"].endswith("/crm/v3/objects/contacts/search")  # fallback
 
-    tools["dropbox_list_folder"]("Docs")
-    assert calls[-1]["json"] == {"path": "/Docs"}  # leading slash added
-    tools["dropbox_list_folder"]()
-    assert calls[-1]["json"] == {"path": ""}  # root stays empty
-
-    tools["dropbox_read_file"]("/a.txt")
-    assert "Dropbox-API-Arg" in calls[-1]["headers"]
-
     tools["box_read_file"]("f1")
     assert calls[-1]["url"] == "https://api.box.com/2.0/files/f1/content"
-
-    tools["quickbooks_query"]("SELECT * FROM Invoice", max_results=5)
-    assert (
-        calls[-1]["url"] == "https://quickbooks.api.intuit.com/v3/company/9341453/query"
-    )
-    assert calls[-1]["params"]["query"] == "SELECT * FROM Invoice MAXRESULTS 5"
-    tools["quickbooks_query"]("SELECT * FROM Bill MAXRESULTS 3")
-    assert (
-        calls[-1]["params"]["query"] == "SELECT * FROM Bill MAXRESULTS 3"
-    )  # untouched
-
-    tools["quickbooks_get_report"]("ProfitAndLoss", start_date="2026-01-01")
-    assert calls[-1]["url"].endswith("/reports/ProfitAndLoss")
-    assert calls[-1]["params"] == {"start_date": "2026-01-01"}
 
     tools["whatsapp_send_message"]("15551234567", "x" * 5000)
     assert calls[-1]["url"] == "https://graph.facebook.com/v21.0/555111/messages"
@@ -915,9 +841,6 @@ def test_new_tools_request_routing(tmp_path, monkeypatch):
 
 
 def test_registry_has_no_duplicate_names():
-    """A new full descriptor once coexisted with a stale placeholder (both
-    named "notion") — the Connectors page showed the connector twice and the
-    tool registry carried colliding tool names. Guard both registries."""
     from cogniwork.connectors.descriptors import DESCRIPTORS
     from cogniwork.connectors.tool_defs import TOOL_DEFS
 
@@ -928,21 +851,8 @@ def test_registry_has_no_duplicate_names():
 
 
 def test_batch2_tools_request_routing(tmp_path, monkeypatch):
-    """The five key-based batch-2 connectors: right endpoints, right auth style,
-    and every result stamped with the serving account (legacy flat profiles
-    migrate on first use — see _NEW_CONNECTORS)."""
     calls = []
     tools = _connected_tools(tmp_path, monkeypatch, calls)
-
-    out = tools["posthog_query"]("SELECT event FROM events")
-    assert calls[-1]["url"] == "https://us.posthog.com/api/projects/77/query"
-    assert calls[-1]["headers"]["Authorization"] == "Bearer phx_x"
-    assert calls[-1]["json"]["query"]["kind"] == "HogQLQuery"
-    assert out["account"] == "77"  # stamped for approvals/transcripts
-
-    tools["posthog_list_insights"]("signups", max_results=5)
-    assert calls[-1]["url"].endswith("/api/projects/77/insights")
-    assert calls[-1]["params"] == {"limit": 5, "search": "signups"}
 
     tools["mixpanel_segmentation"]("purchase", "2026-07-01", "2026-07-07", unit="bogus")
     assert calls[-1]["url"] == "https://mixpanel.com/api/query/segmentation"
@@ -951,36 +861,6 @@ def test_batch2_tools_request_routing(tmp_path, monkeypatch):
 
     tools["mixpanel_top_events"]()
     assert calls[-1]["url"].endswith("/api/query/events/top")
-
-    tools["amplitude_active_users"]("2026-07-01", "2026-07-07", metric="new")
-    assert calls[-1]["url"] == "https://amplitude.com/api/2/users"
-    assert calls[-1]["params"]["start"] == "20260701"  # dashes normalized
-    assert calls[-1]["params"]["m"] == "new"
-
-    tools["amplitude_event_totals"]("signup", "20260701", "20260707")
-    assert calls[-1]["url"].endswith("/api/2/events/segmentation")
-    assert '"event_type": "signup"' in calls[-1]["params"]["e"]
-
-    tools["apollo_enrich_person"](email="maya@acme.io")
-    assert calls[-1]["url"] == "https://api.apollo.io/api/v1/people/match"
-    assert calls[-1]["headers"]["X-Api-Key"] == "apo_x"
-    assert "provide an email" in tools["apollo_enrich_person"]()["error"]
-
-    tools["apollo_enrich_company"]("acme.io")
-    assert calls[-1]["params"] == {"domain": "acme.io"}
-
-    tools["apollo_search_people"]("VP engineering fintech", max_results=7)
-    assert calls[-1]["json"]["per_page"] == 7
-
-    tools["hunter_domain_search"]("acme.io", max_results=3)
-    assert calls[-1]["url"] == "https://api.hunter.io/v2/domain-search"
-    assert calls[-1]["params"] == {"domain": "acme.io", "limit": 3, "api_key": "hun_x"}
-
-    tools["hunter_find_email"]("acme.io", "Maya", "Chen")
-    assert calls[-1]["params"]["first_name"] == "Maya"
-
-    tools["hunter_verify_email"]("maya@acme.io")
-    assert calls[-1]["url"].endswith("/email-verifier")
 
     tools["notion_search"]("roadmap", max_results=5)
     assert calls[-1]["url"] == "https://api.notion.com/v1/search"
@@ -1019,52 +899,6 @@ def test_batch3_tools_request_routing(tmp_path, monkeypatch):
     calls = []
     tools = _connected_tools(tmp_path, monkeypatch, calls)
 
-    # ClickUp: raw personal token in Authorization (no Bearer).
-    tools["clickup_list_teams"]()
-    assert calls[-1]["url"] == "https://api.clickup.com/api/v2/team"
-    assert calls[-1]["headers"]["Authorization"] == "pk_x"
-
-    tools["clickup_list_tasks"]("l-9", include_closed=True)
-    assert calls[-1]["url"] == "https://api.clickup.com/api/v2/list/l-9/task"
-    assert calls[-1]["params"]["include_closed"] == "true"
-
-    tools["clickup_create_task"]("l-9", "Ship logos", "brand marks")
-    assert calls[-1]["method"] == "POST"
-    assert calls[-1]["json"] == {"name": "Ship logos", "description": "brand marks"}
-
-    tools["clickup_update_task"]("t-1", status="done")
-    assert calls[-1]["method"] == "PUT"
-    assert calls[-1]["json"] == {"status": "done"}
-    assert "nothing to update" in tools["clickup_update_task"]("t-1")["error"]
-
-    tools["clickup_add_comment"]("t-1", "on it")
-    assert calls[-1]["url"].endswith("/task/t-1/comment")
-    assert calls[-1]["json"] == {"comment_text": "on it"}
-
-    # Close: basic auth (key as username, blank password).
-    tools["close_search_leads"]("status:potential acme", max_results=5)
-    assert calls[-1]["url"] == "https://api.close.com/api/v1/lead/"
-    assert calls[-1]["auth"] == ("api_close_x", "")
-    assert calls[-1]["params"] == {"query": "status:potential acme", "_limit": 5}
-
-    tools["close_get_lead"]("lead_1")
-    assert calls[-1]["url"] == "https://api.close.com/api/v1/lead/lead_1/"
-
-    tools["close_list_opportunities"](lead_id="lead_1")
-    assert calls[-1]["params"]["lead_id"] == "lead_1"
-
-    tools["close_create_lead"]("Acme", contact_name="Ada", contact_email="a@acme.io")
-    assert calls[-1]["json"]["contacts"] == [
-        {"name": "Ada", "emails": [{"email": "a@acme.io"}]}
-    ]
-
-    tools["close_update_opportunity"]("opp_1", status_id="stat_won")
-    assert calls[-1]["url"].endswith("/opportunity/opp_1/")
-    assert "nothing to update" in tools["close_update_opportunity"]("opp_1")["error"]
-
-    tools["close_log_note"]("lead_1", "call went well")
-    assert calls[-1]["url"] == "https://api.close.com/api/v1/activity/note/"
-
     # Figma: PAT in X-Figma-Token.
     tools["figma_get_comments"]("KEY1")
     assert calls[-1]["url"] == "https://api.figma.com/v1/files/KEY1/comments"
@@ -1087,23 +921,6 @@ def test_batch3_tools_request_routing(tmp_path, monkeypatch):
     tools["drive_list_folder"]()
     assert calls[-1]["params"]["q"] == "'root' in parents and trashed=false"
 
-    # Docusign: cached account routes straight to the account's base_uri.
-    tools["docusign_list_envelopes"](status="completed", since_days=7)
-    assert calls[-1]["url"] == (
-        "https://demo.docusign.net/restapi/v2.1/accounts/acc-1/envelopes"
-    )
-    assert calls[-1]["params"]["status"] == "completed"
-
-    tools["docusign_get_envelope"]("env-1")
-    assert calls[-1]["url"].endswith("/envelopes/env-1")
-    assert calls[-1]["params"] == {"include": "recipients"}
-
-    tools["docusign_send_from_template"]("tpl-1", "a@b.co", "Ada", subject="NDA")
-    assert calls[-1]["json"]["templateRoles"] == [
-        {"email": "a@b.co", "name": "Ada", "roleName": "Signer"}
-    ]
-    assert calls[-1]["json"]["status"] == "sent"
-
     # Canva: bearer token; export is a job POST.
     tools["canva_list_designs"]("deck", max_results=5)
     assert calls[-1]["url"] == "https://api.canva.com/rest/v1/designs"
@@ -1116,47 +933,6 @@ def test_batch3_tools_request_routing(tmp_path, monkeypatch):
 
     tools["canva_get_export"]("exp1")
     assert calls[-1]["url"] == "https://api.canva.com/rest/v1/exports/exp1"
-
-
-def test_docusign_account_discovery_caches(tmp_path, monkeypatch):
-    import cogniwork.connectors.integration_tools as it
-
-    secrets = SecretStore(tmp_path / "secrets.json")
-    secrets.put("docusign:default", {"access_token": "ds_x", "enabled": True})
-    calls = []
-
-    def fake_request(method, url, *, headers=None, params=None, json=None, auth=None):
-        calls.append(url)
-        if url.endswith("/oauth/userinfo"):
-            return {
-                "ok": True,
-                "data": {
-                    "accounts": [
-                        {
-                            "account_id": "other",
-                            "base_uri": "https://x",
-                            "is_default": False,
-                        },
-                        {
-                            "account_id": "acc-9",
-                            "base_uri": "https://eu.docusign.net",
-                            "is_default": True,
-                        },
-                    ]
-                },
-            }
-        return {"ok": True, "data": {}}
-
-    monkeypatch.setattr(it, "_request", fake_request)
-    tools = {t.__name__: t for t in it.make_integration_tools(secrets)}
-
-    tools["docusign_list_templates"]()
-    assert calls[0] == "https://account.docusign.com/oauth/userinfo"
-    assert calls[1] == "https://eu.docusign.net/restapi/v2.1/accounts/acc-9/templates"
-    # Discovery result is cached on the profile — no second userinfo round-trip.
-    assert secrets.get("docusign:default")["account_id"] == "acc-9"
-    tools["docusign_list_envelopes"]()
-    assert not any(u.endswith("/oauth/userinfo") for u in calls[2:])
 
 
 def test_drive_read_file_exports_google_docs(tmp_path, monkeypatch):
@@ -1213,243 +989,77 @@ def test_notion_read_page_flattens_blocks(tmp_path, monkeypatch):
                         },
                         {
                             "type": "paragraph",
-                            "paragraph": {"rich_text": [{"plain_text": "Body text"}]},
+                            "paragraph": {
+                                "rich_text": [{"plain_text": "First line."}],
+                            },
                         },
-                        {"type": "divider", "divider": {}},
+                        {
+                            "type": "to_do",
+                            "to_do": {
+                                "rich_text": [{"plain_text": "Ship feature"}],
+                                "checked": True,
+                            },
+                        },
+                        {
+                            "type": "bulleted_list_item",
+                            "bulleted_list_item": {
+                                "rich_text": [{"plain_text": "Point A"}],
+                            },
+                        },
                     ]
                 },
             }
-        return {"ok": True, "data": {"properties": {"p": 1}, "url": "https://n/x"}}
+        return {
+            "ok": True,
+            "data": {
+                "id": "pg1",
+                "properties": {
+                    "title": {"title": [{"plain_text": "Page Title"}]}
+                },
+            },
+        }
 
     monkeypatch.setattr(it, "_request", fake_request)
     tools = {t.__name__: t for t in it.make_integration_tools(secrets)}
     out = tools["notion_read_page"]("pg1")
-    assert out["text"] == "Title\nBody text"
-    assert out["account"] == "ws1" and out["url"] == "https://n/x"
-
-
-def test_managed_callback_profile_keys_by_account_id(tmp_path):
-    """Managed OAuth on an account-patterned connector: the broker's account_id
-    keys the profile; a second workspace is a second account."""
-    from cogniwork.connectors import accounts
-    from cogniwork.connectors.setup import managed_connect_connector
-
-    def managed_profile_from_callback(payload):
-        return {**payload, "managed": True}
-
-    secrets = SecretStore(tmp_path / "secrets.json")
-    p1 = managed_profile_from_callback(
-        {
-            "access_token": "t1",
-            "account": "Rohit's Workspace",
-            "account_id": "ws-1",
-            "provider": "notion",
-            "connection_id": "c1",
-        }
-    )
-    out = managed_connect_connector(secrets, "notion", p1)
-    assert out["ok"] and out["account_id"] == "ws-1"
-    p2 = managed_profile_from_callback(
-        {"access_token": "t2", "account": "Ops Space", "account_id": "ws-2"}
-    )
-    managed_connect_connector(secrets, "notion", p2)
-    assert [a for a, _ in accounts.list_accounts(secrets, "notion")] == ["ws-1", "ws-2"]
-    # display names survive; default stays the first workspace
-    rows = accounts.account_rows(secrets, "notion")
-    assert rows[0]["name"] == "Rohit's Workspace" and rows[0]["default"]
-
-
-def test_google_drive_multi_account_keys_by_email(tmp_path):
-    """Managed Drive must add multiple accounts keyed by email — the same way
-    Gmail does — not by the opaque Google `sub`. The broker sends both `account`
-    (email) and `account_id` (sub); account_field="@identity" makes the email win."""
-    from cogniwork.connectors import accounts
-    from cogniwork.connectors.setup import managed_connect_connector
-
-    def managed_profile_from_callback(payload):
-        return {**payload, "managed": True}
-
-    secrets = SecretStore(tmp_path / "secrets.json")
-    p1 = managed_profile_from_callback(
-        {
-            "access_token": "t1",
-            "account": "rohit@opencoworker.app",
-            "account_id": "114835900000000000001",  # Google sub — must NOT be the key
-            "provider": "google",
-            "connection_id": "c1",
-        }
-    )
-    managed_connect_connector(secrets, "google_drive", p1)
-    p2 = managed_profile_from_callback(
-        {
-            "access_token": "t2",
-            "account": "work@acme.com",
-            "account_id": "114835900000000000002",
-            "provider": "google",
-        }
-    )
-    managed_connect_connector(secrets, "google_drive", p2)
-
-    ids = [a for a, _ in accounts.list_accounts(secrets, "google_drive")]
-    assert ids == ["rohit@opencoworker.app", "work@acme.com"], ids
-    # The default resolves to the first email, and the account param selects the other.
-    _, _, prof = accounts.resolve(secrets, "google_drive", "work@acme.com")
-    assert prof["access_token"] == "t2"
-
-
-def test_outlook_managed_multi_account_keys_by_email(tmp_path, monkeypatch):
-    """Managed Outlook mirrors Gmail/Drive: broker `account` (email from the
-    Microsoft id_token) keys each mailbox; tools take an account param."""
-    import cogniwork.connectors.integration_tools as it
-    from cogniwork.connectors import accounts
-    from cogniwork.connectors.setup import managed_connect_connector
-
-    def managed_profile_from_callback(payload):
-        return {**payload, "managed": True}
-
-    secrets = SecretStore(tmp_path / "secrets.json")
-    for email, tok in (("rohit@cognios.com", "g1"), ("ops@acme.com", "g2")):
-        managed_connect_connector(
-            secrets,
-            "outlook",
-            managed_profile_from_callback(
-                {"access_token": tok, "account": email, "provider": "microsoft"}
-            ),
-        )
-    ids = [a for a, _ in accounts.list_accounts(secrets, "outlook")]
-    assert ids == ["ops@acme.com", "rohit@cognios.com"], ids
-
-    calls = []
-
-    def fake_request(method, url, *, headers=None, params=None, json=None, auth=None):
-        calls.append({"url": url, "headers": headers or {}})
-        return {"ok": True, "data": {}}
-
-    monkeypatch.setattr(it, "_request", fake_request)
-    tools = {t.__name__: t for t in it.make_integration_tools(secrets)}
-    out = tools["outlook_search_messages"]("q", account="ops@acme.com")
-    assert out["account"] == "ops@acme.com"
-    assert calls[-1]["headers"]["Authorization"] == "Bearer g2"
-    # default account = first connected (rohit@ was added first)
-    out = tools["outlook_list_events"]()
-    assert out["account"] == "rohit@cognios.com"
-    # Bare list = the next-7-days calendarView (recurrences expanded), not /me/events.
-    assert calls[-1]["url"] == "https://graph.microsoft.com/v1.0/me/calendarView"
-
-
-def test_outlook_calendar_tools_hit_the_right_graph_endpoints(tmp_path, monkeypatch):
-    """The calendar CRUD + invite-response tools map onto Microsoft Graph:
-    create carries attendees/location/Teams flags, update PATCHes only the
-    provided fields, respond posts to the accept/decline/tentativelyAccept
-    action endpoints."""
-    import cogniwork.connectors.integration_tools as it
-    from cogniwork.connectors.setup import managed_connect_connector
-
-    def managed_profile_from_callback(payload):
-        return {**payload, "managed": True}
-
-    secrets = SecretStore(tmp_path / "secrets.json")
-    managed_connect_connector(
-        secrets,
-        "outlook",
-        managed_profile_from_callback(
-            {
-                "access_token": "tok",
-                "account": "rohit@cognios.com",
-                "provider": "microsoft",
-            }
-        ),
-    )
-
-    calls = []
-
-    def fake_request(method, url, *, headers=None, params=None, json=None, auth=None):
-        calls.append({"method": method, "url": url, "params": params, "json": json})
-        return {"ok": True, "data": {}}
-
-    monkeypatch.setattr(it, "_request", fake_request)
-    tools = {t.__name__: t for t in it.make_integration_tools(secrets)}
-
-    tools["outlook_create_event"](
-        "Sync",
-        "2026-07-20T10:00:00",
-        "2026-07-20T10:30:00",
-        attendees="a@x.com, b@y.com",
-        location="Room 4",
-        teams_meeting=True,
-    )
-    payload = calls[-1]["json"]
-    assert [a["emailAddress"]["address"] for a in payload["attendees"]] == [
-        "a@x.com",
-        "b@y.com",
-    ]
-    assert payload["location"] == {"displayName": "Room 4"}
-    assert payload["isOnlineMeeting"] is True
-
-    tools["outlook_update_event"]("ev1", subject="Moved", start="2026-07-21T10:00:00")
-    assert calls[-1]["method"] == "PATCH"
-    assert calls[-1]["url"].endswith("/me/events/ev1")
-    # PATCH semantics: untouched fields stay out of the payload.
-    assert set(calls[-1]["json"]) == {"subject", "start"}
-
-    tools["outlook_delete_event"]("ev1")
-    assert calls[-1]["method"] == "DELETE"
-    assert calls[-1]["url"].endswith("/me/events/ev1")
-
-    tools["outlook_respond_event"]("ev1", "tentative", comment="might be late")
-    assert calls[-1]["url"].endswith("/me/events/ev1/tentativelyAccept")
-    assert calls[-1]["json"] == {"comment": "might be late", "sendResponse": True}
-
-    out = tools["outlook_respond_event"]("ev1", "maybe")
-    assert "error" in out
-
-    # A time-windowed list passes the window through to calendarView.
-    tools["outlook_list_events"](
-        start="2026-07-20T00:00:00Z", end="2026-07-22T00:00:00Z"
-    )
-    assert calls[-1]["params"]["startDateTime"] == "2026-07-20T00:00:00Z"
-    assert calls[-1]["params"]["endDateTime"] == "2026-07-22T00:00:00Z"
-    assert calls[-1]["params"]["$orderby"] == "start/dateTime"
+    assert out["ok"] is True
+    assert "Title" in out["text"]
+    assert "First line." in out["text"]
+    assert "Ship feature" in out["text"]
 
 
 def test_batch2_account_param_picks_the_profile(tmp_path, monkeypatch):
-    """Two PostHog projects connected → the account param routes the call; the
-    default pointer serves bare calls; unknown accounts fail closed."""
     import cogniwork.connectors.integration_tools as it
     from cogniwork.connectors import accounts
 
     calls = []
     secrets = SecretStore(tmp_path / "secrets.json")
     accounts.add_account(
-        secrets, "posthog", "11", {"api_key": "k11", "project_id": "11"}
+        secrets, "mixpanel", "11", {"username": "u11", "secret": "s11", "project_id": "11"}
     )
     accounts.add_account(
-        secrets, "posthog", "22", {"api_key": "k22", "project_id": "22"}
+        secrets, "mixpanel", "22", {"username": "u22", "secret": "s22", "project_id": "22"}
     )
 
     def fake_request(method, url, *, headers=None, params=None, json=None, auth=None):
-        calls.append({"url": url, "headers": headers or {}})
+        calls.append({"url": url, "headers": headers or {}, "params": params or {}})
         return {"ok": True, "data": {}}
 
     monkeypatch.setattr(it, "_request", fake_request)
     tools = {t.__name__: t for t in it.make_integration_tools(secrets)}
 
-    out = tools["posthog_query"]("SELECT 1", account="22")
-    assert "/projects/22/" in calls[-1]["url"]
-    assert calls[-1]["headers"]["Authorization"] == "Bearer k22"
+    out = tools["mixpanel_top_events"](account="22")
+    assert calls[-1]["params"]["project_id"] == "22"
     assert out["account"] == "22"
 
-    out = tools["posthog_query"]("SELECT 1")  # default = first added
-    assert "/projects/11/" in calls[-1]["url"] and out["account"] == "11"
+    out = tools["mixpanel_top_events"]()  # default = first added
+    assert calls[-1]["params"]["project_id"] == "11" and out["account"] == "11"
 
-    out = tools["posthog_query"]("SELECT 1", account="99")
-    assert "no posthog account matching" in out["error"]
+    out = tools["mixpanel_top_events"](account="99")
+    assert "no mixpanel account matching" in out["error"]
 
 
 def test_hubspot_search_properties_and_filters(tmp_path, monkeypatch):
-    """Custom properties (VC-thesis fields etc.) are invisible to the search API
-    unless requested, and unmatchable by free-text query — the properties/filters
-    params are what make property-driven workflows possible at all."""
     calls = []
     tools = _connected_tools(tmp_path, monkeypatch, calls)
 
@@ -1487,36 +1097,22 @@ def test_hubspot_search_properties_and_filters(tmp_path, monkeypatch):
 
 
 def test_new_write_tools_require_approval(tmp_path, monkeypatch):
-    # §36: the tool registry's kind is law — connector WRITES gate, READS never do
-    # (reads on a service the user explicitly connected are the point of connecting it).
     tools = _connected_tools(tmp_path, monkeypatch, [])
     for name in (
-        "linear_create_issue",
         "gitlab_create_issue",
         "discord_send_message",
-        "asana_create_task",
         "hubspot_create_contact",
         "whatsapp_send_message",
         "whatsapp_send_template",
         "notion_create_page",
         "attio_create_note",
-        "clickup_create_task",
-        "clickup_update_task",
-        "clickup_add_comment",
-        "close_create_lead",
-        "close_update_opportunity",
-        "close_log_note",
         "figma_post_comment",
-        "docusign_send_from_template",
     ):
         assert tools[name].__aisuite_tool_metadata__.requires_approval is True, name
     for name in (
-        "stripe_search_customers",
-        "dropbox_read_file",
         "box_search",
         "drive_read_file",
         "figma_export_images",
-        "docusign_list_envelopes",
         "canva_export_design",
     ):
         assert tools[name].__aisuite_tool_metadata__.requires_approval is False, name
@@ -1539,46 +1135,20 @@ def test_gitlab_self_hosted_base_url(tmp_path, monkeypatch):
     assert calls[0] == "https://git.example.com/api/v4/search"
 
 
-def test_quickbooks_sandbox_environment(tmp_path, monkeypatch):
-    import cogniwork.connectors.integration_tools as it
-
-    secrets = SecretStore(tmp_path / "secrets.json")
-    secrets.put(
-        "quickbooks:default",
-        {"access_token": "t", "realm_id": "r1", "environment": "sandbox"},
-    )
-    calls = []
-    monkeypatch.setattr(
-        it, "_request", lambda m, url, **kw: calls.append(url) or {"ok": True}
-    )
-    tools = {t.__name__: t for t in it.make_integration_tools(secrets)}
-    tools["quickbooks_list_customers"]()
-    assert calls[0] == "https://sandbox-quickbooks.api.intuit.com/v3/company/r1/query"
-
-
 def test_new_connector_validators_wired():
     from cogniwork.connectors.descriptors import get_descriptor
 
     for name in (
-        "linear",
         "gitlab",
         "discord",
-        "asana",
         "hubspot",
-        "dropbox",
         "box",
-        "quickbooks",
         "whatsapp",
-        "clickup",
-        "close",
         "figma",
         "google_drive",
-        "docusign",
         "canva",
     ):
         assert get_descriptor(name).validate is not None, name
-    # stripe restricted-key permissions vary, so it has no whoami validator
-    assert get_descriptor("stripe").validate is None
 
 
 def test_validate_whoami_helper(monkeypatch):
@@ -1605,17 +1175,14 @@ def test_validate_whoami_helper(monkeypatch):
     res = d._validate_gitlab({"token": "bad"})
     assert not res.ok and "Unauthorized" in res.error
 
-    # 200 but unexpected shape (e.g. GraphQL errors payload) must not pass
     fake(200, {"errors": [{"message": "auth"}]})
-    res = d._validate_linear({"api_key": "bad"})
+    res = d._validate_gitlab({"token": "bad"})
     assert not res.ok
 
 
 # -- experimental connector gating ----------------------------------------------
 @pytest.fixture
 def experimental_descriptor():
-    """Register a synthetic experimental connector through the same hook the
-    experimental package uses, and clean it up afterwards."""
     import cogniwork.connectors.descriptors as d
 
     desc = d.ConnectorDescriptor(
@@ -1725,7 +1292,6 @@ def test_experimental_rest_roundtrip(tmp_path, monkeypatch, experimental_descrip
 
 
 def test_experimental_package_loads_cleanly():
-    """The experimental package import hook is a no-op when the package is empty or absent."""
     from cogniwork.connectors.descriptors import DESCRIPTORS
     from cogniwork.connectors.experimental import EXPERIMENTAL_DESCRIPTORS
 

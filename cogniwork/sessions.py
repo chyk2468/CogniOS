@@ -37,3 +37,13 @@ class SessionRecord:
     # Auto-compaction state (OPE-27): CompactionState.as_dict(), {} when never compacted.
     # Persisted so a reloaded session keeps its compacted outbound view.
     compaction: dict[str, Any] = field(default_factory=dict)
+    # Channel/namespace source ("web" | "telegram") and Telegram channel metadata
+    source: str = "web"
+    status: str = "active"  # "active", "completed", "stopped", "closed"
+    created_at: str | None = None
+    last_activity_at: str | None = None
+    telegram_chat_id: str | None = None
+    telegram_username: str | None = None
+    telegram_display_name: str | None = None
+    last_message: str | None = None
+    unread_count: int = 0

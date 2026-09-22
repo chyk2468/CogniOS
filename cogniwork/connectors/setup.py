@@ -234,16 +234,22 @@ def _gmail_account_list(secrets: SecretStore) -> list[dict[str, Any]]:
     out = []
     for email, profile in gmail_accounts.list_accounts(secrets):
         expires = float(profile.get("expires") or 0)
+        has_refresh = bool(profile.get("refresh_token_encrypted") or profile.get("refresh_token"))
+        status = str(profile.get("status") or "connected")
+        needs_reauth = bool(
+            profile.get("needs_reauth")
+            or status == "reauth_required"
+            or (expires and expires < time() and not has_refresh)
+        )
         out.append(
             {
                 "email": email,
                 "default": email == default,
                 "managed": bool(profile.get("managed")),
                 "scopes": profile.get("scope") or "",
-                # Expired with no way to renew silently → the GUI offers Reauthorize.
-                "needs_reauth": bool(
-                    expires and expires < time() and not profile.get("refresh_token")
-                ),
+                "status": "reauth_required" if needs_reauth else status,
+                "needs_reauth": needs_reauth,
+                "error_message": profile.get("error_message") or "",
             }
         )
     return out

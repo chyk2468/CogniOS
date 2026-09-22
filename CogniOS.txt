@@ -191,7 +191,7 @@ wire up any combination of 18+ LLM backends:
 |   | - Interactive Tools: propose_plan, ask_user, request_directory                           |   |
 |   | - Automations: sleep_for, sleep_until, wake_on                                           |   |
 |   | - Model Context Protocol (MCP): Dynamic STDIO & HTTP tool discovery                      |   |
-|   | - 34 Connectors: Slack, GitHub, Jira, Notion, Linear, HubSpot, Telegram, etc.            |   |
+|   | - 20 Connectors: Slack, GitHub, Jira, Notion, HubSpot, Telegram, etc.            |   |
 |   +------------------------------------------------------------------------------------------+   |
 +--------------------------------------------------------------------------------------------------+
                                                 |
@@ -681,19 +681,18 @@ CogniOS includes full native support for Anthropic's Model Context Protocol:
 - Local OAuth Bridge: Features a local OAuth callback listener (`/mcp/oauth/callback`) to handle
   authenticated MCP server connections seamlessly.
 
-9.5 34 SHIPPABLE EXTERNAL CONNECTORS (`cogniwork/connectors/descriptors.py`)
-CogniOS ships with 34 built-in connector descriptors providing seamless integration across modern
+9.5 20 SHIPPABLE EXTERNAL CONNECTORS (`cogniwork/connectors/descriptors.py`)
+CogniOS ships with 20 built-in connector descriptors providing seamless integration across modern
 productivity and developer tools:
 
 1. Communication & Collaboration: Slack, Telegram, Discord, WhatsApp, Email (SMTP/IMAP).
-2. Code & DevOps: GitHub, GitLab, Jira, Linear.
-3. Documentation & Productivity: Notion, Confluence, Asana, Monday.com, ClickUp, Todoist.
-4. Cloud Storage: Google Drive, Dropbox, Box, OneDrive.
+2. Code & DevOps: GitHub, GitLab, Jira.
+3. Documentation & Productivity: Notion.
+4. Cloud Storage: Google Drive, Box.
 5. Workspace & Calendar: Google Calendar, Outlook Calendar, Gmail, Outlook Mail.
-6. CRM & Sales: HubSpot, Salesforce, Close, Attio, Apollo, Hunter.
+6. CRM & Sales: HubSpot, Salesforce, Attio.
 7. Design & Media: Figma, Canva.
-8. Product & Analytics: PostHog, Mixpanel, Amplitude, Segment.
-9. Finance & Legal: Stripe, QuickBooks, DocuSign.
+8. Product & Analytics: Mixpanel.
 
 
 ====================================================================================================
