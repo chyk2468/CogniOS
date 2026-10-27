@@ -83,6 +83,8 @@ A clean dual-process architecture: FastAPI ASGI engine on port `8765`, Vite Reac
 
 ---
 
+![CogniOS workflow](docs/readme-architecture.svg)
+
 ## 🏗️ Architecture
 
 ```
